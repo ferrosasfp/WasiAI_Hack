@@ -1,0 +1,30 @@
+# MarketplaceAI specific
+.env.local
+.env.production.local
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# IPFS cache
+.ipfs-cache/
+
+# Build
+.next/
+out/
+build/
+dist/
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.pem
+*.key
+.vercel

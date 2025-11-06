@@ -1,0 +1,420 @@
+{
+  "header": {
+    "brand": "MarketplaceAI",
+    "nav": {
+      "explore": "Explore models",
+      "publish": "Publish model",
+      "licenses": "My licenses"
+    },
+    "network": {
+      "label": "Network"
+    }
+  },
+  "wallet": {
+    "connect": "Connect Wallet",
+    "logout": "Log Out",
+    "copy": "Copy address",
+    "disconnectConfirmTitle": "Disconnect wallet",
+    "disconnectConfirmBody": "You are connected on Sui. Do you want to disconnect now?",
+    "cancel": "Cancel",
+    "disconnect": "Disconnect"
+  },
+  "landing": {
+    "badge": "AI Model Marketplace",
+    "title": "Publish, sell and scale your AI models",
+    "subtitle": "Monetize with perpetual licenses or subscriptions. Secure delivery with IPFS and encryption.",
+    "ctaExplore": "Explore models",
+    "ctaPublish": "Publish model",
+    "benefitsTitle": "Built for creators and teams",
+    "benefitsSubtitle": "Security, speed and control to scale your AI model business.",
+    "benefits": [
+      { "title": "Secure ownership", "desc": "Tokenized licenses with automated, verifiable enforcement." },
+      { "title": "Instant payments", "desc": "Settlements in seconds with low fees." },
+      { "title": "IPFS + encryption", "desc": "Protected delivery with IPFS and AES-GCM." },
+      { "title": "API or download", "desc": "Sell API access and/or perpetual downloads." }
+    ],
+    "howTitle": "How it works",
+    "step": "Step",
+    "steps": [
+      { "title": "Publish your model", "desc": "Upload image and artifact, set pricing and rights." },
+      { "title": "List on the marketplace", "desc": "Both prices (perpetual and subscription) in one listing." },
+      { "title": "Sell and scale", "desc": "One-click purchases and frictionless renewals." }
+    ],
+    "storiesTitle": "Real stories",
+    "testimonials": [
+      { "name": "Ana, AI creator", "quote": "In 10 minutes I published and sold my first model. The flow is spotless." },
+      { "name": "Luis, ML startup", "quote": "Subscriptions gave us recurring revenue from week one." },
+      { "name": "Caro, data scientist", "quote": "IPFS + encryption gave me confidence to share private models." }
+    ],
+    "ctaFinal": {
+      "title": "Start today",
+      "subtitle": "Publish your first model in minutes and enable global sales."
+    }
+  },
+  "wizard": {
+    "common": {
+      "back": "Back",
+      "next": "Next",
+      "saveDraft": "Save draft",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "errorSaving": "Error while saving",
+      "publish": "Publish",
+      "publishing": "Publishing..."
+    },
+    "index": {
+      "title": "Publishing wizard",
+      "subtitle": "Complete these steps to publish your model.",
+      "step1": "Step 1 · Basics",
+      "step2": "Step 2 · Customer sheet",
+      "step3": "Step 3 · Technical setup",
+      "step4": "Step 4 · Pricing & rights",
+      "step5": "Step 5 · Review & publish",
+      "back": "Back",
+      "next": "Next",
+      "publish": "Publish",
+      "publishing": "Publishing...",
+      "connectModal": {
+        "title": "Connect your wallet to continue",
+        "body": "To start the wizard we need to verify your account. This connection is secure and you can disconnect at any time.",
+        "close": "Close"
+      }
+    },
+    "step1": {
+      "title": "Step 1 · Model identity",
+      "subtitle": "Present your model: name, summary, cover and classification.",
+      "sections": {
+        "identity": { "title": "Identity", "help": "These fields make your model easy to understand and find." },
+        "cover": { "title": "Cover", "help": "Pick an image that represents your model." },
+        "classification": { "title": "Classification", "help": "Help discovery with relevant categories and tags." },
+        "authorship": { "title": "Authorship", "help": "Public author information for the model." }
+      },
+      "fields": {
+        "name": { "label": "Name", "placeholder": "Model name", "helper": "Use a clear and concise title." },
+        "summary": { "label": "Summary", "placeholder": "1–3 sentences explaining the purpose" },
+        "categories": { "label": "Categories", "placeholder": "Select one or more", "helper": "E.g.: nlp, vision" },
+        "tags": { "label": "Tags", "placeholder": "Select tags", "helper": "Technologies/formats (pytorch, onnx, etc.)" },
+        "author": { "label": "Author or owner" },
+        "socials": { "title": "Author links", "helper": "Optional. Add your links to show on the model page." }
+      },
+      "buttons": {
+        "chooseImage": "Choose image",
+        "uploadCover": "Upload cover",
+        "refresh": "Refresh preview",
+        "viewInIPFS": "View in IPFS",
+        "copyCid": "Copy CID",
+        "remove": "Remove"
+      },
+      "cover": {
+        "helper": "Select a cover (recommended 3:2 or 16:9). Formats: PNG, JPEG or WEBP. Max 5 MB.",
+        "meta": "Metadata",
+        "thumb": "thumb",
+        "placeholder": "Cover",
+        "uploading": "Uploading...",
+        "uploaded": "Cover uploaded",
+        "errorFormat": "Format not allowed (use PNG, JPEG or WEBP)",
+        "errorSize": "Image exceeds 5 MB",
+        "removed": "Cover removed",
+        "removedSlow": "Cover removed (unpin may take a while)"
+      },
+      "confirm": {
+        "removeCover": "Remove current cover? CIDs will be unpinned in your pinning service."
+      },
+      "errors": {
+        "required": "Required",
+        "categoriesRequired": "Choose at least one category",
+        "fixMarked": "Fix the marked fields"
+      }
+    },
+    "step2": {
+      "title": "Step 2 · Customer-facing sheet",
+      "subtitle": "Describe the value, use cases, inputs/outputs and expected outcomes. Technical configuration can be added later.",
+      "clientSheet": {
+        "title": "Customer sheet",
+        "help": "Information aimed at non-technical buyers"
+      },
+      "fields": {
+        "valueProp": "Value proposition (pitch)",
+        "description": "Customer description",
+        "industries": "Industries",
+        "useCases": "Use cases",
+        "expectedOutcomes": "Expected outcomes",
+        "inputs": "Inputs",
+        "outputs": "Outputs",
+        "limitations": "Limitations",
+        "privacy": "Privacy",
+        "support": "Support"
+      },
+      "placeholders": {
+        "valueProp": "What problem it solves and why it's better?",
+        "description": "Explain in simple terms how it helps",
+        "select": "Select",
+        "expectedOutcomes": "e.g., +10% retention",
+        "inputs": "e.g., PDFs, CSV, images",
+        "outputs": "e.g., scores, labels, summaries",
+        "limitations": "Known caveats",
+        "privacy": "PII handling, isolation, encryption",
+        "support": "SLA or contact"
+      },
+      "clearSheet": "Clear sheet",
+      "cleared": "Sheet cleared",
+      "presetApplied": "Preset applied",
+      "validationFillClientSheet": "Complete the customer sheet (title, description and at least one industry or use case)",
+      "examples": {
+        "input": "Input",
+        "output": "Output",
+        "note": "Note (optional)",
+        "add": "+ Add example",
+        "remove": "Remove"
+      },
+      "preview": {
+        "title": "Preview",
+        "help": "Public-facing preview of the model sheet",
+        "placeholderTitle": "Model value title",
+        "placeholderDesc": "Short customer-oriented description.",
+        "inputs": "Inputs",
+        "outputs": "Outputs",
+        "examples": "Examples"
+      },
+      "tech": {
+        "accordionTitle": "Technical configuration (optional)",
+        "titles": {
+          "capabilities": "Capabilities",
+          "architecture": "Architecture",
+          "runtime": "Runtime",
+          "dependencies": "Dependencies",
+          "resources": "Minimum resources",
+          "inference": "Inference options"
+        },
+        "helps": {
+          "capabilities": "Tasks and modalities covered by the model",
+          "architecture": "Model details and supported formats",
+          "runtime": "Required versions and accelerators",
+          "dependencies": "Required Python packages (comma or newline separated)",
+          "resources": "Baseline requirements for stable inference",
+          "inference": "Limits and execution parameters"
+        },
+        "labels": {
+          "tasks": "Tasks",
+          "modalities": "Modalities",
+          "frameworks": "Frameworks",
+          "architectures": "Architectures",
+          "precision": "Precision",
+          "quantization": "Quantization",
+          "modelParams": "Parameters (M)",
+          "fileFormats": "File formats",
+          "python": "Python",
+          "cuda": "CUDA",
+          "torch": "PyTorch",
+          "cudnn": "cuDNN",
+          "systems": "Systems",
+          "accelerators": "Accelerators",
+          "computeCapability": "Compute Capability / GPU note",
+          "vramGB": "VRAM (GB)",
+          "cpuCores": "CPU Cores",
+          "ramGB": "RAM (GB)",
+          "maxBatch": "Max batch size",
+          "contextLen": "Context length",
+          "maxTokens": "Max tokens",
+          "imagePx": "Image (px)",
+          "sampleRate": "Sample rate (Hz)",
+          "triton": "Triton"
+        },
+        "placeholders": {
+          "select": "Select",
+          "precision": "fp16, int8, etc.",
+          "imagePx": "1024x1024",
+          "cuda": "12.2",
+          "torch": "2.2",
+          "compute": "e.g., SM 8.0, ROCm 5.x, M-series",
+          "packages": "torch==2.2.2, transformers>=4.42, onnxruntime-gpu"
+        }
+      }
+    },
+    "step3": {
+      "title": "Step 3 · Package artifacts and test the demo",
+      "subtitle": "Upload your model files to IPFS (automatic CID and hash), add notes if needed and validate an input preset to run a hosted demo.",
+      "sections": {
+        "artifacts": { "title": "Artifacts (IPFS)", "help": "Upload your model files; we generate the CID automatically" },
+        "demo": { "title": "Demo (Hosted)", "help": "The demo runs on our infrastructure" }
+      },
+      "fields": {
+        "filename": "Filename",
+        "size": "Size",
+        "downloadNotes": "Download notes",
+        "presetJson": "Input preset (JSON)"
+      },
+      "actions": {
+        "replaceFile": "Replace file",
+        "selectFile": "Select file",
+        "typesMax": "Types: safetensors, bin, pt, onnx, gguf, json, zip, tar, gz, bz2, xz. Max: 200 MB.",
+        "fromCid": "Create row from a CID",
+        "pasteCidPrompt": "Paste existing CID (ipfs hash):",
+        "copyCid": "Copy CID",
+        "openGateway": "Open in gateway",
+        "copyHash": "Copy hash",
+        "addArtifact": "Add artifact",
+        "validating": "Validating...",
+        "tryDemo": "Run demo"
+      },
+      "status": {
+        "uploading": "Uploading...",
+        "ready": "Ready",
+        "error": "Error"
+      },
+      "errors": {
+        "tooLarge": "File too large. Max allowed: {max}",
+        "duplicateFile": "Duplicate file in the list",
+        "duplicateCID": "Duplicate CID",
+        "duplicateFilenameShort": "Repeated name in the list"
+      },
+      "demo": {
+        "ok": "Demo OK",
+        "error": "Error demo",
+        "errorValidate": "Error validating demo",
+        "response": "Demo response"
+      },
+      "file": "file"
+    },
+    "step4": {
+      "title": "Step 4 · Define licenses and terms",
+      "subtitle": "Set prices, usage rights and legal conditions. This data will be used when publishing the model.",
+      "sections": {
+        "prices": { "title": "Prices", "help": "Reference values. You may leave 0 if not applicable." },
+        "rights": { "title": "Rights and delivery", "help": "Select how the model can be used and delivered." },
+        "terms": { "title": "Terms", "help": "Write or paste your terms. Compute Hash generates a SHA‑256 fingerprint of this text to anchor the version and detect changes." },
+        "revenueSplit": "Revenue Split"
+      },
+      "alerts": {
+        "onePrice": "Define at least one price (> 0): Perpetual or Subscription."
+      },
+      "fields": {
+        "perpetual": "Perpetual (ref)",
+        "subscriptionPerMonth": "Subscription / month",
+        "baseDurationMonths": "Base duration (months)",
+        "transferable": "Transferable",
+        "deliveryMode": "Delivery mode",
+        "termsUrl": "Terms URL (optional)",
+        "termsText": "Terms text",
+        "termsHash": "Hash (SHA-256)"
+      },
+      "labels": {
+        "perpetual": "Perpetual",
+        "subscriptionPerMonth": "Subscription / month"
+      },
+      "legends": {
+        "rights": "Define what the customer can do: API-only, artifact download, or both.",
+        "delivery": "How it will be provided (hosted API or file download). Does not change legal rights.",
+        "rightsDelivery": "Choose API-only, artifact download, or both. Delivery selects how it’s provided (hosted API or file). Does not change legal rights."
+      },
+      "revenue": {
+        "marketplace": "Marketplace",
+        "creator": "Creator",
+        "seller": "Seller"
+      },
+      "delivery": {
+        "none": "None"
+      },
+      "actions": {
+        "computeHash": "Sign terms",
+        "signTerms": "Sign terms"
+      },
+      "helpers": {
+        "termsText": "Summarize key clauses (use, attribution, updates). You can paste or edit."
+      },
+      "termsEditor": {
+        "bold": "Bold",
+        "italic": "Italic",
+        "heading": "Heading",
+        "list": "Bulleted list",
+        "ordered": "Numbered list",
+        "checklist": "Checklist",
+        "link": "Link",
+        "quote": "Quote",
+        "code": "Inline code",
+        "clear": "Clear formatting",
+        "preview": "Preview",
+        "edit": "Edit"
+      },
+      "validation": {
+        "intNonNegative": "Must be an integer ≥ 0",
+        "durationRequired": "Required if there is a subscription",
+        "durationRange": "Select between 1 and 12 months",
+        "chooseRight": "You must choose at least one right: API and/or Download.",
+        "termsMustBeSigned": "Please sign the Terms before continuing."
+      }
+    },
+    "step5": {
+      "title": "Step 5 · Review and publish",
+      "subtitle": "Review the summary and publish to the selected networks. We build the metadata automatically from previous steps.",
+      "sections": {
+        "networks": "Publishing networks",
+        "summary": "Summary",
+        "modelInfo": "Model information",
+        "licenses": "Licenses and delivery",
+        "artifacts": "Artifacts (IPFS)",
+        "results": "Publish results"
+      },
+      "labels": {
+        "selectNetworks": "Select networks",
+        "cover": "Cover",
+        "name": "Name",
+        "slug": "Slug",
+        "author": "Author",
+        "perpetual": "Perpetual",
+        "subscriptionPerMonth": "Subscription/month",
+        "baseDurationDays": "Base duration (days)",
+        "rights": "Rights",
+        "deliveryMode": "Delivery mode",
+        "cid": "CID",
+        "uri": "URI",
+        "noArtifacts": "No artifacts.",
+        "error": "Error"
+      },
+      "buttons": {
+        "publish": "Publish",
+        "publishing": "Publishing..."
+      },
+      "issues": {
+        "artifacts": "You must have at least one artifact with CID.",
+        "rights": "Select at least one right: API and/or Download (Step 4).",
+        "onePrice": "Define at least one price (> 0) in licenses (Step 4).",
+        "subNeedsDuration": "If using subscription, define base duration (> 0)."
+      },
+      "messages": {
+        "publishDone": "Publishing finished",
+        "publishError": "Error while publishing"
+      }
+    },
+    "step0": {
+      "title": "Welcome to the publishing wizard",
+      "subtitle": "In a few minutes you will prepare your model to sell it globally in 5 simple steps.",
+      "pitch": {
+        "title": "Why complete the 5 steps?",
+        "body": "Finishing the wizard creates a professional, trustworthy and conversion‑ready listing. With clear value, technical details and pricing, buyers will feel confident to purchase and start using your model right away."
+      },
+      "blocks": {
+        "value": {
+          "title": "Value & clarity",
+          "desc": "Explain what your model solves and what makes it different.",
+          "items": ["Use cases", "Inputs/outputs", "Expected outcomes"]
+        },
+        "trust": {
+          "title": "Trust & compliance",
+          "desc": "Show formats, requirements and limitations clearly.",
+          "items": ["Architectures/formats", "Runtime & resources", "Privacy & limitations"]
+        },
+        "growth": {
+          "title": "Growth & monetization",
+          "desc": "Unlock API and/or download delivery with flexible pricing.",
+          "items": ["Perpetual or subscription", "API and/or download", "Automated delivery"]
+        }
+      },
+      "steps": {
+        "title": "What you'll complete",
+        "subtitle": "Overview of the 5 steps before you start"
+      },
+      "cta": "Start wizard"
+    }
+  }
+}

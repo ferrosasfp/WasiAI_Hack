@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MarketplaceAI Model Metadata",
+  "type": "object",
+  "required": ["name", "slug", "version", "author", "shortSummary", "descriptionMD", "licensePolicy", "delivery"],
+  "properties": {
+    "name": { "type": "string", "minLength": 3, "maxLength": 120 },
+    "slug": { "type": "string", "pattern": "^[a-z0-9-]{3,64}$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "family": { "type": "string" },
+    "lastUpdatedISO": { "type": "string" },
+    "author": {
+      "type": "object",
+      "required": ["address"],
+      "properties": {
+        "address": { "type": "string" },
+        "displayName": { "type": "string" },
+        "links": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "shortSummary": { "type": "string", "minLength": 40, "maxLength": 250 },
+    "descriptionMD": { "type": "string", "minLength": 40 },
+    "coverImageCID": { "type": "string" },
+    "gallery": { "type": "array", "items": { "type": "string" } },
+    "categories": { "type": "array", "items": { "type": "string" } },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "frameworks": { "type": "array", "items": { "type": "string" } },
+    "modalities": { "type": "array", "items": { "type": "string" } },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "python": { "type": "string" },
+        "cuda": { "type": "string" },
+        "os": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "vramGB": { "type": "number", "minimum": 0 },
+        "cpuCores": { "type": "number", "minimum": 0 },
+        "ramGB": { "type": "number", "minimum": 0 }
+      }
+    },
+    "inputSchema": { "type": "object" },
+    "outputSchema": { "type": "object" },
+    "examples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "input": {},
+          "outputPreview": {},
+          "notes": { "type": "string" }
+        },
+        "required": ["input"]
+      }
+    },
+    "benchmarks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "dataset": { "type": "string" },
+          "metric": { "type": "string" },
+          "value": { "type": "number" },
+          "method": { "type": "string" },
+          "date": { "type": "string" }
+        },
+        "required": ["name", "metric", "value"]
+      }
+    },
+    "latency": {
+      "type": "object",
+      "properties": {
+        "p50_ms": { "type": "number" },
+        "p95_ms": { "type": "number" },
+        "setup": { "type": "string" }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "cid": { "type": "string" },
+          "filename": { "type": "string" },
+          "sizeBytes": { "type": "integer", "minimum": 0 },
+          "sha256": { "type": "string" }
+        },
+        "required": ["cid", "filename"]
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "properties": {
+        "apiDemo": {
+          "type": "object",
+          "properties": {
+            "endpointDocUrl": { "type": "string" },
+            "exampleCurl": { "type": "string" }
+          }
+        },
+        "downloadNotes": { "type": "string" }
+      }
+    },
+    "licensePolicy": {
+      "type": "object",
+      "required": ["rights"],
+      "properties": {
+        "rights": { "type": "array", "items": { "enum": ["API", "Download"] } },
+        "subscription": {
+          "type": "object",
+          "properties": { "perMonthPriceRef": { "type": "string" } }
+        },
+        "perpetual": {
+          "type": "object",
+          "properties": { "priceRef": { "type": "string" } }
+        },
+        "defaultDurationDays": { "type": "integer", "minimum": 0 },
+        "transferable": { "type": "boolean" },
+        "termsUrl": { "type": "string" },
+        "termsHash": { "type": "string" }
+      }
+    },
+    "support": {
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "slaHours": { "type": "integer" },
+        "docsUrl": { "type": "string" }
+      }
+    },
+    "changelog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer" },
+          "dateISO": { "type": "string" },
+          "notesMD": { "type": "string" }
+        },
+        "required": ["version", "dateISO"]
+      }
+    }
+  }
+}
