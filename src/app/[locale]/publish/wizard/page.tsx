@@ -1,28 +1,30 @@
 "use client";
 
 import React from 'react'
+import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import { Box, Stack, Typography, Paper, Button, Grid, Chip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import {useLocale, useTranslations} from 'next-intl';
 import { useRouter } from 'next/navigation'
-import { UnifiedConnectButton } from '@/components/UnifiedConnectButton'
-import { useAccount as useEvmAccount } from 'wagmi'
-import { useWalletEcosystem } from '@/contexts/WalletEcosystemContext'
+import { useWalletAddress } from '@/hooks/useWalletAddress'
+const UnifiedConnectButton = dynamic<any>(
+  () => import('@/components/UnifiedConnectButton').then(m => m.UnifiedConnectButton),
+  { ssr: false }
+)
+// Removed wallet hooks from this page to keep bundle smaller; connection is handled inside UnifiedConnectButton
 
 export default function WizardIndexLocalized() {
   const t = useTranslations()
   const locale = useLocale()
   const base = `/${locale}/publish/wizard`
-  const heroSrc = (process.env.NEXT_PUBLIC_WIZARD_HERO_SRC || '').trim()
+  const heroSrc = React.useMemo(() => (process.env.NEXT_PUBLIC_WIZARD_HERO_SRC || '').trim(), [])
   const router = useRouter()
-  const { ecosystem } = useWalletEcosystem()
-  const { isConnected: evmConnected } = useEvmAccount()
-  const enableSui = (process.env.NEXT_PUBLIC_ENABLE_SUI || '').toLowerCase() === 'true'
-  const isConnected = evmConnected || false
   const [askConnect, setAskConnect] = React.useState(false)
+  const { walletAddress } = useWalletAddress()
 
   const onStart = () => {
-    if (isConnected) {
+    if (walletAddress) {
       router.push(`${base}/step1`)
     } else {
       setAskConnect(true)
@@ -31,11 +33,23 @@ export default function WizardIndexLocalized() {
 
   // Si el modal está abierto y el usuario conecta, sólo cerramos el modal.
   // La navegación a step1 ocurre únicamente al pulsar "Start".
+  // (handled inside UnifiedConnectButton)
   React.useEffect(() => {
-    if (askConnect && isConnected) {
-      setAskConnect(false)
+    if (askConnect && walletAddress) {
+      try { setAskConnect(false) } catch {}
+      try { router.push(`${base}/step1`) } catch {}
     }
-  }, [askConnect, isConnected])
+  }, [askConnect, walletAddress, router, base])
+
+  // Clear reset flag when landing mounts (after Step 5 reset redirect)
+  React.useEffect(() => {
+    try { localStorage.removeItem('wizard_resetting'); sessionStorage.removeItem('wizard_resetting') } catch {}
+  }, [])
+
+  // Prefetch del siguiente paso para navegar más rápido tras el CTA
+  React.useEffect(() => {
+    try { router.prefetch(`${base}/step1`) } catch {}
+  }, [router, base])
 
   return (
     <Box sx={{ p: { xs:2, md:4 }, maxWidth: 1100, mx: 'auto' }}>
@@ -60,8 +74,16 @@ export default function WizardIndexLocalized() {
         <Grid item xs={12} md={5}>
           <Paper variant="outlined" sx={{ p: 0, borderRadius: 2, overflow:'hidden' }}>
             {heroSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={heroSrc} alt="wizard hero" style={{ width:'100%', height: 'auto', display:'block' }} />
+              <Image
+                src={heroSrc}
+                alt="wizard hero"
+                width={1200}
+                height={800}
+                sizes="(max-width: 900px) 100vw, 440px"
+                style={{ width:'100%', height:'auto', display:'block' }}
+                loading="lazy"
+                priority={false}
+              />
             ) : (
               <Box sx={{ height: { xs: 200, md: 320 }, background: (t)=>`linear-gradient(135deg, ${t.palette.primary.light} 0%, ${t.palette.success.light} 100%)` }} />
             )}
@@ -106,7 +128,7 @@ export default function WizardIndexLocalized() {
             {t('wizard.index.connectModal.body')}
           </Typography>
           <Box sx={{ mt: 2, display:'flex', justifyContent:'center' }}>
-            <UnifiedConnectButton onBeforeOpen={()=> setAskConnect(false)} />
+            {askConnect && <UnifiedConnectButton onBeforeOpen={()=> setAskConnect(false)} />}
           </Box>
         </DialogContent>
         <DialogActions>

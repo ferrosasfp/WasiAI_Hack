@@ -32,4 +32,28 @@ module.exports = {
       chainId: 43113,
     },
   },
+  etherscan: {
+    apiKey: {
+      avalancheFuji: process.env.SNOWTRACE_API_KEY || '',
+      avalanche: process.env.SNOWTRACE_API_KEY || '',
+    },
+    customChains: [
+      {
+        network: 'avalancheFuji',
+        chainId: 43113,
+        urls: {
+          apiURL: 'https://api-testnet.snowtrace.io/api',
+          browserURL: 'https://testnet.snowtrace.io',
+        },
+      },
+      {
+        network: 'avalanche',
+        chainId: 43114,
+        urls: {
+          apiURL: 'https://api.snowtrace.io/api',
+          browserURL: 'https://snowtrace.io',
+        },
+      },
+    ],
+  },
 };

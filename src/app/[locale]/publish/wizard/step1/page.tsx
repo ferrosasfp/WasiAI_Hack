@@ -21,7 +21,10 @@ import {
   ListItemText,
   LinearProgress,
   SvgIcon,
-  Skeleton
+  Skeleton,
+  Switch,
+  FormControlLabel,
+  CircularProgress
 } from '@mui/material'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
@@ -68,10 +71,34 @@ export default function Step1BasicsLocalized() {
   const locale = useLocale()
   const base = `/${locale}/publish/wizard`
 
+  // Locale-based literals for microtexts (ES/EN)
+  const isES = String(locale || '').toLowerCase().startsWith('es')
+  const TXT = {
+    upgradeOn: isES ? 'Actualizar modelo existente' : 'Upgrade existing model',
+    upgradeOff: isES ? 'Nuevo modelo' : 'New model',
+    slugLabel: isES ? 'Identificador del modelo (para URL)' : 'Model identifier (for URL)',
+    statusAvailable: isES ? 'disponible' : 'available',
+    statusTaken: isES ? 'ocupado' : 'taken',
+    statusWillUpgrade: isES ? 'actualizará' : 'will upgrade',
+    suggestion: isES ? 'sugerencia' : 'suggestion',
+    use: isES ? 'Usar' : 'Use',
+    slugHelper: isES ? 'autogenerado desde el nombre; puedes editarlo' : 'auto-generated from name; you can edit it'
+  }
+  const COMMON = {
+    loadingDraft: isES ? 'Cargando borrador…' : 'Loading draft…',
+    uploadInProgress: isES ? 'Subida en curso…' : 'Upload in progress…'
+  }
+  const isResetting = () => { try { return localStorage.getItem('wizard_resetting')==='1' || sessionStorage.getItem('wizard_resetting')==='1' } catch { return false } }
+
   const [saving, setSaving] = useState(false)
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugTouched, setSlugTouched] = useState(false)
+  const [isUpgrade, setIsUpgrade] = useState(false)
+  const [slugCheckLoading, setSlugCheckLoading] = useState(false)
+  const [slugCheck, setSlugCheck] = useState<{ ok?: boolean; reserved?: boolean; reason?: string; error?: string; slug?: string; ttlMs?: number } | null>(null)
+  const slugCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [slugSuggestion, setSlugSuggestion] = useState<string>('')
   const [shortSummary, setShortSummary] = useState('')
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState('')
@@ -111,38 +138,46 @@ export default function Step1BasicsLocalized() {
   const [shouldFade, setShouldFade] = useState(true)
   const [loadedRemote, setLoadedRemote] = useState(false)
 
-  // Autoload draft on mount and when wallet changes, with cache hydration
+  // Autoload draft on mount and when wallet changes, with cache hydration (skips if resetting)
   useEffect(() => {
     let alive = true
-    // Hydrate from local cache first to avoid empty initial render
-    try {
-      const raw = localStorage.getItem('draft_step1')
-      if (raw) {
-        const s1 = JSON.parse(raw)
-        setName(s1?.name || '')
-        setShortSummary(s1?.shortSummary || '')
-        setSlug(s1?.slug || '')
-        setCategoriesSel(Array.isArray(s1?.categories)? s1.categories : [])
-        setTagsSel(Array.isArray(s1?.tags)? s1.tags : [])
-        const disp = s1?.author?.displayName || ''
-        setAuthorDisplay(disp)
-        const links = (s1?.author?.links && typeof s1.author.links === 'object') ? s1.author.links : {}
-        setSocialValues(links)
-        const cov = s1?.cover
-        if (cov?.cid || cov?.thumbCid) {
-          setCoverCid(cov?.cid || '')
-          setCoverThumbCid(cov?.thumbCid || '')
-          setCoverMime(cov?.mime || '')
-          setCoverSize(Number(cov?.size||0))
-          const url = cov?.thumbCid ? `https://ipfs.io/ipfs/${cov.thumbCid}` : (cov?.cid ? `https://ipfs.io/ipfs/${cov.cid}` : '')
-          if (url) setCoverDisplayUrl(url)
+    if (!isResetting()) {
+      // Hydrate from local cache first to avoid empty initial render
+      try {
+        const raw = localStorage.getItem('draft_step1')
+        if (raw) {
+          const s1 = JSON.parse(raw)
+          setName(s1?.name || '')
+          setShortSummary(s1?.shortSummary || '')
+          setSlug(s1?.slug || '')
+          setIsUpgrade(Boolean(s1?.upgrade))
+          setCategoriesSel(Array.isArray(s1?.categories)? s1.categories : [])
+          setTagsSel(Array.isArray(s1?.tags)? s1.tags : [])
+          const disp = s1?.author?.displayName || ''
+          setAuthorDisplay(disp)
+          const links = (s1?.author?.links && typeof s1.author.links === 'object') ? s1.author.links : {}
+          setSocialValues(links)
+          const cov = s1?.cover
+          if (cov?.cid || cov?.thumbCid) {
+            setCoverCid(cov?.cid || '')
+            setCoverThumbCid(cov?.thumbCid || '')
+            setCoverMime(cov?.mime || '')
+            setCoverSize(Number(cov?.size||0))
+            const url = cov?.thumbCid ? `https://ipfs.io/ipfs/${cov.thumbCid}` : (cov?.cid ? `https://ipfs.io/ipfs/${cov.cid}` : '')
+            if (url) setCoverDisplayUrl(url)
+          }
+          try { lastSavedRef.current = s1 } catch {}
+          setShouldFade(false)
         }
-        try { lastSavedRef.current = s1 } catch {}
-        setShouldFade(false)
-      }
-    } catch {}
+      } catch {}
+    }
     loadingFromDraftRef.current = true
     setLoadingDraft(true)
+    if (isResetting()) {
+      // Skip server hydration while resetting
+      loadingFromDraftRef.current = false; setLoadingDraft(false); setLoadedRemote(true)
+      return () => { alive = false }
+    }
     loadDraft().then((r)=>{
       if (!alive) return
       const s1 = r?.data?.step1
@@ -150,6 +185,7 @@ export default function Step1BasicsLocalized() {
       setName(s1.name || '')
       setShortSummary(s1.shortSummary || '')
       setSlug(s1.slug || '')
+      setIsUpgrade(Boolean(s1?.upgrade))
       setCategoriesSel(Array.isArray(s1.categories)? s1.categories : [])
       setTagsSel(Array.isArray(s1.tags)? s1.tags : [])
       const disp = s1?.author?.displayName || ''
@@ -242,6 +278,54 @@ export default function Step1BasicsLocalized() {
     setSlug(v.toLowerCase().trim().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-'))
   }
 
+  // Debounced slug availability check and suggestion
+  useEffect(() => {
+    if (!slug) { setSlugCheck(null); setSlugSuggestion(''); return }
+    if (slugCheckTimerRef.current) clearTimeout(slugCheckTimerRef.current)
+    setSlugSuggestion('')
+    const isValid = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) && slug.length >= 3 && slug.length <= 40
+    if (!isValid) { setSlugCheck(null); setSlugCheckLoading(false); return }
+    setSlugCheckLoading(true)
+    slugCheckTimerRef.current = setTimeout(async () => {
+      try {
+        const r = await fetch('/api/models/slug-available', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug }) })
+        const j = await r.json().catch(()=>({ ok:false }))
+        setSlugCheck(j)
+        // For New model mode, if taken (reserved===false), try to compute a quick suggestion by probing a couple of suffixed variants
+        if (j?.ok && j?.reserved === false && !isUpgrade) {
+          const candidates: string[] = []
+          const base1 = /(\d+)$/.test(slug) ? slug : `${slug}-1`
+          candidates.push(base1)
+          candidates.push(base1.replace(/-(\d+)$/, (_, n)=>'-'+(parseInt(n,10)+1)))
+          for (const cand of candidates) {
+            try {
+              const r2 = await fetch('/api/models/slug-available', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug: cand }) })
+              const j2 = await r2.json().catch(()=>({ ok:false }))
+              if (j2?.ok && j2?.reserved === true) { setSlugSuggestion(cand); break }
+            } catch {}
+          }
+        }
+      } catch (e:any) {
+        setSlugCheck({ ok:false, error: String(e?.message||e) })
+      } finally {
+        setSlugCheckLoading(false)
+      }
+    }, 450)
+    return () => { if (slugCheckTimerRef.current) clearTimeout(slugCheckTimerRef.current) }
+  }, [slug, isUpgrade])
+
+  // Compute availability flags and auto-toggle Upgrade off when slug becomes available
+  const slugIsAvailable = useMemo(() => {
+    if (!slug || !slugCheck?.ok) return false
+    return slugCheck?.reserved === true || slugCheck?.reason === 'reserved'
+  }, [slug, slugCheck])
+
+  useEffect(() => {
+    if (slugIsAvailable && isUpgrade) {
+      setIsUpgrade(false)
+    }
+  }, [slugIsAvailable])
+
   const toggleFrom = (arr: string[], val: string) => arr.includes(val) ? arr.filter(x=>x!==val) : [...arr, val]
 
   const onSelectCover = () => {
@@ -306,18 +390,20 @@ export default function Step1BasicsLocalized() {
       const prevMain = coverCid
       const prevThumb = coverThumbCid
       const main = await pinFile(f, `cover-${slug||name||'model'}`)
-      const thumbBlob = await createThumbnail(f)
-      const thumb = await pinFile(thumbBlob, `cover-thumb-${slug||name||'model'}`)
       setCoverCid(main.cid)
-      setCoverThumbCid(thumb.cid)
       setCoverMime(f.type)
       setCoverSize(f.size)
       setCoverMsg(t('wizard.step1.cover.uploaded'))
       if (coverPreview) setCoverDisplayUrl(coverPreview)
+      if (prevMain && prevMain!==main.cid) unpinCid(prevMain)
+      try {
+        const thumbBlob = await createThumbnail(f)
+        const thumb = await pinFile(thumbBlob, `cover-thumb-${slug||name||'model'}`)
+        setCoverThumbCid(thumb.cid)
+        if (prevThumb && prevThumb!==thumb.cid) unpinCid(prevThumb)
+      } catch {}
       setPromoting(true)
       promoteCoverToIPFS(coverVersion).finally(()=>setPromoting(false))
-      if (prevMain && prevMain!==main.cid) unpinCid(prevMain)
-      if (prevThumb && prevThumb!==thumb.cid) unpinCid(prevThumb)
     } catch (e:any) {
       setCoverMsg(`Error: ${String(e?.message||e)}`)
     } finally {
@@ -352,6 +438,8 @@ export default function Step1BasicsLocalized() {
       step: 'step1',
       data: {
         name, shortSummary,
+        slug,
+        upgrade: isUpgrade,
         categories: categoriesSel,
         tags: tagsSel,
         author: { displayName: authorDisplay, links: linksObj },
@@ -388,15 +476,16 @@ export default function Step1BasicsLocalized() {
     window.location.href = url
   }
 
-  // Debounced autosave on important changes
+  // Debounced autosave on important changes (skip if resetting)
   useEffect(() => {
     if (!didMountRef.current) { didMountRef.current = true; return }
     if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current)
     autoSaveDebounceRef.current = setTimeout(() => {
+      if (isResetting()) return
       if (!saving && !loadingFromDraftRef.current) onSave('autosave')
     }, 700)
     return () => { if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current) }
-  }, [name, shortSummary, categoriesSel, tagsSel, authorDisplay, socialValues, coverCid, coverThumbCid, coverMime, coverSize, saving])
+  }, [name, slug, isUpgrade, shortSummary, categoriesSel, tagsSel, authorDisplay, socialValues, coverCid, coverThumbCid, coverMime, coverSize, saving])
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1000, mx: 'auto' }}>
@@ -433,6 +522,51 @@ export default function Step1BasicsLocalized() {
               fullWidth
               error={!!errors.name}
               helperText={errors.name || t('wizard.step1.fields.name.helper')}
+            />
+
+            <FormControlLabel
+              control={<Switch checked={isUpgrade} onChange={(e)=>setIsUpgrade(e.target.checked)} disabled={slugIsAvailable} />}
+              label={isUpgrade ? TXT.upgradeOn : TXT.upgradeOff}
+            />
+
+            <TextField
+              label={TXT.slugLabel}
+              value={slug}
+              onChange={(e)=>onSlugChange(e.target.value)}
+              placeholder={TXT.slugHelper}
+              fullWidth
+              InputProps={{
+                endAdornment: (
+                  <Box sx={{ display:'flex', alignItems:'center', gap: 1 }}>
+                    {slugCheckLoading && <CircularProgress size={16} />}
+                    {!slugCheckLoading && slug && slugCheck?.ok && (
+                      (()=>{
+                        const isAvailable = slugCheck?.reserved === true || slugCheck?.reason === 'reserved'
+                        const isTaken = slugCheck?.reserved === false && (slugCheck?.reason === 'exists' || slugCheck?.reason === 'db-exists')
+                        return (
+                          <Typography variant="caption" color={isAvailable ? 'success.main' : (isTaken ? 'error.main' : 'text.secondary')}>
+                            {isAvailable ? TXT.statusAvailable : (isTaken ? (isUpgrade ? TXT.statusWillUpgrade : TXT.statusTaken) : (slugCheck?.reason || ''))}
+                          </Typography>
+                        )
+                      })()
+                    )}
+                  </Box>
+                )
+              }}
+              helperText={
+                slugSuggestion && !isUpgrade && (slugCheck?.ok && (slugCheck?.reserved===false && (slugCheck?.reason==='exists' || slugCheck?.reason==='db-exists'))) ? (
+                  <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+                    <Typography variant="caption">{TXT.suggestion}: {slugSuggestion}</Typography>
+                    <Button size="small" variant="text" onClick={()=>{ setSlug(slugSuggestion); setSlugTouched(true) }}>{TXT.use}</Button>
+                  </Box>
+                ) : (
+                  slug ? (
+                    <Typography variant="caption" color="text.secondary">
+                      {(typeof window!=='undefined' ? window.location.origin : '') + `/${locale}/models/` + slug}
+                    </Typography>
+                  ) : TXT.slugHelper
+                )
+              }
             />
 
             <TextField
@@ -668,7 +802,7 @@ export default function Step1BasicsLocalized() {
               </Box>
               {(loadingDraft || coverUploading) && (
                 <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-                  {loadingDraft ? t('wizard.common.loadingDraft') : t('wizard.common.uploadInProgress')}
+                  {loadingDraft ? COMMON.loadingDraft : COMMON.uploadInProgress}
                 </Typography>
               )}
             </Box>

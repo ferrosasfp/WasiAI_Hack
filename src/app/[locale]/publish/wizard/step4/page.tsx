@@ -70,6 +70,7 @@ export default function Step4LicensesTermsLocalized() {
   const [feeBpsOnChain, setFeeBpsOnChain] = useState<number | null>(null)
   const [shouldFade, setShouldFade] = useState(true)
   const [loadedRemote, setLoadedRemote] = useState(false)
+  const isResetting = () => { try { return localStorage.getItem('wizard_resetting')==='1' || sessionStorage.getItem('wizard_resetting')==='1' } catch { return false } }
 
   const MARKET_ADDRS: Record<number, string> = useMemo(() => ({
     84532: process.env.NEXT_PUBLIC_EVM_MARKET_84532 || '',
@@ -325,6 +326,7 @@ export default function Step4LicensesTermsLocalized() {
     if (!didMountRef.current) { didMountRef.current = true; return }
     if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current)
     autoSaveDebounceRef.current = setTimeout(() => {
+      if (isResetting()) return
       if (loadingFromDraftRef.current) return
       const cooldownMs = 25000
       if (lastErrorAtRef.current && (Date.now() - lastErrorAtRef.current) < cooldownMs) return
@@ -341,34 +343,36 @@ export default function Step4LicensesTermsLocalized() {
   useEffect(() => {
     let alive = true
     // Hydrate from cache first to avoid empty initial render
-    try {
-      const raw = localStorage.getItem('draft_step4')
-      if (raw) {
-        const c = JSON.parse(raw)
-        const lp = c?.licensePolicy || {}
-        const rights = Array.isArray(lp.rights) ? lp.rights : (Array.isArray(lp.delivery) ? lp.delivery : [])
-        setRightsAPI(rights.includes('API'))
-        setRightsDownload(rights.includes('Download'))
-        const sub = lp.subscription || {}
-        const perp = lp.perpetual || {}
-        setPriceSubscription(String(sub.perMonthPriceRef ?? '0'))
-        setPricePerpetual(String(perp.priceRef ?? '0'))
-        const rbps = Number(lp.royaltyBps || 0)
-        const rInt = Math.max(0, Math.min(20, Math.round(rbps/100)))
-        setRoyaltyPercent(String(rInt))
-        const dd = Number(lp.defaultDurationDays || 0)
-        setDefaultDurationDays(String(Math.max(0, Math.round(dd/30))))
-        setTransferable(Boolean(lp.transferable))
-        setTermsHash(String(lp.termsHash || ''))
-        setTermsText(String(lp.termsText || ''))
-        if (rights.includes('API') && rights.includes('Download')) setDeliveryModeHint('Both')
-        else if (rights.includes('API')) setDeliveryModeHint('API')
-        else if (rights.includes('Download')) setDeliveryModeHint('Download')
-        else setDeliveryModeHint('none')
-        lastSavedRef.current = { licensePolicy: lp }
-        setShouldFade(false)
-      }
-    } catch {}
+    if (!isResetting()) {
+      try {
+        const raw = localStorage.getItem('draft_step4')
+        if (raw) {
+          const c = JSON.parse(raw)
+          const lp = c?.licensePolicy || {}
+          const rights = Array.isArray(lp.rights) ? lp.rights : (Array.isArray(lp.delivery) ? lp.delivery : [])
+          setRightsAPI(rights.includes('API'))
+          setRightsDownload(rights.includes('Download'))
+          const sub = lp.subscription || {}
+          const perp = lp.perpetual || {}
+          setPriceSubscription(String(sub.perMonthPriceRef ?? '0'))
+          setPricePerpetual(String(perp.priceRef ?? '0'))
+          const rbps = Number(lp.royaltyBps || 0)
+          const rInt = Math.max(0, Math.min(20, Math.round(rbps/100)))
+          setRoyaltyPercent(String(rInt))
+          const dd = Number(lp.defaultDurationDays || 0)
+          setDefaultDurationDays(String(Math.max(0, Math.round(dd/30))))
+          setTransferable(Boolean(lp.transferable))
+          setTermsHash(String(lp.termsHash || ''))
+          setTermsText(String(lp.termsText || ''))
+          if (rights.includes('API') && rights.includes('Download')) setDeliveryModeHint('Both')
+          else if (rights.includes('API')) setDeliveryModeHint('API')
+          else if (rights.includes('Download')) setDeliveryModeHint('Download')
+          else setDeliveryModeHint('none')
+          lastSavedRef.current = { licensePolicy: lp }
+          setShouldFade(false)
+        }
+      } catch {}
+    }
     loadingFromDraftRef.current = true
     loadDraft().then((r)=>{
       if (!alive) return
@@ -393,9 +397,9 @@ export default function Step4LicensesTermsLocalized() {
         setTransferable(Boolean(lp.transferable))
         setTermsHash(String(lp.termsHash || ''))
         setTermsText(String(lp.termsText || ''))
-        if (rightsAPI && rightsDownload) setDeliveryModeHint('Both')
-        else if (rightsAPI) setDeliveryModeHint('API')
-        else if (rightsDownload) setDeliveryModeHint('Download')
+        if (rights.includes('API') && rights.includes('Download')) setDeliveryModeHint('Both')
+        else if (rights.includes('API')) setDeliveryModeHint('API')
+        else if (rights.includes('Download')) setDeliveryModeHint('Download')
         else setDeliveryModeHint('none')
         lastSavedRef.current = {
           licensePolicy: {

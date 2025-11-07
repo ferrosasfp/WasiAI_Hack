@@ -37,6 +37,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_metadata' }, { status: 400 })
   }
   try {
+    // Ensure slug exists: derive from name if missing
+    const toSlug = (s: any) => String(s || '')
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^\w\s-]/g, '')
+      .trim()
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 64)
+    try {
+      const raw = String((metadata as any)?.slug || '').trim()
+      if (!raw) {
+        const nm = String((metadata as any)?.name || '').trim()
+        if (nm) (metadata as any).slug = toSlug(nm)
+      } else {
+        (metadata as any).slug = toSlug(raw)
+      }
+    } catch {}
+
     const pinned = await pinJSONToIPFS(metadata)
 
     const chain = String(body?.chain || '')
@@ -45,7 +64,7 @@ export async function POST(req: Request) {
 
     if (chain === 'evm') {
       // Lazy import ethers to keep edge compatibility if not used
-      const { JsonRpcProvider, Wallet, Contract } = await import('ethers') as any
+      const { JsonRpcProvider, Wallet, Contract, parseUnits } = await import('ethers') as any
       const fs = await import('fs')
       const path = await import('path')
       const ROOT = process.cwd()
@@ -77,14 +96,18 @@ export async function POST(req: Request) {
       const slug: string = metadata.slug || ''
       const name: string = metadata.name || ''
       const uri: string = pinned.uri
-      const royaltyBps: bigint = BigInt(Number(metadata.royalty_bps || 0))
-      const pricePerpetual: bigint = BigInt(Number(metadata.licensePolicy?.perpetual?.priceRef || 0))
-      const priceSubscription: bigint = BigInt(Number(metadata.licensePolicy?.subscription?.perMonthPriceRef || 0))
+      // royaltyBps comes from step 4 under licensePolicy.royaltyBps (basis points)
+      const royaltyBps: bigint = BigInt(Number(metadata.licensePolicy?.royaltyBps || 0))
+      const toWei = (v:any) => {
+        try { return parseUnits(String(v ?? '0').replace(/,/g,'').trim() || '0', 18) } catch { return 0n }
+      }
+      const pricePerpetual: bigint = toWei(metadata.licensePolicy?.perpetual?.priceRef)
+      const priceSubscription: bigint = toWei(metadata.licensePolicy?.subscription?.perMonthPriceRef)
       const defaultDurationDays: bigint = BigInt(Number(metadata.licensePolicy?.defaultDurationDays || 0))
       const rightsArr: string[] = Array.isArray(metadata.licensePolicy?.rights) ? metadata.licensePolicy.rights : []
       const rightsMask: number = (rightsArr.includes('API') ? 1 : 0) | (rightsArr.includes('Download') ? 2 : 0)
-      const hintStr: string = (metadata.delivery?.hint || '').toLowerCase()
-      const deliveryModeHint: number = hintStr === 'api' ? 1 : hintStr === 'download' ? 2 : 3
+      // Derive deliveryModeHint from rightsMask
+      const deliveryModeHint: number = rightsMask === 1 ? 1 : rightsMask === 2 ? 2 : 3
       let termsHash: string = String(metadata.licensePolicy?.termsHash || '0x')
       if (!termsHash.startsWith('0x')) termsHash = '0x' + termsHash
       if (termsHash.length !== 66) {

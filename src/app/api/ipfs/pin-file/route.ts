@@ -85,7 +85,7 @@ export async function POST(req: Request) {
         try {
           const controller = new AbortController()
           const tmo = setTimeout(()=>controller.abort(), 600000) // 10min
-          const res = await fetch(url, { method:'POST', headers, body: req.body as any, signal: controller.signal, // requerido por undici para stream
+          const res = await fetch(url, { method:'POST', headers, body: req.body as any, signal: controller.signal,
             // @ts-ignore
             duplex: 'half' as any,
           })
@@ -118,3 +118,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 })
   }
 }
+

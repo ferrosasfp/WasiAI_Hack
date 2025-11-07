@@ -57,15 +57,15 @@ function draftKey(id: string) {
 
 function walletFromReq(req: Request, body?: any): string | null {
   // 1) body.address (POST)
-  const bAddr = typeof body?.address === 'string' && body.address.trim() ? body.address.trim() : null
+  const bAddr = typeof body?.address === 'string' && body.address.trim() ? body.address.trim().toLowerCase() : null
   if (bAddr) return bAddr
   // 2) header X-Wallet-Address (GET/POST)
-  const hAddr = req.headers.get('x-wallet-address')?.trim()
+  const hAddr = req.headers.get('x-wallet-address')?.trim()?.toLowerCase()
   if (hAddr) return hAddr
   // 3) query ?address=
   try {
     const url = new URL(req.url)
-    const qAddr = url.searchParams.get('address')?.trim()
+    const qAddr = url.searchParams.get('address')?.trim()?.toLowerCase()
     if (qAddr) return qAddr
   } catch {}
   return null

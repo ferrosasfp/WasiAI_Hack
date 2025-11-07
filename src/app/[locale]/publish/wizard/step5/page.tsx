@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { Box, Button, Paper, Typography, Stack, Grid, Chip, List, ListItem, ListItemText, Divider, Alert, Checkbox, FormControlLabel, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Tooltip, Skeleton, SvgIcon } from '@mui/material'
+import { Box, Button, Paper, Typography, Stack, Grid, Chip, List, ListItem, ListItemText, Divider, Alert, Checkbox, FormControlLabel, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Tooltip, Skeleton, SvgIcon, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
@@ -11,6 +11,7 @@ import LinkedInIcon from '@mui/icons-material/LinkedIn'
 // removed copy actions per request
 import { useLocale, useTranslations } from 'next-intl'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
+import { useRouter } from 'next/navigation'
 
 const XIcon = (props: any) => (
   <SvgIcon {...props} viewBox="0 0 24 24">
@@ -43,6 +44,7 @@ export default function Step5ReviewPublishLocalized() {
   const t = useTranslations()
   const locale = useLocale()
   const base = `/${locale}/publish/wizard`
+  const router = useRouter()
   const [draft, setDraft] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [targets, setTargets] = useState<Array<{chain:'evm'|'sui', network:'base'|'avax'|'testnet'}>>([])
@@ -54,6 +56,8 @@ export default function Step5ReviewPublishLocalized() {
   const [mounted, setMounted] = useState(false)
   const [shouldFade, setShouldFade] = useState(true)
   const [loadedRemote, setLoadedRemote] = useState(false)
+  const [resetOpen, setResetOpen] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const acceptLabel = useMemo(() => (
     locale === 'es'
       ? 'He revisado toda la información y confirmo que es correcta para su publicación.'
@@ -356,6 +360,13 @@ export default function Step5ReviewPublishLocalized() {
     return `${months} ${months===1? L.month : L.months}`
   }
 
+  // Local common labels (avoid missing next-intl keys)
+  const COMMON = useMemo(() => (
+    locale === 'es'
+      ? { edit: 'Editar', noNetwork: 'Sin red detectada' }
+      : { edit: 'Edit', noNetwork: 'No network detected' }
+  ), [locale])
+
   const issues = useMemo(() => {
     const msgs:string[] = []
     const arts = Array.isArray(metadata?.artifacts) ? metadata.artifacts : []
@@ -431,11 +442,17 @@ export default function Step5ReviewPublishLocalized() {
     setMsg('')
     setResults([])
     try {
+      let allOk = true
       for (const tnet of targets) {
         const r = await publishModel({ chain: tnet.chain, network: tnet.network, metadata, address: walletAddress })
-        setResults(prev=>[...prev, { chain: tnet.chain, network: tnet.network, ok: !!r?.ok, tx: r?.onchain, error: r?.error }])
+        const ok = !!r?.ok
+        if (!ok) allOk = false
+        setResults(prev=>[...prev, { chain: tnet.chain, network: tnet.network, ok, tx: r?.onchain, error: r?.error }])
       }
       setMsg(t('wizard.step5.messages.publishDone'))
+      if (allOk) {
+        try { setResetOpen(true) } catch {}
+      }
     } catch {
       setMsg(t('wizard.step5.messages.publishError'))
     } finally {
@@ -453,7 +470,74 @@ export default function Step5ReviewPublishLocalized() {
     }
   }
 
-  const networkLabel = useMemo(()=> targets.length>0 ? `${targets[0].chain.toUpperCase()} / ${targets[0].network}` : t('wizard.step5.labels.noNetwork'), [targets, t])
+  const networkLabel = useMemo(()=> targets.length>0 ? `${targets[0].chain.toUpperCase()} / ${targets[0].network}` : COMMON.noNetwork, [targets, COMMON])
+
+  const clearWizardLocal = () => {
+    try {
+      const keys: string[] = []
+      for (let i=0; i<localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (!k) continue
+        if (k.startsWith('draft_step')) keys.push(k)
+      }
+      for (const k of keys) {
+        try { localStorage.removeItem(k) } catch {}
+      }
+    } catch {}
+  }
+
+  const clearWizardRemote = async () => {
+    try {
+      // 1) Delete anonymous (IP/UA) bucket
+      await fetch('/api/models/draft', { method: 'DELETE' }).catch(()=>{})
+
+      // 2) Delete wallet-scoped bucket via header + query (cover both code paths)
+      let addr = walletAddress
+      if (!addr) {
+        try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
+      }
+      if (addr) {
+        const headers: Record<string,string> = { 'content-type': 'application/json', 'X-Wallet-Address': addr }
+        await fetch('/api/models/draft', { method: 'DELETE', headers }).catch(()=>{})
+        await fetch(`/api/models/draft?address=${encodeURIComponent(addr)}`, { method: 'DELETE', headers }).catch(()=>{})
+      }
+
+      // 3) Verify cleared; if not, retry once
+      const checkAnon = await fetch('/api/models/draft', { method: 'GET' }).then(r=>r.json()).catch(()=>null)
+      let hasData = Boolean(checkAnon && checkAnon.data && Object.keys(checkAnon.data||{}).length > 0)
+      if (addr && !hasData) {
+        const headers: Record<string,string> = { 'X-Wallet-Address': addr }
+        const checkWal = await fetch('/api/models/draft', { method: 'GET', headers }).then(r=>r.json()).catch(()=>null)
+        hasData = Boolean(checkWal && checkWal.data && Object.keys(checkWal.data||{}).length > 0)
+      }
+      if (hasData) {
+        await fetch('/api/models/draft', { method: 'DELETE' }).catch(()=>{})
+        if (addr) {
+          const headers: Record<string,string> = { 'content-type': 'application/json', 'X-Wallet-Address': addr }
+          await fetch('/api/models/draft', { method: 'DELETE', headers }).catch(()=>{})
+          await fetch(`/api/models/draft?address=${encodeURIComponent(addr)}`, { method: 'DELETE', headers }).catch(()=>{})
+        }
+      }
+    } catch {}
+  }
+
+  const onConfirmReset = async () => {
+    setResetting(true)
+    try {
+      try { if (typeof window !== 'undefined') { localStorage.setItem('wizard_resetting','1'); sessionStorage.setItem('wizard_resetting','1') } } catch {}
+      clearWizardLocal()
+      await clearWizardRemote()
+      try { setResetOpen(false) } catch {}
+      try {
+        if (typeof window !== 'undefined') {
+          const target = `${base}?r=${Date.now()}`
+          window.location.replace(target)
+        }
+      } catch { router.replace(base) }
+    } finally {
+      setResetting(false)
+    }
+  }
 
   return (
     <div style={{padding:24, maxWidth:1000, margin:'0 auto'}}>
@@ -473,8 +557,8 @@ export default function Step5ReviewPublishLocalized() {
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
                 <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1 }}>
                   <Typography variant="subtitle2" sx={{ color:'primary.main', fontWeight:700 }}>{t('wizard.step5.sections.modelInfo')}</Typography>
-                  <Tooltip title={t('wizard.common.edit')}>
-                    <IconButton size="small" href={`${base}/step1`} aria-label={t('wizard.common.edit')}>
+                  <Tooltip title={COMMON.edit}>
+                    <IconButton size="small" href={`${base}/step1`} aria-label={COMMON.edit}>
                       <EditOutlinedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -484,6 +568,7 @@ export default function Step5ReviewPublishLocalized() {
                     <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
                     <ListItem><Skeleton animation="wave" variant="text" width={260} /></ListItem>
                     <ListItem><Skeleton animation="wave" variant="text" width={200} /></ListItem>
+                    <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
                     <ListItem><Skeleton animation="wave" variant="rectangular" height={100} /></ListItem>
                   </List>
                 ) : (
@@ -497,6 +582,18 @@ export default function Step5ReviewPublishLocalized() {
                             <Box><Trunc value={metadata?.name} max={40} /></Box>
                           </Box>
                         </ListItem>
+                        {Boolean((metadata as any)?.slug) && (
+                          <ListItem>
+                            <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'center', columnGap: 1, width:'100%' }}>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{locale==='es' ? 'Identificador (URL)' : 'Identifier (URL)'}:</Typography>
+                              <Box>
+                                <Typography variant="body2" color="text.secondary">
+                                  {(typeof window!=='undefined' ? window.location.origin : '') + `/${locale}/models/` + String((metadata as any).slug || '')}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </ListItem>
+                        )}
                         <ListItem>
                           <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'center', columnGap: 1, width:'100%' }}>
                             <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{t('wizard.step5.labels.author')}:</Typography>
@@ -566,8 +663,8 @@ export default function Step5ReviewPublishLocalized() {
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
                 <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1 }}>
                   <Typography variant="subtitle2" sx={{ color:'primary.main', fontWeight:700 }}>{L.sectionTitle}</Typography>
-                  <Tooltip title={t('wizard.common.edit')}>
-                    <IconButton size="small" href={`${base}/step4`} aria-label={t('wizard.common.edit')}>
+                  <Tooltip title={COMMON.edit}>
+                    <IconButton size="small" href={`${base}/step4`} aria-label={COMMON.edit}>
                       <EditOutlinedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -637,8 +734,8 @@ export default function Step5ReviewPublishLocalized() {
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
                 <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1 }}>
                   <Typography variant="subtitle2" sx={{ color:'primary.main', fontWeight:700 }}>{C.sectionTitle}</Typography>
-                  <Tooltip title={t('wizard.common.edit')}>
-                    <IconButton size="small" href={`${base}/step2`} aria-label={t('wizard.common.edit')}>
+                  <Tooltip title={COMMON.edit}>
+                    <IconButton size="small" href={`${base}/step2`} aria-label={COMMON.edit}>
                       <EditOutlinedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -873,8 +970,8 @@ export default function Step5ReviewPublishLocalized() {
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
                 <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1 }}>
                   <Typography variant="subtitle2" sx={{ color:'primary.main', fontWeight:700 }}>{B.sectionTitle}</Typography>
-                  <Tooltip title={t('wizard.common.edit')}>
-                    <IconButton size="small" href={`${base}/step2`} aria-label={t('wizard.common.edit')}>
+                  <Tooltip title={COMMON.edit}>
+                    <IconButton size="small" href={`${base}/step2`} aria-label={COMMON.edit}>
                       <EditOutlinedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -1039,7 +1136,7 @@ export default function Step5ReviewPublishLocalized() {
         )}
         <FormControlLabel control={<Checkbox checked={accepted} onChange={(e)=>setAccepted(e.target.checked)} />} label={acceptLabel} />
         <Box sx={{ mt: 1 }}>
-          <Button onClick={onPublish} disabled={publishing || issues.length>0 || !accepted || !walletAddress} variant="contained" startIcon={<RocketLaunchIcon/>}>
+          <Button onClick={onPublish} disabled={publishing || issues.length>0 || !accepted} variant="contained" startIcon={<RocketLaunchIcon/>}>
             {publishing? t('wizard.step5.buttons.publishing') : t('wizard.step5.buttons.publish')}
           </Button>
         </Box>
@@ -1081,6 +1178,28 @@ export default function Step5ReviewPublishLocalized() {
           </Box>
         </Paper>
       </Box>
+
+      {/* Dialog to reset wizard after successful publish */}
+      <Dialog open={resetOpen} onClose={()=>setResetOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>
+          {locale==='es' ? '¿Empezar un nuevo listado?' : 'Start a new listing?'}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            {locale==='es'
+              ? 'La publicación fue exitosa. Puedes limpiar el borrador del wizard para comenzar uno nuevo.'
+              : 'Publish was successful. You can clear the wizard draft to start a new one.'}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setResetOpen(false)} disabled={resetting} color="inherit">
+            {locale==='es' ? 'Mantener' : 'Keep'}
+          </Button>
+          <Button onClick={onConfirmReset} disabled={resetting} variant="contained" color="primary">
+            {resetting ? (locale==='es' ? 'Limpiando…' : 'Clearing…') : (locale==='es' ? 'Reiniciar wizard' : 'Reset wizard')}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {msg && <p>{msg}</p>}
     </div>

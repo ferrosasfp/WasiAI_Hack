@@ -38,6 +38,13 @@ export default function Step3ArtifactsDemoLocalized() {
   const t = useTranslations()
   const locale = useLocale()
   const base = `/${locale}/publish/wizard`
+  const isES = String(locale || '').toLowerCase().startsWith('es')
+  const COMMON = {
+    loadingDraft: isES ? 'Cargando borrador…' : 'Loading draft…',
+    uploadInProgress: isES ? 'Subida en curso…' : 'Upload in progress…',
+    confirmRemoveReady: isES ? 'Este archivo ya está listo. ¿Quieres eliminarlo?' : 'This file is already ready. Do you want to remove it?'
+  }
+  const isResetting = () => { try { return localStorage.getItem('wizard_resetting')==='1' || sessionStorage.getItem('wizard_resetting')==='1' } catch { return false } }
   const [saving, setSaving] = useState(false)
   const [validating, setValidating] = useState(false)
   const [artifacts, setArtifacts] = useState<Artifact[]>([{ cid: '', filename: '' }])
@@ -103,7 +110,7 @@ export default function Step3ArtifactsDemoLocalized() {
   }
   const writeCache = (data: any) => { try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)) } catch {} }
 
-  // Autoload draft on mount with cache hydration
+  // Autoload draft on mount with cache hydration (skip server hydration if resetting)
   useEffect(() => {
     let alive = true
     // Hydrate from cache first to avoid empty initial render
@@ -119,6 +126,7 @@ export default function Step3ArtifactsDemoLocalized() {
     } catch {}
     loadingFromDraftRef.current = true
     setLoadingDraft(true)
+    if (isResetting()) { loadingFromDraftRef.current = false; setLoadingDraft(false); setLoadedRemote(true); return () => { alive = false } }
     loadDraft().then((r)=>{
       if (!alive) return
       const s3 = r?.data?.step3
@@ -133,11 +141,12 @@ export default function Step3ArtifactsDemoLocalized() {
     return () => { alive = false }
   }, [])
 
-  // Debounced autosave on important changes
+  // Debounced autosave on important changes (skip if resetting)
   useEffect(() => {
     if (!didMountRef.current) { didMountRef.current = true; return }
     if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current)
     autoSaveDebounceRef.current = setTimeout(() => {
+      if (isResetting()) return
       if (!navigatingRef.current && !saving && !loadingFromDraftRef.current) onSave('autosave')
     }, 700)
     return () => { if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current) }
@@ -354,7 +363,7 @@ export default function Step3ArtifactsDemoLocalized() {
   const onRemoveArtifact = (i: number) => {
     const a = artifacts[i]
     if (a?.status==='ready') {
-      const ok = window.confirm(t('wizard.step3.confirm.removeReady'))
+      const ok = window.confirm(COMMON.confirmRemoveReady)
       if (!ok) return
     }
     setArtifacts(arr => arr.filter((_, idx) => idx!==i))
@@ -587,7 +596,7 @@ export default function Step3ArtifactsDemoLocalized() {
               </Box>
               {(loadingDraft || anyUploading) && (
                 <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-                  {loadingDraft ? t('wizard.common.loadingDraft') : t('wizard.common.uploadInProgress')}
+                  {loadingDraft ? COMMON.loadingDraft : COMMON.uploadInProgress}
                 </Typography>
               )}
             </Box>
