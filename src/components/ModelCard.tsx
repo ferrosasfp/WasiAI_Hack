@@ -1,3 +1,4 @@
+ 
 "use client";
 import React from 'react'
 import { useTranslations } from 'next-intl'
@@ -70,7 +71,7 @@ function ConnectWalletInline({ }: { locale: string }) {
   )
 }
 
-export function ModelCard({ locale, data, href: hrefProp, showConnect, priority }: { locale: string; data: ModelCardData; href?: string; showConnect?: boolean; priority?: boolean }) {
+export function ModelCard({ locale, data, href: hrefProp, showConnect, priority, onMeta, preMeta }: { locale: string; data: ModelCardData; href?: string; showConnect?: boolean; priority?: boolean; onMeta?: (id: string, meta: any) => void; preMeta?: any }) {
   const defaultHref = data.slug ? `/${locale}/models/${data.slug}` : undefined
   const href = hrefProp || defaultHref
   const t = useTranslations('modelCard')
@@ -89,6 +90,69 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority 
   const [description, setDescription] = React.useState<string | undefined>(data.description)
   const [demoPreset, setDemoPreset] = React.useState<boolean | undefined>(data.demoPreset)
   const [artifacts, setArtifacts] = React.useState<boolean | undefined>(data.artifacts)
+  const strMeta = React.useCallback((v: any): string => {
+    if (v == null) return ''
+    if (typeof v === 'string') return v
+    if (typeof v === 'object') {
+      const n = v.name || v.framework || v.arch || v.type || ''
+      const ver = v.version || v.ver || v.v || ''
+      const a = String(n || '').trim()
+      const b = String(ver || '').trim()
+      return [a, b].filter(Boolean).join(' ')
+    }
+    try { return String(v) } catch { return '' }
+  }, [])
+  // Aplicar preMeta inmediatamente si viene desde la página
+  React.useEffect(()=>{
+    const meta: any = preMeta
+    if (!meta) return
+    const a = (typeof meta?.author === 'string' && meta.author) || (meta?.author && typeof meta.author === 'object' && typeof meta.author.displayName === 'string' && meta.author.displayName) || (typeof meta?.creator === 'string' ? meta.creator : undefined)
+    if (!author && a) setAuthor(a)
+    if (!valueProposition && typeof meta?.valueProposition === 'string') setValueProposition(meta.valueProposition)
+    if (!description) {
+      const desc = (typeof meta?.description === 'string' && meta.description) || (typeof meta?.summary === 'string' && meta.summary) || (typeof meta?.shortSummary === 'string' && meta.shortSummary) || (typeof meta?.shortDescription === 'string' && meta.shortDescription) || (typeof meta?.short_desc === 'string' && meta.short_desc) || (typeof meta?.overview === 'string' && meta.overview) || (typeof meta?.subtitle === 'string' && meta.subtitle) || undefined
+      if (desc) setDescription(desc)
+    }
+    if (!categories?.length && Array.isArray(meta?.categories)) setCategories(meta.categories)
+    if (!tasks?.length) setTasks(Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : tasks))
+    if (!tags?.length) {
+      const tagsA = Array.isArray(meta?.tags) ? meta.tags : []
+      const tagsB = Array.isArray(meta?.capabilities?.tags) ? meta.capabilities.tags : []
+      const mods = Array.isArray(meta?.modalities) ? meta.modalities : (Array.isArray(meta?.capabilities?.modalities) ? meta.capabilities.modalities : [])
+      const uniq = Array.from(new Set([...tagsA, ...tagsB, ...mods].filter(Boolean).map(String)))
+      if (uniq.length) setTags(uniq)
+    }
+    if (!architectures?.length) {
+      const arch = Array.isArray(meta?.architectures) ? meta.architectures : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures : architectures)
+      if (Array.isArray(arch)) setArchitectures(arch.map(strMeta).filter(Boolean))
+    }
+    if (!frameworks?.length) {
+      const fw = Array.isArray(meta?.frameworks) ? meta.frameworks : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks : frameworks)
+      if (Array.isArray(fw)) setFrameworks(fw.map(strMeta).filter(Boolean))
+    }
+    if (!precision?.length) {
+      const prec = Array.isArray(meta?.precision) ? meta.precision : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions : precision)
+      if (Array.isArray(prec)) setPrecision(prec.map(strMeta).filter(Boolean))
+    }
+    if (!rights) {
+      let rightsObj: { api?: boolean; download?: boolean; transferable?: boolean } | undefined = undefined
+      if (meta?.rights && typeof meta.rights === 'object') {
+        rightsObj = { api: !!meta.rights.api, download: !!meta.rights.download, transferable: !!meta.rights.transferable }
+      } else if (meta?.licensePolicy) {
+        const r = meta.licensePolicy.rights
+        const rightsArr = Array.isArray(r) ? r.map((x:any)=> String(x).toLowerCase()) : []
+        rightsObj = { api: rightsArr.includes('api'), download: rightsArr.includes('download'), transferable: !!meta.licensePolicy.transferable }
+      }
+      if (rightsObj) setRights(rightsObj)
+    }
+    if (!deliveryMode) {
+      const mode = (typeof meta?.deliveryMode === 'string' && meta.deliveryMode) || (typeof meta?.delivery?.mode === 'string' && meta.delivery.mode) || (Array.isArray(meta?.licensePolicy?.delivery) ? (()=>{
+        const d = meta.licensePolicy.delivery.map((x:any)=> String(x).toLowerCase()); return d.includes('api') && d.includes('download') ? 'both' : d.includes('api') ? 'api' : d.includes('download') ? 'download' : undefined
+      })() : undefined)
+      if (mode) setDeliveryMode(mode)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preMeta])
   const toHttpFromIpfs = React.useCallback((u: string): string => {
     if (!u) return ''
     // ipfs URI scheme
@@ -193,6 +257,10 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority 
         const img = meta?.image || meta?.image_url || meta?.thumbnail || meta?.cover?.thumbCid || meta?.cover?.cid
         if (alive && typeof img === 'string') setCoverSrc(toHttpFromIpfs(img))
         if (alive && meta) {
+          try {
+            const key = String((data as any)?.id ?? (data as any)?.modelId ?? (data as any)?.uri ?? '') || undefined
+            if (key && typeof onMeta === 'function') onMeta(key, meta)
+          } catch {}
           const a = (typeof meta?.author === 'string' && meta.author) || (meta?.author && typeof meta.author === 'object' && typeof meta.author.displayName === 'string' && meta.author.displayName) || (typeof meta?.creator === 'string' ? meta.creator : undefined)
           setAuthor(a)
           setValueProposition(typeof meta?.valueProposition === 'string' ? meta.valueProposition : valueProposition)
@@ -200,10 +268,26 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority 
           setDescription(desc)
           setCategories(Array.isArray(meta?.categories) ? meta.categories : categories)
           setTasks(Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : tasks))
-          setTags(Array.isArray(meta?.tags) ? meta.tags : tags)
-          setArchitectures(Array.isArray(meta?.architectures) ? meta.architectures : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures : architectures))
-          setFrameworks(Array.isArray(meta?.frameworks) ? meta.frameworks : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks : frameworks))
-          setPrecision(Array.isArray(meta?.precision) ? meta.precision : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions : precision))
+          {
+            const tagsA = Array.isArray(meta?.tags) ? meta.tags : []
+            const tagsB = Array.isArray(meta?.capabilities?.tags) ? meta.capabilities.tags : []
+            const mods = Array.isArray(meta?.modalities) ? meta.modalities : (Array.isArray(meta?.capabilities?.modalities) ? meta.capabilities.modalities : [])
+            const merged = [...tagsA, ...tagsB, ...mods].filter(Boolean).map(String)
+            const uniq = Array.from(new Set(merged))
+            setTags(uniq.length ? uniq : tags)
+          }
+          {
+            const arch = Array.isArray(meta?.architectures) ? meta.architectures : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures : architectures)
+            setArchitectures(Array.isArray(arch) ? arch.map(strMeta).filter(Boolean) : architectures)
+          }
+          {
+            const fw = Array.isArray(meta?.frameworks) ? meta.frameworks : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks : frameworks)
+            setFrameworks(Array.isArray(fw) ? fw.map(strMeta).filter(Boolean) : frameworks)
+          }
+          {
+            const prec = Array.isArray(meta?.precision) ? meta.precision : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions : precision)
+            setPrecision(Array.isArray(prec) ? prec.map(strMeta).filter(Boolean) : precision)
+          }
           let rightsObj: { api?: boolean; download?: boolean; transferable?: boolean } | undefined = rights
           if (meta?.rights && typeof meta.rights === 'object') {
             rightsObj = { api: Boolean(meta.rights.api), download: Boolean(meta.rights.download), transferable: Boolean(meta.rights.transferable) }
@@ -230,18 +314,22 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority 
     io.observe(el)
     return () => { alive = false; io.disconnect() }
   }, [coverSrc, data?.uri, toHttpFromIpfs])
-  const techLine = [
-    (architectures && architectures[0]) || undefined,
-    (frameworks && frameworks[0]) || undefined,
-    (precision && precision.join('/')) || undefined,
-  ].filter(Boolean).join(' · ')
+  const techLine = React.useMemo(()=>{
+    const a = architectures && architectures[0]
+    const f = frameworks && frameworks[0]
+    const p = Array.isArray(precision) && precision.length ? precision.join('/') : undefined
+    return [a, f, p].filter(Boolean).join(' · ')
+  }, [architectures, frameworks, precision])
   const deliveryFlags = React.useMemo(()=>{
     const mode = String(deliveryMode || '').toLowerCase()
-    return {
-      api: mode === 'api' || mode === 'both',
-      download: mode === 'download' || mode === 'both',
+    let api = mode === 'api' || mode === 'both'
+    let download = mode === 'download' || mode === 'both'
+    if (!api && !download && rights) {
+      api = !!rights.api
+      download = !!rights.download
     }
-  }, [deliveryMode])
+    return { api, download }
+  }, [deliveryMode, rights])
 
   return (
     <Card sx={{ height: '100%', borderRadius: 2, boxShadow: 1, position:'relative', overflow:'hidden', '&:hover': { boxShadow: 3 } }} ref={rootRef}>

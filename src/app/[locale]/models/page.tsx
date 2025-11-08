@@ -79,6 +79,11 @@ export default function ExploreModelsPage() {
   const [limit] = useState(12)
   const [hasMore, setHasMore] = useState(true)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
+  const [debugOn, setDebugOn] = useState(false)
+  const [metaAgg, setMetaAgg] = useState<Record<string, any>>({})
+  const onCardMeta = React.useCallback((id: string, meta: any) => {
+    setMetaAgg(prev => ({ ...prev, [id]: meta }))
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -119,7 +124,7 @@ export default function ExploreModelsPage() {
           if (u.startsWith('/ipfs/')) return `/api/ipfs${u}`
           return `/api/ipfs/ipfs/${u}`
         }
-        const concurrency = 3
+        const concurrency = 6
         const out: ApiModel[] = new Array(arr.length)
         const runTask = async (m:any, index:number) => {
           const imageUrl: string | undefined = typeof m?.imageUrl === 'string' ? m.imageUrl : undefined
@@ -136,6 +141,57 @@ export default function ExploreModelsPage() {
             price_subscription: Number(m?.price_subscription || 0),
             imageUrl,
           } as ApiModel
+          // Enriquecer SOLO en la primera página: poblar chips y rights/delivery desde meta
+          if (isFirst && m?.uri) {
+            const strMeta = (v:any): string => {
+              if (v == null) return ''
+              if (typeof v === 'string') return v
+              if (typeof v === 'object') {
+                const n = v.name || v.framework || v.arch || v.type || ''
+                const ver = v.version || v.ver || v.v || ''
+                return [String(n||'').trim(), String(ver||'').trim()].filter(Boolean).join(' ')
+              }
+              return String(v)
+            }
+            try {
+              const metaUrl = toApiFromIpfs(String(m.uri))
+              let meta: any | undefined
+              for (let attempt = 0; attempt < 2 && !meta; attempt++) {
+                try {
+                  const r = await fetch(metaUrl, { cache: 'no-store' })
+                  if (r.ok) meta = await r.json().catch(()=>undefined)
+                } catch {}
+              }
+              if (meta && out[index]) {
+                const categories = Array.isArray(meta?.categories) ? meta.categories : []
+                const tasks = Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : [])
+                const tagsA = Array.isArray(meta?.tags) ? meta.tags : []
+                const tagsB = Array.isArray(meta?.capabilities?.tags) ? meta.capabilities.tags : []
+                const mods = Array.isArray(meta?.modalities) ? meta.modalities : (Array.isArray(meta?.capabilities?.modalities) ? meta.capabilities.modalities : [])
+                const tags = Array.from(new Set([...tagsA, ...tagsB, ...mods].filter(Boolean).map(String)))
+                const architectures = Array.isArray(meta?.architectures) ? meta.architectures.map(strMeta)
+                  : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures.map(strMeta) : [])
+                const frameworks = Array.isArray(meta?.frameworks) ? meta.frameworks.map(strMeta)
+                  : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks.map(strMeta) : [])
+                const precision = Array.isArray(meta?.precision) ? meta.precision.map(strMeta)
+                  : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions.map(strMeta) : [])
+                const rights = (m.rights && typeof m.rights === 'object') ? m.rights : (meta?.rights && typeof meta.rights === 'object' ? {
+                  api: !!meta.rights.api,
+                  download: !!meta.rights.download,
+                  transferable: !!meta.rights.transferable,
+                } : (meta?.licensePolicy ? {
+                  api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('api') : undefined,
+                  download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('download') : undefined,
+                  transferable: !!meta.licensePolicy.transferable,
+                } : undefined))
+                const deliveryMode = m.deliveryMode || (typeof meta?.deliveryMode === 'string' && meta.deliveryMode) || (typeof meta?.delivery?.mode === 'string' && meta.delivery.mode) || (Array.isArray(meta?.licensePolicy?.delivery) ? (()=>{
+                  const d = meta.licensePolicy.delivery.map((x:any)=> String(x).toLowerCase())
+                  return d.includes('api') && d.includes('download') ? 'both' : d.includes('api') ? 'api' : d.includes('download') ? 'download' : undefined
+                })() : undefined)
+                Object.assign(out[index], { categories, tasks, tags, architectures, frameworks, precision, rights, deliveryMode, __preMeta: meta })
+              }
+            } catch {}
+          }
         }
         let cursor = 0
         const worker = async () => {
@@ -273,42 +329,7 @@ export default function ExploreModelsPage() {
     })
   }, [q, items])
 
-  const Sec = ({ title, items, priorityCount = 0 }:{ title:string; items: ApiModel[]; priorityCount?: number }) => (
-    <Box sx={{ py: 4 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-        <Typography variant="h5" fontWeight={800}>{title}</Typography>
-        <Button component={Link} href={`/${locale}/models`} size="small" variant="text">{L.exploreAll}</Button>
-      </Stack>
-      <Grid container spacing={2}>
-        {items.slice(0,6).map((m:any, idx:number)=> (
-          <Grid item xs={12} sm={6} md={4} key={m.modelId || m.objectId || idx}>
-            <ModelCard locale={locale} data={{
-              slug: '',
-              name: m.name || 'Model',
-              summary: m.description || '',
-              description: m.description,
-              cover: m.imageUrl,
-              uri: m.uri,
-              author: m.author,
-              valueProposition: m.valueProposition,
-              categories: m.categories,
-              tasks: m.tasks,
-              tags: m.tags,
-              architectures: m.architectures,
-              frameworks: m.frameworks,
-              precision: m.precision,
-              pricePerpetual: m.price_perpetual ? (ecosystem==='sui' ? `${(m.price_perpetual/1_000_000_000).toFixed(2)} SUI` : `${(m.price_perpetual/1e18).toFixed(2)} ${evmSymbol}`) : undefined,
-              priceSubscription: m.price_subscription ? (ecosystem==='sui' ? `${(m.price_subscription/1_000_000_000).toFixed(2)} SUI/${isES?'mes':'mo'}` : `${(m.price_subscription/1e18).toFixed(2)} ${evmSymbol}/${isES?'mes':'mo'}`) : undefined,
-              rights: m.rights,
-              demoPreset: m.demoPreset,
-              artifacts: m.artifacts,
-              deliveryMode: m.deliveryMode,
-            }} showConnect={ecosystem==='evm' && !evmConnected} href={ecosystem==='sui' ? `/models/${m.modelId ?? ''}` : (m.modelId ? `/evm/models/${m.modelId}` : undefined)} priority={idx < priorityCount} />
-          </Grid>
-        ))}
-      </Grid>
-    </Box>
-  )
+  
 
   const Filters = (
     <Box sx={{ width: 300, p: 2 }} role="presentation">
@@ -348,13 +369,13 @@ export default function ExploreModelsPage() {
           </Grid>
         </Grid>
 
-        {/* Sections */}
-        <Sec title={L.recommended} items={filtered as any} priorityCount={3} />
-        <Sec title={L.popular} items={[...filtered].reverse() as any} priorityCount={0} />
-        <Sec title={L.new} items={filtered as any} priorityCount={0} />
+        {/* Only category grid remains */}
 
         <Box sx={{ py: 4 }}>
-          <Typography variant="h5" fontWeight={800} sx={{ mb: 2 }}>{L.byCategory}</Typography>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+            <Typography variant="h5" fontWeight={800}>{L.byCategory}</Typography>
+            <Button size="small" variant={debugOn ? 'contained' : 'outlined'} onClick={()=> setDebugOn(v=>!v)}>{debugOn ? 'Debug ON' : 'Debug'}</Button>
+          </Stack>
           {/* Category chips pending real taxonomy */}
           <Grid container spacing={2}>
             {filtered.map((m:any, idx:number) => (
@@ -374,13 +395,19 @@ export default function ExploreModelsPage() {
                   architectures: m.architectures,
                   frameworks: m.frameworks,
                   precision: m.precision,
-                  rights: m.rights,
+                  rights: m.rights || (m.licensePolicy ? {
+                    api: Array.isArray(m.licensePolicy.rights) ? m.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('api') : undefined,
+                    download: Array.isArray(m.licensePolicy.rights) ? m.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('download') : undefined,
+                    transferable: Boolean(m.licensePolicy.transferable)
+                  } : undefined),
                   demoPreset: m.demoPreset,
                   artifacts: m.artifacts,
-                  deliveryMode: m.deliveryMode,
+                  deliveryMode: m.deliveryMode || (Array.isArray(m?.licensePolicy?.delivery) ?
+                    (()=>{ const d = m.licensePolicy.delivery.map((x:any)=> String(x).toLowerCase()); return d.includes('api') && d.includes('download') ? 'both' : d.includes('api') ? 'api' : d.includes('download') ? 'download' : undefined })()
+                  : undefined),
                   pricePerpetual: m.price_perpetual ? (ecosystem==='sui' ? `${(m.price_perpetual/1_000_000_000).toFixed(2)} SUI` : `${(m.price_perpetual/1e18).toFixed(4)} ${evmSymbol}`) : undefined,
                   priceSubscription: m.price_subscription ? (ecosystem==='sui' ? `${(m.price_subscription/1_000_000_000).toFixed(2)} SUI/${isES?'mes':'mo'}` : `${(m.price_subscription/1e18).toFixed(4)} ${evmSymbol}/${isES?'mes':'mo'}`) : undefined,
-                }} href={ecosystem==='sui' ? `/models/${m.modelId ?? ''}` : (m.modelId ? `/evm/models/${m.modelId}` : undefined)} priority={idx < 3} />
+                }} href={ecosystem==='sui' ? `/models/${m.modelId ?? ''}` : (m.modelId ? `/evm/models/${m.modelId}` : undefined)} priority={idx < 3} onMeta={onCardMeta} preMeta={(m as any).__preMeta} />
               </Grid>
             ))}
           </Grid>
@@ -394,6 +421,16 @@ export default function ExploreModelsPage() {
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
               {isES ? 'No hay más resultados.' : 'No more results.'}
             </Typography>
+          )}
+          {debugOn && (
+            <Box sx={{ mt: 3 }}>
+              <details open>
+                <summary>meta agregados visibles</summary>
+                <Box component="pre" sx={{ whiteSpace:'pre-wrap', fontSize: 12, bgcolor:'grey.50', p: 2, borderRadius: 1, maxHeight: 400, overflow:'auto' }}>
+                  {JSON.stringify(Object.entries(metaAgg).map(([id, meta])=> ({ id, meta })), null, 2)}
+                </Box>
+              </details>
+            </Box>
           )}
         </Box>
       </Container>
