@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { AppBar, Toolbar, Box, Typography, Container, Button, IconButton, Drawer, List, ListItem, ListItemButton, ListItemText, Stack, FormControl, InputLabel, Select, MenuItem, Skeleton } from '@mui/material';
-import { UnifiedConnectButtonEvm } from '@/components/UnifiedConnectButtonEvm';
+import UnifiedConnectButtonEvm from '@/components/UnifiedConnectButtonEvm';
 import MenuIcon from '@mui/icons-material/Menu';
 import Link from 'next/link';
 import {useTranslations, useLocale} from 'next-intl';

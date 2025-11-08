@@ -19,6 +19,17 @@
     "cancel": "Cancelar",
     "disconnect": "Desconectar"
   },
+  "modelCard": {
+    "details": "Ver detalles",
+    "connect": "Conectar wallet",
+    "oneTime": "compra única",
+    "subscription": "suscripción",
+    "chips": {
+      "apiUsage": "Uso por API",
+      "modelDownload": "Descarga del modelo",
+      "transferable": "Licencia transferible"
+    }
+  },
   "landing": {
     "badge": "Marketplace de modelos de IA",
     "title": "Publica, vende y escala tus modelos de IA",

@@ -1,0 +1,315 @@
+"use client";
+import React from 'react'
+import { useTranslations } from 'next-intl'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
+import Link from 'next/link'
+import Image from 'next/image'
+import { Card, CardActionArea, CardContent, CardMedia, Stack, Typography, Chip, Box, Button, Tooltip } from '@mui/material'
+import WarningAmberIcon from '@mui/icons-material/WarningAmber'
+import ScienceIcon from '@mui/icons-material/Science'
+import CloudDoneIcon from '@mui/icons-material/CloudDone'
+import DownloadDoneIcon from '@mui/icons-material/DownloadDone'
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
+import SettingsIcon from '@mui/icons-material/Settings'
+
+// Global controls to avoid bursts across many cards
+const __g: any = globalThis as any
+__g.__cardMetaSem = __g.__cardMetaSem || { count: 0, max: Number(process.env.NEXT_PUBLIC_CARD_META_CONCURRENCY || 3) }
+__g.__cardMetaInflight = __g.__cardMetaInflight || new Map<string, Promise<any>>()
+__g.__cardMetaCache = __g.__cardMetaCache || new Map<string, any>()
+const CARD_SEM = __g.__cardMetaSem as { count: number; max: number }
+const META_INFLIGHT = __g.__cardMetaInflight as Map<string, Promise<any>>
+const META_CACHE = __g.__cardMetaCache as Map<string, any>
+async function acquireCard() {
+  while (CARD_SEM.count >= CARD_SEM.max) await new Promise(r=>setTimeout(r, 8))
+  CARD_SEM.count++
+}
+function releaseCard() { CARD_SEM.count = Math.max(0, CARD_SEM.count - 1) }
+
+export type ModelCardData = {
+  slug: string
+  name: string
+  summary: string
+  description?: string
+  cover?: string
+  uri?: string
+  categories?: string[]
+  tags?: string[]
+  author?: string
+  valueProposition?: string
+  industries?: string[]
+  useCases?: string[]
+  expectedBusinessImpact?: string
+  inputs?: string
+  outputs?: string
+  knownLimitations?: string
+  prohibitedUses?: string
+  tasks?: string[]
+  frameworks?: string[]
+  architectures?: string[]
+  precision?: string[]
+  fileFormats?: string[]
+  minResources?: string
+  runtimeSystems?: string[]
+  pricePerpetual?: string
+  priceSubscription?: string
+  creatorRoyaltyBps?: number
+  rights?: { api?: boolean; download?: boolean; transferable?: boolean }
+  deliveryMode?: string
+  artifacts?: boolean
+  demoPreset?: boolean
+}
+
+function ConnectWalletInline({ }: { locale: string }) {
+  const { openConnectModal } = useConnectModal()
+  const t = useTranslations('modelCard')
+  return (
+    <Button size="small" variant="outlined" onClick={()=> openConnectModal?.()}>
+      {t('connect')}
+    </Button>
+  )
+}
+
+export function ModelCard({ locale, data, href: hrefProp, showConnect, priority }: { locale: string; data: ModelCardData; href?: string; showConnect?: boolean; priority?: boolean }) {
+  const defaultHref = data.slug ? `/${locale}/models/${data.slug}` : undefined
+  const href = hrefProp || defaultHref
+  const t = useTranslations('modelCard')
+  const [coverSrc, setCoverSrc] = React.useState<string | undefined>(undefined)
+  const rootRef = React.useRef<HTMLDivElement | null>(null)
+  const [author, setAuthor] = React.useState<string | undefined>(data.author)
+  const [categories, setCategories] = React.useState<string[]>(Array.isArray(data.categories) ? data.categories : [])
+  const [tasks, setTasks] = React.useState<string[]>(Array.isArray(data.tasks) ? data.tasks : [])
+  const [architectures, setArchitectures] = React.useState<string[]>(Array.isArray(data.architectures) ? data.architectures : [])
+  const [frameworks, setFrameworks] = React.useState<string[]>(Array.isArray(data.frameworks) ? data.frameworks : [])
+  const [precision, setPrecision] = React.useState<string[]>(Array.isArray(data.precision) ? data.precision : [])
+  const [rights, setRights] = React.useState<{ api?: boolean; download?: boolean; transferable?: boolean } | undefined>(data.rights)
+  const [deliveryMode, setDeliveryMode] = React.useState<string | undefined>(data.deliveryMode)
+  const [valueProposition, setValueProposition] = React.useState<string | undefined>(data.valueProposition)
+  const [description, setDescription] = React.useState<string | undefined>(data.description)
+  const [demoPreset, setDemoPreset] = React.useState<boolean | undefined>(data.demoPreset)
+  const [artifacts, setArtifacts] = React.useState<boolean | undefined>(data.artifacts)
+  const toHttpFromIpfs = React.useCallback((u: string): string => {
+    if (!u) return ''
+    // ipfs URI scheme
+    if (u.startsWith('ipfs://')) return `/api/ipfs/ipfs/${u.replace('ipfs://','')}`
+    // explicit /ipfs path
+    if (u.startsWith('/ipfs/')) return `/api/ipfs${u}`
+    // bare CID or CID with path (no scheme/host)
+    const cidv0 = /^Qm[1-9A-Za-z]{44}(?:\/.+)?$/
+    const cidv1 = /^bafy[1-9A-Za-z]+(?:\/.+)?$/
+    if (cidv0.test(u) || cidv1.test(u)) return `/api/ipfs/ipfs/${u}`
+    // http(s) gateway URLs
+    try {
+      const url = new URL(u)
+      if (url.hostname.includes('pinata.cloud') || url.hostname.includes('ipfs.io') || url.hostname.includes('cloudflare-ipfs.com')) {
+        const idx = url.pathname.indexOf('/ipfs/')
+        if (idx >= 0) {
+          const rest = url.pathname.substring(idx + '/ipfs/'.length)
+          return `/api/ipfs/ipfs/${rest}`
+        }
+      }
+    } catch {}
+    return u
+  }, [])
+  // Normalize initial cover if provided (bare CID, ipfs:// or gateway URL)
+  React.useEffect(() => {
+    if (data.cover) {
+      const c = typeof data.cover === 'string' ? data.cover.trim() : data.cover
+      setCoverSrc(toHttpFromIpfs(String(c || '')))
+    } else {
+      setCoverSrc(undefined)
+    }
+  }, [data.cover, toHttpFromIpfs])
+
+  // Sync base fields from props when data changes
+  React.useEffect(() => {
+    setAuthor(data.author)
+    setCategories(Array.isArray(data.categories) ? data.categories : [])
+    setTasks(Array.isArray(data.tasks) ? data.tasks : [])
+    setArchitectures(Array.isArray(data.architectures) ? data.architectures : [])
+    setFrameworks(Array.isArray(data.frameworks) ? data.frameworks : [])
+    setPrecision(Array.isArray(data.precision) ? data.precision : [])
+    setRights(data.rights)
+    setDeliveryMode(data.deliveryMode)
+    setValueProposition(data.valueProposition)
+    setDescription(data.description)
+    setDemoPreset(data.demoPreset)
+    setArtifacts(data.artifacts)
+  }, [data.author, data.categories, data.tasks, data.architectures, data.frameworks, data.precision, data.rights, data.deliveryMode, data.valueProposition, data.description, data.demoPreset, data.artifacts])
+
+  React.useEffect(() => {
+    if (coverSrc) return
+    const el = rootRef.current
+    if (!el) return
+    let alive = true
+    const io = new IntersectionObserver(async (entries) => {
+      const first = entries[0]
+      if (!first?.isIntersecting) return
+      if (coverSrc) return
+      if (!data?.uri) { io.disconnect(); return }
+      const uri = data.uri
+      const metaUrl = uri.startsWith('http') ? uri : (uri.startsWith('ipfs://') ? `/api/ipfs/ipfs/${uri.replace('ipfs://','')}` : (uri.startsWith('/ipfs/') ? `/api/ipfs${uri}` : `/api/ipfs/ipfs/${uri}`))
+      const doFetch = async () => {
+        // cache first
+        const cached = META_CACHE.get(metaUrl)
+        if (cached) return cached
+        await acquireCard()
+        try {
+          // de-dupe by uri
+          const inflight = META_INFLIGHT.get(metaUrl)
+          if (inflight) return await inflight
+          const p = (async ()=>{
+            let last: Response | undefined
+            for (let attempt = 0; attempt < 2; attempt++) {
+              try {
+                const ctrl = new AbortController()
+                const tm = setTimeout(() => ctrl.abort(), 2500)
+                const r = await fetch(metaUrl, { cache: 'no-store', signal: ctrl.signal })
+                clearTimeout(tm)
+                last = r
+                if (r.ok) return await r.json().catch(()=>null)
+                // respect Retry-After for 429
+                const ra = r.headers.get('retry-after')
+                const wait = ra ? (isNaN(Number(ra)) ? Math.min(800, Math.max(0, Date.parse(ra) - Date.now())) : Math.min(800, Number(ra) * 1000)) : 120 * Math.pow(2, attempt)
+                await new Promise(res=>setTimeout(res, wait + Math.floor(Math.random()*50)))
+              } catch {
+                await new Promise(res=>setTimeout(res, 120 * Math.pow(2, attempt)))
+              }
+            }
+            return last && last.ok ? await last.json().catch(()=>null) : null
+          })()
+          META_INFLIGHT.set(metaUrl, p)
+          const meta = await p
+          META_INFLIGHT.delete(metaUrl)
+          if (meta) META_CACHE.set(metaUrl, meta)
+          return meta
+        } finally {
+          releaseCard()
+        }
+      }
+      try {
+        const meta: any = await doFetch()
+        const img = meta?.image || meta?.image_url || meta?.thumbnail || meta?.cover?.thumbCid || meta?.cover?.cid
+        if (alive && typeof img === 'string') setCoverSrc(toHttpFromIpfs(img))
+        if (alive && meta) {
+          const a = (typeof meta?.author === 'string' && meta.author) || (meta?.author && typeof meta.author === 'object' && typeof meta.author.displayName === 'string' && meta.author.displayName) || (typeof meta?.creator === 'string' ? meta.creator : undefined)
+          setAuthor(a)
+          setValueProposition(typeof meta?.valueProposition === 'string' ? meta.valueProposition : valueProposition)
+          const desc = (typeof meta?.description === 'string' && meta.description) || (typeof meta?.summary === 'string' && meta.summary) || (typeof meta?.shortSummary === 'string' && meta.shortSummary) || (typeof meta?.shortDescription === 'string' && meta.shortDescription) || (typeof meta?.short_desc === 'string' && meta.short_desc) || (typeof meta?.overview === 'string' && meta.overview) || (typeof meta?.subtitle === 'string' && meta.subtitle) || description
+          setDescription(desc)
+          setCategories(Array.isArray(meta?.categories) ? meta.categories : categories)
+          setTasks(Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : tasks))
+          setArchitectures(Array.isArray(meta?.architectures) ? meta.architectures : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures : architectures))
+          setFrameworks(Array.isArray(meta?.frameworks) ? meta.frameworks : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks : frameworks))
+          setPrecision(Array.isArray(meta?.precision) ? meta.precision : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions : precision))
+          let rightsObj: { api?: boolean; download?: boolean; transferable?: boolean } | undefined = rights
+          if (meta?.rights && typeof meta.rights === 'object') {
+            rightsObj = { api: Boolean(meta.rights.api), download: Boolean(meta.rights.download), transferable: Boolean(meta.rights.transferable) }
+          }
+          if (!rightsObj && meta?.licensePolicy) {
+            const r = meta.licensePolicy.rights
+            const rightsArr = Array.isArray(r) ? r.map((x:any)=> String(x).toLowerCase()) : []
+            rightsObj = { api: rightsArr.includes('api'), download: rightsArr.includes('download'), transferable: Boolean(meta.licensePolicy.transferable) }
+          }
+          setRights(rightsObj)
+          let mode: string | undefined = typeof meta?.deliveryMode === 'string' ? meta.deliveryMode : (typeof meta?.delivery?.mode === 'string' ? meta.delivery.mode : deliveryMode)
+          if (!mode && rightsObj) {
+            if (rightsObj.api && rightsObj.download) mode = 'both'
+            else if (rightsObj.api) mode = 'api'
+            else if (rightsObj.download) mode = 'download'
+          }
+          setDeliveryMode(mode)
+          setDemoPreset(Boolean(meta?.demoPreset))
+          setArtifacts(Boolean(meta?.artifacts))
+        }
+      } catch {}
+      io.disconnect()
+    }, { rootMargin: '500px 0px' })
+    io.observe(el)
+    return () => { alive = false; io.disconnect() }
+  }, [coverSrc, data?.uri, toHttpFromIpfs])
+  const techLine = [
+    (architectures && architectures[0]) || undefined,
+    (frameworks && frameworks[0]) || undefined,
+    (precision && precision.join('/')) || undefined,
+  ].filter(Boolean).join(' · ')
+  const deliveryFlags = React.useMemo(()=>{
+    const mode = String(deliveryMode || '').toLowerCase()
+    return {
+      api: mode === 'api' || mode === 'both',
+      download: mode === 'download' || mode === 'both',
+    }
+  }, [deliveryMode])
+
+  return (
+    <Card sx={{ height: '100%', borderRadius: 2, boxShadow: 1, position:'relative', overflow:'hidden', '&:hover': { boxShadow: 3 } }} ref={rootRef}>
+      <CardActionArea component={href ? Link : 'div'} href={href as any} sx={{ alignItems:'stretch', display:'flex', flexDirection:'column', height:'100%', position:'relative' }}>
+        {coverSrc ? (
+          <Box sx={{ position:'relative', width:'100%', aspectRatio:'16/9' }}>
+            <Image src={(coverSrc && (coverSrc.startsWith('http') || coverSrc.startsWith('/'))) ? coverSrc : toHttpFromIpfs(String(coverSrc||''))} alt={data.name} fill sizes="(max-width: 600px) 100vw, (max-width: 1200px) 50vw, 33vw" style={{ objectFit:'cover' }} loading={priority ? undefined : 'lazy'} priority={!!priority} unoptimized />
+          </Box>
+        ) : (
+          <Box sx={{ aspectRatio:'16/9', bgcolor:'grey.100', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <ScienceIcon color="primary" />
+          </Box>
+        )}
+        <Box sx={{ position:'absolute', right: 12, top: 12, opacity: 0, transition:'opacity .2s', '.MuiCardActionArea-root:hover &': { opacity: 1 } }}>
+          <Button size="small" variant="contained">{t('details')}</Button>
+        </Box>
+        <CardContent sx={{ flex:1 }}>
+          <Stack spacing={1}>
+            <Typography variant="h6" fontWeight={700} noWrap title={data.name}>{data.name}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ display:'-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+              {description || data.summary || valueProposition}
+            </Typography>
+            {/* author/rating line intentionally removed per spec */}
+            <Stack direction="row" spacing={0.5} sx={{ flexWrap:'wrap' }}>
+              {(categories||[]).slice(0,2).map((c)=> <Chip key={c} size="small" label={c} />)}
+              {(tasks||[]).slice(0,2).map((t)=> <Chip key={t} size="small" variant="outlined" label={t} />)}
+            </Stack>
+            {techLine && (
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <SettingsIcon fontSize="small" sx={{ color:'text.secondary' }} />
+                <Typography variant="caption" color="text.secondary" noWrap title={techLine}>{techLine}</Typography>
+              </Stack>
+            )}
+            <Stack spacing={0.25}>
+              {showConnect ? null : data.pricePerpetual && (
+                <Typography variant="subtitle1" fontWeight={700}>
+                  {data.pricePerpetual} · {t('oneTime')}
+                </Typography>
+              )}
+              {showConnect ? null : data.priceSubscription && (
+                <Typography variant="subtitle2" color="text.secondary">
+                  {data.priceSubscription} {t('subscription')}
+                </Typography>
+              )}
+              {showConnect && (
+                <ConnectWalletInline locale={locale} />
+              )}
+            </Stack>
+            <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexWrap:'wrap' }}>
+              {deliveryFlags.api && <Chip size="small" icon={<CloudDoneIcon />} label={t('chips.apiUsage')} />}
+              {deliveryFlags.download && <Chip size="small" icon={<DownloadDoneIcon />} label={t('chips.modelDownload')} />}
+            </Stack>
+            {rights?.transferable && (
+              <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexWrap:'wrap' }}>
+                <Chip size="small" icon={<SwapHorizIcon />} label={t('chips.transferable')} />
+              </Stack>
+            )}
+            {data.knownLimitations && (
+              <Tooltip title={data.knownLimitations} placement="bottom-start">
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <WarningAmberIcon fontSize="small" sx={{ color: 'warning.main' }} />
+                  <Typography variant="caption" color="text.secondary" sx={{ maxWidth: '100%' }} noWrap>
+                    {data.knownLimitations}
+                  </Typography>
+                </Stack>
+              </Tooltip>
+            )}
+          </Stack>
+        </CardContent>
+      </CardActionArea>
+    </Card>
+  )
+}

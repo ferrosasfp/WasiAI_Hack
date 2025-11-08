@@ -19,6 +19,17 @@
     "cancel": "Cancel",
     "disconnect": "Disconnect"
   },
+  "modelCard": {
+    "details": "View details",
+    "connect": "Connect wallet",
+    "oneTime": "one-time purchase",
+    "subscription": "subscription",
+    "chips": {
+      "apiUsage": "API usage",
+      "modelDownload": "Model download",
+      "transferable": "Transferable license"
+    }
+  },
   "landing": {
     "badge": "AI Model Marketplace",
     "title": "Publish, sell and scale your AI models",

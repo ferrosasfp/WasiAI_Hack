@@ -11,7 +11,7 @@ import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import LogoutIcon from "@mui/icons-material/Logout";
-import { useAccount as useEvmAccount, useDisconnect, useChainId } from "wagmi";
+import { useAccount as useEvmAccount, useDisconnect, useChainId, useConfig } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 
 function WalletIcon({ size = 18 }: { size?: number }) {
@@ -28,7 +28,8 @@ function shorten(addr?: string) {
   return addr.slice(0, 6) + "…" + addr.slice(-4);
 }
 
-export function UnifiedConnectButtonEvm() {
+export default function UnifiedConnectButtonEvm() {
+  const config = useConfig();
   const { address: evmAddress, isConnected } = useEvmAccount();
   const { openConnectModal } = useConnectModal();
   const { disconnectAsync } = useDisconnect();
@@ -43,14 +44,14 @@ export function UnifiedConnectButtonEvm() {
   }, [isConnected, evmAddress]);
 
   const networkName = useMemo(() => {
-    switch (chainId) {
-      case 8453: return "Base";
-      case 84532: return "Base Sepolia";
-      case 43114: return "Avalanche";
-      case 43113: return "Avalanche Fuji";
-      default: return chainId ? `Chain ${chainId}` : "Unknown";
+    try {
+      const ch = (config as any)?.chains?.find((c:any)=> c?.id === chainId)
+      const nm = ch?.name
+      return typeof nm === 'string' && nm ? nm : (chainId ? `Chain ${chainId}` : 'Unknown')
+    } catch {
+      return chainId ? `Chain ${chainId}` : 'Unknown'
     }
-  }, [chainId]);
+  }, [chainId, config]);
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (isConnected) {
