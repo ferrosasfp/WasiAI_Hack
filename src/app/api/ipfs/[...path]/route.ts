@@ -78,6 +78,14 @@ export async function GET(req: NextRequest, ctx: { params: { path?: string[] } }
       }
     }
     const upstream = await fetchWithFallback()
+    // Serve stale on errors if we have any cached entry (even expired)
+    if ((!upstream.ok && upstream.status !== 404) && cached) {
+      const h = new Headers(cached.headers)
+      h.set('Access-Control-Allow-Origin', '*')
+      h.set('Cache-Control', 'public, max-age=60')
+      h.set('Warning', '110 - "Response served stale due to upstream error"')
+      return new Response(cached.body, { status: 200, headers: h })
+    }
     const headers = new Headers()
     // Copy selected headers but drop compression-related ones because body is already decoded by fetch
     upstream.headers.forEach((v, k) => {

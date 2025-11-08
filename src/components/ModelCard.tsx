@@ -79,6 +79,7 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority 
   const [author, setAuthor] = React.useState<string | undefined>(data.author)
   const [categories, setCategories] = React.useState<string[]>(Array.isArray(data.categories) ? data.categories : [])
   const [tasks, setTasks] = React.useState<string[]>(Array.isArray(data.tasks) ? data.tasks : [])
+  const [tags, setTags] = React.useState<string[]>(Array.isArray(data.tags) ? data.tags : [])
   const [architectures, setArchitectures] = React.useState<string[]>(Array.isArray(data.architectures) ? data.architectures : [])
   const [frameworks, setFrameworks] = React.useState<string[]>(Array.isArray(data.frameworks) ? data.frameworks : [])
   const [precision, setPrecision] = React.useState<string[]>(Array.isArray(data.precision) ? data.precision : [])
@@ -199,6 +200,7 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority 
           setDescription(desc)
           setCategories(Array.isArray(meta?.categories) ? meta.categories : categories)
           setTasks(Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : tasks))
+          setTags(Array.isArray(meta?.tags) ? meta.tags : tags)
           setArchitectures(Array.isArray(meta?.architectures) ? meta.architectures : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures : architectures))
           setFrameworks(Array.isArray(meta?.frameworks) ? meta.frameworks : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks : frameworks))
           setPrecision(Array.isArray(meta?.precision) ? meta.precision : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions : precision))
@@ -264,8 +266,9 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority 
             </Typography>
             {/* author/rating line intentionally removed per spec */}
             <Stack direction="row" spacing={0.5} sx={{ flexWrap:'wrap' }}>
-              {(categories||[]).slice(0,2).map((c)=> <Chip key={c} size="small" label={c} />)}
-              {(tasks||[]).slice(0,2).map((t)=> <Chip key={t} size="small" variant="outlined" label={t} />)}
+              {(categories||[]).slice(0,2).map((c)=> <Chip key={`cat-${c}`} size="small" label={c} />)}
+              {(tasks||[]).slice(0,2).map((t)=> <Chip key={`task-${t}`} size="small" variant="outlined" label={t} />)}
+              {(tags||[]).slice(0,3).map((g)=> <Chip key={`tag-${g}`} size="small" variant="outlined" label={g} />)}
             </Stack>
             {techLine && (
               <Stack direction="row" spacing={0.5} alignItems="center">

@@ -147,61 +147,6 @@ export default function ExploreModelsPage() {
         }
         await Promise.all(Array.from({ length: Math.min(concurrency, arr.length) }, () => worker()))
         let withImages: ApiModel[] = out.filter(Boolean)
-        // Prefetch metadata for the first 12 items on initial load only
-        if (alive && nextStart === 0 && withImages.length > 0) {
-          const firstN = Math.min(12, withImages.length)
-          const indices = Array.from({ length: firstN }, (_, i) => i)
-          let cur = 0
-          const enrichOne = async (i: number) => {
-            const m = withImages[i]
-            const uri = m?.uri
-            if (!uri || typeof uri !== 'string' || uri.includes('.enc')) return
-            try {
-              const metaUrl = toApiFromIpfs(uri)
-              const r = await fetch(metaUrl, { cache: 'no-store' })
-              if (!r.ok) return
-              const meta = await r.json().catch(()=>null)
-              if (!meta) return
-              const img = meta?.image || meta?.image_url || meta?.thumbnail || meta?.cover?.thumbCid || meta?.cover?.cid
-              const imageUrl = typeof img === 'string' ? toHttpFromIpfs(img) : m.imageUrl
-              const author = (typeof meta?.author === 'string' && meta.author) || (meta?.author && typeof meta.author === 'object' && typeof meta.author.displayName === 'string' && meta.author.displayName) || (typeof meta?.creator === 'string' ? meta.creator : undefined)
-              const valueProposition = typeof meta?.valueProposition === 'string' ? meta.valueProposition : undefined
-              const description = (typeof meta?.description === 'string' && meta.description) || (typeof meta?.summary === 'string' && meta.summary) || (typeof meta?.shortSummary === 'string' && meta.shortSummary) || (typeof meta?.shortDescription === 'string' && meta.shortDescription) || (typeof meta?.short_desc === 'string' && meta.short_desc) || (typeof meta?.overview === 'string' && meta.overview) || (typeof meta?.subtitle === 'string' && meta.subtitle) || m.description
-              const categories = Array.isArray(meta?.categories) ? meta.categories : undefined
-              const tasksArr = Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : undefined)
-              const tags = Array.isArray(meta?.tags) ? meta.tags : undefined
-              const architectures = Array.isArray(meta?.architectures) ? meta.architectures : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures : undefined)
-              const frameworks = Array.isArray(meta?.frameworks) ? meta.frameworks : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks : undefined)
-              const precision = Array.isArray(meta?.precision) ? meta.precision : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions : undefined)
-              let rights: { api?: boolean; download?: boolean; transferable?: boolean } | undefined
-              if (meta?.rights && typeof meta.rights === 'object') {
-                rights = { api: Boolean(meta.rights.api), download: Boolean(meta.rights.download), transferable: Boolean(meta.rights.transferable) }
-              }
-              if (!rights && meta?.licensePolicy) {
-                const rgt = meta.licensePolicy.rights
-                const rightsArr = Array.isArray(rgt) ? rgt.map((x:any)=> String(x).toLowerCase()) : []
-                rights = { api: rightsArr.includes('api'), download: rightsArr.includes('download'), transferable: Boolean(meta.licensePolicy.transferable) }
-              }
-              let deliveryMode = typeof meta?.deliveryMode === 'string' ? meta.deliveryMode : (typeof meta?.delivery?.mode === 'string' ? meta.delivery.mode : undefined)
-              if (!deliveryMode && rights) {
-                if (rights.api && rights.download) deliveryMode = 'both'
-                else if (rights.api) deliveryMode = 'api'
-                else if (rights.download) deliveryMode = 'download'
-              }
-              const demoPreset = Boolean(meta?.demoPreset)
-              const artifacts = Boolean(meta?.artifacts)
-              withImages[i] = { ...m, imageUrl, author, valueProposition, description, categories, tasks: tasksArr, tags, architectures, frameworks, precision, rights, deliveryMode, demoPreset, artifacts }
-            } catch {}
-          }
-          const worker2 = async () => {
-            while (true) {
-              const i = cur++
-              if (i >= indices.length) break
-              await enrichOne(indices[i])
-            }
-          }
-          await Promise.all(Array.from({ length: Math.min(4, indices.length) }, () => worker2()))
-        }
         if (alive) {
           setItems(prev => nextStart === 0 ? withImages : [...prev, ...withImages])
           setHasMore(withImages.length === limit)
@@ -313,7 +258,7 @@ export default function ExploreModelsPage() {
           }
         }, 50)
       }
-    }, { rootMargin: '400px 0px' })
+    }, { rootMargin: '800px 0px' })
     io.observe(el)
     return () => { alive = false; io.disconnect() }
   }, [hasMore, loading, loadingMore, start, limit, ecosystem, evmChainId])
@@ -418,11 +363,24 @@ export default function ExploreModelsPage() {
                   slug: '',
                   name: m.name || 'Model',
                   summary: m.description || '',
+                  description: m.description,
                   cover: m.imageUrl,
                   uri: m.uri,
+                  author: m.author,
+                  valueProposition: m.valueProposition,
+                  categories: m.categories,
+                  tasks: m.tasks,
+                  tags: m.tags,
+                  architectures: m.architectures,
+                  frameworks: m.frameworks,
+                  precision: m.precision,
+                  rights: m.rights,
+                  demoPreset: m.demoPreset,
+                  artifacts: m.artifacts,
+                  deliveryMode: m.deliveryMode,
                   pricePerpetual: m.price_perpetual ? (ecosystem==='sui' ? `${(m.price_perpetual/1_000_000_000).toFixed(2)} SUI` : `${(m.price_perpetual/1e18).toFixed(4)} ${evmSymbol}`) : undefined,
                   priceSubscription: m.price_subscription ? (ecosystem==='sui' ? `${(m.price_subscription/1_000_000_000).toFixed(2)} SUI/${isES?'mes':'mo'}` : `${(m.price_subscription/1e18).toFixed(4)} ${evmSymbol}/${isES?'mes':'mo'}`) : undefined,
-                }} href={ecosystem==='sui' ? `/models/${m.modelId ?? ''}` : (m.modelId ? `/evm/models/${m.modelId}` : undefined)} priority={idx===0} />
+                }} href={ecosystem==='sui' ? `/models/${m.modelId ?? ''}` : (m.modelId ? `/evm/models/${m.modelId}` : undefined)} priority={idx < 3} />
               </Grid>
             ))}
           </Grid>

@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
 import { GlobalHeader } from '@/components/GlobalHeader';
 import { GlobalHeaderEvm } from '@/components/GlobalHeaderEvm';
+import EmotionRegistry from '@/app/emotion/registry'
 
 export const locales = ['en', 'es'] as const;
 export type Locale = (typeof locales)[number];
@@ -36,8 +37,10 @@ export default async function LocaleLayout({
   const enableSui = (process.env.NEXT_PUBLIC_ENABLE_SUI || '').toLowerCase() === 'true'
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
-      {enableSui ? <GlobalHeader /> : <GlobalHeaderEvm />}
-      {children}
+      <EmotionRegistry>
+        {enableSui ? <GlobalHeader /> : <GlobalHeaderEvm />}
+        {children}
+      </EmotionRegistry>
     </NextIntlClientProvider>
   );
 }
