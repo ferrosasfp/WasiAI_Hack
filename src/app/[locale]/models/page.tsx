@@ -147,9 +147,9 @@ export default function ExploreModelsPage() {
         }
         await Promise.all(Array.from({ length: Math.min(concurrency, arr.length) }, () => worker()))
         let withImages: ApiModel[] = out.filter(Boolean)
-        // Prefetch metadata for the first 9 items on initial load only
+        // Prefetch metadata for the first 12 items on initial load only
         if (alive && nextStart === 0 && withImages.length > 0) {
-          const firstN = Math.min(9, withImages.length)
+          const firstN = Math.min(12, withImages.length)
           const indices = Array.from({ length: firstN }, (_, i) => i)
           let cur = 0
           const enrichOne = async (i: number) => {

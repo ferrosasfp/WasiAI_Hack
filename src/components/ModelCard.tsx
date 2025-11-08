@@ -14,7 +14,7 @@ import SettingsIcon from '@mui/icons-material/Settings'
 
 // Global controls to avoid bursts across many cards
 const __g: any = globalThis as any
-__g.__cardMetaSem = __g.__cardMetaSem || { count: 0, max: Number(process.env.NEXT_PUBLIC_CARD_META_CONCURRENCY || 3) }
+__g.__cardMetaSem = __g.__cardMetaSem || { count: 0, max: Number(process.env.NEXT_PUBLIC_CARD_META_CONCURRENCY || 5) }
 __g.__cardMetaInflight = __g.__cardMetaInflight || new Map<string, Promise<any>>()
 __g.__cardMetaCache = __g.__cardMetaCache || new Map<string, any>()
 const CARD_SEM = __g.__cardMetaSem as { count: number; max: number }
@@ -224,7 +224,7 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority 
         }
       } catch {}
       io.disconnect()
-    }, { rootMargin: '500px 0px' })
+    }, { rootMargin: '800px 0px' })
     io.observe(el)
     return () => { alive = false; io.disconnect() }
   }, [coverSrc, data?.uri, toHttpFromIpfs])
