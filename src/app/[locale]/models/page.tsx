@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useLocale } from 'next-intl'
-import { Container, Box, Grid, Stack, Typography, Button, Card, CardContent, TextField, Chip, IconButton, Drawer, Divider } from '@mui/material'
+import { Container, Box, Grid, Stack, Typography, Button, Card, CardContent, TextField, Chip, IconButton, Drawer, Divider, Skeleton } from '@mui/material'
 import TuneIcon from '@mui/icons-material/Tune'
 import VerifiedIcon from '@mui/icons-material/Verified'
 import UploadIcon from '@mui/icons-material/CloudUpload'
@@ -76,24 +76,39 @@ export default function ExploreModelsPage() {
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [start, setStart] = useState(0)
-  const [limit] = useState(12)
+  const [limit] = useState(6)
   const [hasMore, setHasMore] = useState(true)
+  const [initialFailed, setInitialFailed] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [initialTimeoutMs, setInitialTimeoutMs] = useState(8000)
+  const initialRetryRef = useRef(0)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const [debugOn, setDebugOn] = useState(false)
   const [metaAgg, setMetaAgg] = useState<Record<string, any>>({})
   const onCardMeta = React.useCallback((id: string, meta: any) => {
     setMetaAgg(prev => ({ ...prev, [id]: meta }))
   }, [])
+  const [visibleCount, setVisibleCount] = useState(0)
+  const revealTimer = useRef<any>(null)
 
   useEffect(() => {
     let alive = true
+    const fetchWithTimeout = async (input: RequestInfo | URL, init: RequestInit = {}, ms = 8000): Promise<Response> => {
+      const ac = new AbortController()
+      const id = setTimeout(()=> ac.abort(), ms)
+      try {
+        return await fetch(input, { ...init, signal: ac.signal })
+      } finally {
+        clearTimeout(id)
+      }
+    }
     const load = async (nextStart: number) => {
       const isFirst = nextStart === 0
       isFirst ? setLoading(true) : setLoadingMore(true)
       try {
         const params = new URLSearchParams({ start: String(nextStart), limit: String(limit), order: 'featured', listed: '1', chain: ecosystem })
         if (ecosystem === 'evm' && typeof evmChainId === 'number') params.set('chainId', String(evmChainId))
-        const r = await fetch(`/api/models-page?${params.toString()}`, { cache: 'no-store' })
+        const r = await fetchWithTimeout(`/api/models-page?${params.toString()}`, { cache: 'no-store' }, isFirst ? initialTimeoutMs : 8000)
         const j = await r.json().catch(()=>({}))
         const arr = Array.isArray(j?.data) ? j.data as any[] : []
         // hydrate images similar to non-locale page
@@ -141,57 +156,6 @@ export default function ExploreModelsPage() {
             price_subscription: Number(m?.price_subscription || 0),
             imageUrl,
           } as ApiModel
-          // Enriquecer SOLO en la primera página: poblar chips y rights/delivery desde meta
-          if (isFirst && m?.uri) {
-            const strMeta = (v:any): string => {
-              if (v == null) return ''
-              if (typeof v === 'string') return v
-              if (typeof v === 'object') {
-                const n = v.name || v.framework || v.arch || v.type || ''
-                const ver = v.version || v.ver || v.v || ''
-                return [String(n||'').trim(), String(ver||'').trim()].filter(Boolean).join(' ')
-              }
-              return String(v)
-            }
-            try {
-              const metaUrl = toApiFromIpfs(String(m.uri))
-              let meta: any | undefined
-              for (let attempt = 0; attempt < 2 && !meta; attempt++) {
-                try {
-                  const r = await fetch(metaUrl, { cache: 'no-store' })
-                  if (r.ok) meta = await r.json().catch(()=>undefined)
-                } catch {}
-              }
-              if (meta && out[index]) {
-                const categories = Array.isArray(meta?.categories) ? meta.categories : []
-                const tasks = Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : [])
-                const tagsA = Array.isArray(meta?.tags) ? meta.tags : []
-                const tagsB = Array.isArray(meta?.capabilities?.tags) ? meta.capabilities.tags : []
-                const mods = Array.isArray(meta?.modalities) ? meta.modalities : (Array.isArray(meta?.capabilities?.modalities) ? meta.capabilities.modalities : [])
-                const tags = Array.from(new Set([...tagsA, ...tagsB, ...mods].filter(Boolean).map(String)))
-                const architectures = Array.isArray(meta?.architectures) ? meta.architectures.map(strMeta)
-                  : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures.map(strMeta) : [])
-                const frameworks = Array.isArray(meta?.frameworks) ? meta.frameworks.map(strMeta)
-                  : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks.map(strMeta) : [])
-                const precision = Array.isArray(meta?.precision) ? meta.precision.map(strMeta)
-                  : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions.map(strMeta) : [])
-                const rights = (m.rights && typeof m.rights === 'object') ? m.rights : (meta?.rights && typeof meta.rights === 'object' ? {
-                  api: !!meta.rights.api,
-                  download: !!meta.rights.download,
-                  transferable: !!meta.rights.transferable,
-                } : (meta?.licensePolicy ? {
-                  api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('api') : undefined,
-                  download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('download') : undefined,
-                  transferable: !!meta.licensePolicy.transferable,
-                } : undefined))
-                const deliveryMode = m.deliveryMode || (typeof meta?.deliveryMode === 'string' && meta.deliveryMode) || (typeof meta?.delivery?.mode === 'string' && meta.delivery.mode) || (Array.isArray(meta?.licensePolicy?.delivery) ? (()=>{
-                  const d = meta.licensePolicy.delivery.map((x:any)=> String(x).toLowerCase())
-                  return d.includes('api') && d.includes('download') ? 'both' : d.includes('api') ? 'api' : d.includes('download') ? 'download' : undefined
-                })() : undefined)
-                Object.assign(out[index], { categories, tasks, tags, architectures, frameworks, precision, rights, deliveryMode, __preMeta: meta })
-              }
-            } catch {}
-          }
         }
         let cursor = 0
         const worker = async () => {
@@ -204,12 +168,139 @@ export default function ExploreModelsPage() {
         await Promise.all(Array.from({ length: Math.min(concurrency, arr.length) }, () => worker()))
         let withImages: ApiModel[] = out.filter(Boolean)
         if (alive) {
-          setItems(prev => nextStart === 0 ? withImages : [...prev, ...withImages])
-          setHasMore(withImages.length === limit)
-          setStart(nextStart + withImages.length)
+          // Pintar primero
+          if (isFirst) {
+            if (withImages.length > 0) {
+              setItems(withImages)
+              setHasMore(withImages.length === limit)
+              setStart(withImages.length)
+              setInitialFailed(false)
+              // Prefetch de la siguiente página en background si hay más
+              if (alive && withImages.length === limit) {
+                setTimeout(()=>{ if (alive) { /* prefetch next page */ load(withImages.length) } }, 200)
+              }
+            } else {
+              // Si la primera respuesta viene vacía, no pisar posibles items del cache
+              setHasMore(false)
+              setInitialFailed(true)
+            }
+          } else {
+            setItems(prev => [...prev, ...withImages])
+            setHasMore(withImages.length === limit)
+            setStart(nextStart + withImages.length)
+          }
+        }
+        // Cachear primera página solo si hay resultados
+        if (alive && isFirst && withImages.length > 0) {
+          try { sessionStorage.setItem('models_first_page_cache', JSON.stringify(withImages)) } catch {}
+        }
+        // Enriquecer después: primero 3 y luego siguientes 3, en paralelo y sin bloquear
+        if (alive && isFirst) {
+          const strMeta = (v:any): string => {
+            if (v == null) return ''
+            if (typeof v === 'string') return v
+            if (typeof v === 'object') {
+              const n = v.name || v.framework || v.arch || v.type || ''
+              const ver = v.version || v.ver || v.v || ''
+              return [String(n||'').trim(), String(ver||'').trim()].filter(Boolean).join(' ')
+            }
+            return String(v)
+          }
+          const first3 = withImages.slice(0, 3).filter(m=> m?.uri)
+          first3.forEach(async (base) => {
+            try {
+              const metaUrl = toApiFromIpfs(String(base.uri))
+              const r = await fetch(metaUrl, { cache: 'no-store' })
+              if (!r.ok) return
+              const meta: any = await r.json().catch(()=>undefined)
+              if (!meta) return
+              const categories = Array.isArray(meta?.categories) ? meta.categories : []
+              const tasks = Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : [])
+              const tagsA = Array.isArray(meta?.tags) ? meta.tags : []
+              const tagsB = Array.isArray(meta?.capabilities?.tags) ? meta.capabilities.tags : []
+              const mods = Array.isArray(meta?.modalities) ? meta.modalities : (Array.isArray(meta?.capabilities?.modalities) ? meta.capabilities.modalities : [])
+              const tags = Array.from(new Set([...tagsA, ...tagsB, ...mods].filter(Boolean).map(String)))
+              const architectures = Array.isArray(meta?.architectures) ? meta.architectures.map(strMeta)
+                : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures.map(strMeta) : [])
+              const frameworks = Array.isArray(meta?.frameworks) ? meta.frameworks.map(strMeta)
+                : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks.map(strMeta) : [])
+              const precision = Array.isArray(meta?.precision) ? meta.precision.map(strMeta)
+                : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions.map(strMeta) : [])
+              const rights = (base.rights && typeof base.rights === 'object') ? base.rights : (meta?.rights && typeof meta.rights === 'object' ? {
+                api: !!meta.rights.api,
+                download: !!meta.rights.download,
+                transferable: !!meta.rights.transferable,
+              } : (meta?.licensePolicy ? {
+                api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('api') : undefined,
+                download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('download') : undefined,
+                transferable: !!meta.licensePolicy.transferable,
+              } : undefined))
+              const deliveryMode = base.deliveryMode || (typeof meta?.deliveryMode === 'string' && meta.deliveryMode) || (typeof meta?.delivery?.mode === 'string' && meta.delivery.mode) || (Array.isArray(meta?.licensePolicy?.delivery) ? (()=>{
+                const d = meta.licensePolicy.delivery.map((x:any)=> String(x).toLowerCase())
+                return d.includes('api') && d.includes('download') ? 'both' : d.includes('api') ? 'api' : d.includes('download') ? 'download' : undefined
+              })() : undefined)
+              setItems(prev => prev.map(it => {
+                if ((it.modelId ?? it.objectId) === (base.modelId ?? base.objectId)) {
+                  return { ...it, categories, tasks, tags, architectures, frameworks, precision, rights, deliveryMode, __preMeta: meta }
+                }
+                return it
+              }))
+            } catch {}
+          })
+          // Enriquecer los siguientes 3 tras un pequeño retraso
+          const next3 = withImages.slice(3, 6).filter(m=> m?.uri)
+          if (next3.length) {
+            setTimeout(()=>{
+              if (!alive) return
+              next3.forEach(async (base) => {
+                try {
+                  const metaUrl = toApiFromIpfs(String(base.uri))
+                  const r = await fetch(metaUrl, { cache: 'no-store' })
+                  if (!r.ok) return
+                  const meta: any = await r.json().catch(()=>undefined)
+                  if (!meta) return
+                  const categories = Array.isArray(meta?.categories) ? meta.categories : []
+                  const tasks = Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : [])
+                  const tagsA = Array.isArray(meta?.tags) ? meta.tags : []
+                  const tagsB = Array.isArray(meta?.capabilities?.tags) ? meta.capabilities.tags : []
+                  const mods = Array.isArray(meta?.modalities) ? meta.modalities : (Array.isArray(meta?.capabilities?.modalities) ? meta.capabilities.modalities : [])
+                  const tags = Array.from(new Set([...tagsA, ...tagsB, ...mods].filter(Boolean).map(String)))
+                  const architectures = Array.isArray(meta?.architectures) ? meta.architectures.map(strMeta)
+                    : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures.map(strMeta) : [])
+                  const frameworks = Array.isArray(meta?.frameworks) ? meta.frameworks.map(strMeta)
+                    : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks.map(strMeta) : [])
+                  const precision = Array.isArray(meta?.precision) ? meta.precision.map(strMeta)
+                    : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions.map(strMeta) : [])
+                  const rights = (base.rights && typeof base.rights === 'object') ? base.rights : (meta?.rights && typeof meta.rights === 'object' ? {
+                    api: !!meta.rights.api,
+                    download: !!meta.rights.download,
+                    transferable: !!meta.rights.transferable,
+                  } : (meta?.licensePolicy ? {
+                    api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('api') : undefined,
+                    download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('download') : undefined,
+                    transferable: !!meta.licensePolicy.transferable,
+                  } : undefined))
+                  const deliveryMode = base.deliveryMode || (typeof meta?.deliveryMode === 'string' && meta.deliveryMode) || (typeof meta?.delivery?.mode === 'string' && meta.delivery.mode) || (Array.isArray(meta?.licensePolicy?.delivery) ? (()=> {
+                    const d = meta.licensePolicy.delivery.map((x:any)=> String(x).toLowerCase())
+                    return d.includes('api') && d.includes('download') ? 'both' : d.includes('api') ? 'api' : d.includes('download') ? 'download' : undefined
+                  })() : undefined)
+                  setItems(prev => prev.map(it => {
+                    if ((it.modelId ?? it.objectId) === (base.modelId ?? base.objectId)) {
+                      return { ...it, categories, tasks, tags, architectures, frameworks, precision, rights, deliveryMode, __preMeta: meta }
+                    }
+                    return it
+                  }))
+                } catch {}
+              })
+            }, 700)
+          }
         }
       } catch {
-        if (alive && nextStart === 0) setItems([])
+        if (alive && nextStart === 0) {
+          setItems([])
+          setHasMore(false)
+          setInitialFailed(true)
+        }
       } finally {
         if (alive) {
           setLoading(false)
@@ -221,13 +312,41 @@ export default function ExploreModelsPage() {
     setItems([])
     setStart(0)
     setHasMore(true)
+    // Intentar hidratar desde cache de sesión inmediatamente
+    try {
+      const raw = sessionStorage.getItem('models_first_page_cache')
+      const cached = raw ? JSON.parse(raw) : undefined
+      if (Array.isArray(cached) && cached.length) {
+        setItems(cached)
+        setStart(cached.length)
+        setVisibleCount(Math.min(3, cached.length))
+      }
+    } catch {}
+    // Revalidar en background
     load(0)
     return () => { alive = false }
-  }, [ecosystem, evmChainId, limit])
+  }, [ecosystem, evmChainId, limit, refreshKey, initialTimeoutMs])
+
+  // Auto-reintento con backoff si la carga inicial falla y no hay items
+  useEffect(()=>{
+    if (!initialFailed || items.length > 0) return
+    if (initialRetryRef.current >= 3) return
+    const attempt = initialRetryRef.current + 1
+    const t = setTimeout(()=>{
+      initialRetryRef.current = attempt
+      setInitialTimeoutMs(ms=> Math.min(15000, ms + 4000))
+      setHasMore(true)
+      setRefreshKey(k=>k+1)
+    }, 800 * attempt)
+    return ()=> clearTimeout(t)
+  }, [initialFailed, items.length])
+
+  // Resetear contador de reintentos cuando llegan items
+  useEffect(()=>{ if (items.length > 0) initialRetryRef.current = 0 }, [items.length])
 
   // Infinite scroll observer
   useEffect(() => {
-    if (!hasMore || loading || loadingMore) return
+    if (!hasMore || loading || loadingMore || items.length === 0) return
     const el = sentinelRef.current
     if (!el) return
     let alive = true
@@ -245,7 +364,20 @@ export default function ExploreModelsPage() {
               if (ecosystem === 'evm' && typeof evmChainId === 'number') params.set('chainId', String(evmChainId))
               setLoadingMore(true)
               try {
-                const r = await fetch(`/api/models-page?${params.toString()}`, { cache: 'no-store' })
+                const ac = new AbortController()
+                const t = setTimeout(()=> ac.abort(), 10000)
+                let r: Response
+                try {
+                  r = await fetch(`/api/models-page?${params.toString()}`, { cache: 'no-store', signal: ac.signal })
+                } catch (e: any) {
+                  if (e && (e.name === 'AbortError' || e.code === 'ABORT_ERR')) {
+                    clearTimeout(t)
+                    return
+                  }
+                  clearTimeout(t)
+                  throw e
+                }
+                clearTimeout(t)
                 const j = await r.json().catch(()=>({}))
                 const arr = Array.isArray(j?.data) ? j.data as any[] : []
                 const toHttpFromIpfs = (u: string): string => {
@@ -317,7 +449,7 @@ export default function ExploreModelsPage() {
     }, { rootMargin: '800px 0px' })
     io.observe(el)
     return () => { alive = false; io.disconnect() }
-  }, [hasMore, loading, loadingMore, start, limit, ecosystem, evmChainId])
+  }, [hasMore, loading, loadingMore, start, limit, ecosystem, evmChainId, items.length])
 
   const filtered = useMemo(()=>{
     return items.filter(m=>{
@@ -328,6 +460,31 @@ export default function ExploreModelsPage() {
       return okQ && okCat && okTask
     })
   }, [q, items])
+  const displayed = useMemo(()=> filtered.slice(0, Math.min(visibleCount, filtered.length)), [filtered, visibleCount])
+
+  // Reiniciar revelado al cambiar consulta
+  useEffect(()=>{ setVisibleCount(0) }, [q])
+  // Arrancar revelado cuando haya elementos
+  useEffect(()=>{
+    if (filtered.length === 0) {
+      if (revealTimer.current) { clearInterval(revealTimer.current); revealTimer.current = null }
+      setVisibleCount(0)
+      return
+    }
+    if (visibleCount === 0) setVisibleCount(Math.min(3, filtered.length))
+    if (revealTimer.current) return
+    revealTimer.current = setInterval(()=>{
+      setVisibleCount(prev => {
+        const next = Math.min(prev + 3, filtered.length)
+        if (next >= filtered.length) {
+          clearInterval(revealTimer.current)
+          revealTimer.current = null
+        }
+        return next
+      })
+    }, 400)
+    return () => { if (revealTimer.current) { clearInterval(revealTimer.current); revealTimer.current = null } }
+  }, [filtered.length, visibleCount])
 
   
 
@@ -378,7 +535,46 @@ export default function ExploreModelsPage() {
           </Stack>
           {/* Category chips pending real taxonomy */}
           <Grid container spacing={2}>
-            {filtered.map((m:any, idx:number) => (
+            {loading && items.length === 0 && Array.from({ length: 6 }).map((_, i) => (
+              <Grid key={`sk-${i}`} item xs={12} sm={6} md={4}>
+                <Card>
+                  <Skeleton variant="rectangular" height={160} />
+                  <CardContent>
+                    <Stack spacing={1}>
+                      <Skeleton variant="text" width="60%" height={28} />
+                      <Skeleton variant="text" width="90%" />
+                      <Stack direction="row" spacing={0.5} sx={{ flexWrap:'wrap' }}>
+                        <Skeleton variant="rounded" width={60} height={24} />
+                        <Skeleton variant="rounded" width={70} height={24} />
+                        <Skeleton variant="rounded" width={80} height={24} />
+                      </Stack>
+                      <Skeleton variant="text" width="40%" />
+                      <Stack direction="row" spacing={0.75}>
+                        <Skeleton variant="rounded" width={110} height={28} />
+                        <Skeleton variant="rounded" width={130} height={28} />
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+            {!loading && items.length === 0 && (
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Stack spacing={2} alignItems="center" justifyContent="center" sx={{ py: 4 }}>
+                      <Typography variant="subtitle1" fontWeight={700}>
+                        {isES ? 'Estamos cargando los modelos…' : 'We are loading the models…'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {isES ? 'Esto puede tardar unos segundos si la red está lenta. Reintentaremos automáticamente.' : 'This may take a few seconds if the network is slow. We will retry automatically.'}
+                      </Typography>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            )}
+            {(displayed.length>0?displayed:filtered).map((m:any, idx:number) => (
               <Grid key={m.modelId || m.objectId || idx} item xs={12} sm={6} md={4}>
                 <ModelCard locale={locale} data={{
                   slug: '',
@@ -412,7 +608,7 @@ export default function ExploreModelsPage() {
             ))}
           </Grid>
           <Box ref={sentinelRef} sx={{ height: 1 }} />
-          {loadingMore && (
+          {loadingMore && items.length > 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
               {isES ? 'Cargando más…' : 'Loading more…'}
             </Typography>

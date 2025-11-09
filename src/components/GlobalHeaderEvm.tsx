@@ -87,10 +87,13 @@ export function GlobalHeaderEvm() {
                   }} disabled={isConnected} onChange={(e)=>{
                     const v = e.target.value as number
                     setSelectedNet(v)
-                    try { switchChain({ chainId: v }) } catch {}
-                    setEcosystem('evm')
-                    try { localStorage.setItem('preferred_ecosystem', 'evm') } catch {}
-                    try { localStorage.setItem('preferred_net', String(v)) } catch {}
+                    // diferir side-effects para no chocar con Hydrate
+                    setTimeout(()=>{
+                      try { switchChain({ chainId: v }) } catch {}
+                      try { setEcosystem('evm') } catch {}
+                      try { localStorage.setItem('preferred_ecosystem', 'evm') } catch {}
+                      try { localStorage.setItem('preferred_net', String(v)) } catch {}
+                    }, 0)
                   }}>
                     {chains.map(c => {
                       const kind = (c.id === 84532 || c.id === 8453) ? 'base' : 'avax'
@@ -138,9 +141,11 @@ export function GlobalHeaderEvm() {
                   }} disabled={isConnected} onChange={(e)=>{
                     const v = e.target.value as number
                     setSelectedNet(v)
-                    try { switchChain({ chainId: v }) } catch {}
-                    setEcosystem('evm')
-                    try { localStorage.setItem('preferred_net', String(v)) } catch {}
+                    setTimeout(()=>{
+                      try { switchChain({ chainId: v }) } catch {}
+                      try { setEcosystem('evm') } catch {}
+                      try { localStorage.setItem('preferred_net', String(v)) } catch {}
+                    }, 0)
                   }}>
                     {chains.map(c => {
                       const kind = (c.id === 84532 || c.id === 8453) ? 'base' : 'avax'
