@@ -4,19 +4,24 @@ import { useParams } from 'next/navigation'
 import { useConfig } from 'wagmi'
 import {
   Container, Box, Stack, Typography, Chip, Grid, Skeleton, Button, Divider,
-  Card, CardContent, CardHeader, Tooltip, IconButton,
+  Card, CardContent, CardHeader, Tooltip, IconButton, SvgIcon,
   Table, TableBody, TableCell, TableHead, TableRow,
-  Dialog, DialogTitle, DialogContent, DialogActions
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  List, ListItem, ListItemText,
+  Radio, RadioGroup, FormControlLabel, TextField, MenuItem,
+  Snackbar, Alert, CircularProgress
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import Link from 'next/link'
-import { useChainId as useEvmChainId } from 'wagmi'
+import { useChainId as useEvmChainId, useWriteContract, usePublicClient, useSwitchChain, useAccount } from 'wagmi'
+import MARKET_ARTIFACT from '@/abis/Marketplace.json'
 
 function useEvmModel(id: number | undefined) {
   const evmChainId = useEvmChainId()
   const [data, setData] = React.useState<any | null>(null)
-  const [loading, setLoading] = React.useState(false)
+  const [loading, setLoading] = React.useState(true)
+  const [attempted, setAttempted] = React.useState(false)
 
   React.useEffect(() => {
     if (!id) return
@@ -64,7 +69,8 @@ function useEvmModel(id: number | undefined) {
                 }
               }
               if (!m.name && typeof meta.name === 'string') m.name = meta.name
-              if (!m.description && typeof meta.description === 'string') m.description = meta.description
+              const desc = typeof meta.description === 'string' ? meta.description : (typeof (meta as any).shortSummary === 'string' ? (meta as any).shortSummary : undefined)
+              if (!m.description && typeof desc === 'string') m.description = desc
               const strMeta = (v:any): string => {
                 if (v == null) return ''
                 if (typeof v === 'string') return v
@@ -100,7 +106,109 @@ function useEvmModel(id: number | undefined) {
                 const d = meta.licensePolicy.delivery.map((x:any)=> String(x).toLowerCase())
                 return d.includes('api') && d.includes('download') ? 'both' : d.includes('api') ? 'api' : d.includes('download') ? 'download' : undefined
               })() : undefined)
-              m = { ...m, categories, tasks, tags, architectures, frameworks, precision, rights, deliveryMode }
+              const stripIpfs = (u:any): string => {
+                const s = String(u||'')
+                if (!s) return ''
+                if (s.startsWith('ipfs://')) return s.replace('ipfs://','')
+                if (s.startsWith('/ipfs/')) return s.replace('/ipfs/','')
+                return s
+              }
+              const toArray = (x:any): any[] => {
+                if (!x) return []
+                if (Array.isArray(x)) return x
+                if (typeof x === 'object') {
+                  if (Array.isArray((x as any).items)) return (x as any).items
+                  try { return Object.values(x) } catch { return [] }
+                }
+                return []
+              }
+              const rawArtifacts = [
+                ...toArray((meta as any)?.artifacts),
+                ...toArray((meta as any)?.files),
+                ...toArray((meta as any)?.assets),
+                ...toArray((meta as any)?.bundle?.files),
+                ...toArray((meta as any)?.model?.artifacts),
+              ]
+              const normArtifact = (v:any) => {
+                if (v == null) return null as any
+                if (typeof v === 'string') {
+                  const cid = stripIpfs(v)
+                  return cid ? { cid, filename: '', size: '', sha256: '' } : null
+                }
+                if (typeof v === 'object') {
+                  const cidRaw = (v as any).cid || (v as any).hash || (v as any).ipfs || (v as any).ipfs_cid || (v as any).url
+                  const cid = stripIpfs(cidRaw)
+                  const filename = (v as any).filename || (v as any).name || (v as any).path || ''
+                  const size = (v as any).size || (v as any).bytes || (v as any).length || ''
+                  const sha256 = (v as any).sha256 || (v as any).hash256 || (v as any).sha || ''
+                  return cid ? { cid: String(cid), filename: String(filename||''), size, sha256: String(sha256||'') } : null
+                }
+                return null as any
+              }
+              const artifactsList = rawArtifacts.map(normArtifact).filter(Boolean).reduce((acc:any[], cur:any)=>{
+                const key = `${cur.cid}::${cur.filename||''}`
+                if (!acc.some(x=> `${x.cid}::${x.filename||''}` === key)) acc.push(cur)
+                return acc
+              }, [])
+              // Map Step 2 customer-facing fields when present
+              const cust = (meta as any)?.customer || {}
+              const valueProposition = typeof cust.valueProp === 'string' ? cust.valueProp : (typeof (meta as any)?.valueProposition === 'string' ? (meta as any).valueProposition : undefined)
+              const customerDescription = typeof cust.description === 'string' ? cust.description : undefined
+              const expectedImpact = typeof cust.expectedImpact === 'string' ? cust.expectedImpact : (typeof cust.expectedOutcomes === 'string' ? cust.expectedOutcomes : undefined)
+              const inputs = typeof cust.inputs === 'string' ? cust.inputs : undefined
+              const outputs = typeof cust.outputs === 'string' ? cust.outputs : undefined
+              const examples = Array.isArray(cust.examples) ? cust.examples : undefined
+              const industries = Array.isArray(cust.industries) ? cust.industries : undefined
+              const useCases = Array.isArray(cust.useCases) ? cust.useCases : undefined
+              const limitations = typeof cust.limitations === 'string' ? cust.limitations : (typeof cust.risks === 'string' ? cust.risks : undefined)
+              const prohibited = typeof cust.prohibited === 'string' ? cust.prohibited : undefined
+              const privacy = typeof cust.privacy === 'string' ? cust.privacy : undefined
+              const deploy = Array.isArray(cust.deploy) ? cust.deploy : undefined
+              const support = typeof cust.support === 'string' ? cust.support : undefined
+              const supportedLanguages = Array.isArray(cust.supportedLanguages) ? cust.supportedLanguages : undefined
+              const primaryLanguage = typeof cust.primaryLanguage === 'string' ? cust.primaryLanguage : undefined
+              const modelType = typeof cust.modelType === 'string' ? cust.modelType : undefined
+              const metrics = typeof cust.metrics === 'string' ? cust.metrics : undefined
+              // Map Step 2 technical fields when present
+              const arch = (meta as any)?.architecture || {}
+              const quantization = typeof arch.quantization === 'string' ? arch.quantization : undefined
+              const fileFormats = Array.isArray(arch.modelFiles) ? arch.modelFiles : undefined
+              const modelSize = (arch as any).modelSizeParams != null ? String((arch as any).modelSizeParams) : undefined
+              const artifactSize = typeof (arch as any).artifactSizeGB === 'string' ? (arch as any).artifactSizeGB : undefined
+              const runtime2 = (meta as any)?.runtime || {}
+              const python = typeof (runtime2 as any).python === 'string' ? (runtime2 as any).python : undefined
+              const cuda = typeof (runtime2 as any).cuda === 'string' ? (runtime2 as any).cuda : undefined
+              const pytorch = typeof (runtime2 as any).torch === 'string' ? (runtime2 as any).torch : undefined
+              const cudnn = typeof (runtime2 as any).cudnn === 'string' ? (runtime2 as any).cudnn : undefined
+              const systems = Array.isArray((runtime2 as any).os) ? (runtime2 as any).os : undefined
+              const accelerators = Array.isArray((runtime2 as any).accelerators) ? (runtime2 as any).accelerators : undefined
+              const computeCapability = typeof (runtime2 as any).computeCapability === 'string' ? (runtime2 as any).computeCapability : undefined
+              const deps2 = (meta as any)?.dependencies || {}
+              const dependencies = Array.isArray((deps2 as any).pip) ? ((deps2 as any).pip as string[]).join('\n') : undefined
+              const res2 = (meta as any)?.resources || {}
+              const minVram = (res2 as any).vramGB != null ? String((res2 as any).vramGB) : undefined
+              const minCpu = (res2 as any).cpuCores != null ? String((res2 as any).cpuCores) : undefined
+              const recRam = (res2 as any).ramGB != null ? String((res2 as any).ramGB) : undefined
+              const inf2 = (meta as any)?.inference || {}
+              const maxBatch = (inf2 as any).maxBatchSize != null ? String((inf2 as any).maxBatchSize) : undefined
+              const contextLength = (inf2 as any).contextLength != null ? String((inf2 as any).contextLength) : undefined
+              const maxTokens = (inf2 as any).maxTokens != null ? String((inf2 as any).maxTokens) : undefined
+              const imageResolution = typeof (inf2 as any).imageResolution === 'string' ? (inf2 as any).imageResolution : undefined
+              const sampleRate = (inf2 as any).sampleRate != null ? String((inf2 as any).sampleRate) : undefined
+              const triton = typeof (inf2 as any).triton === 'boolean' ? (inf2 as any).triton : undefined
+              const gpuNotes = typeof (inf2 as any).referencePerf === 'string' ? (inf2 as any).referencePerf : undefined
+              const termsText = typeof (meta as any)?.licensePolicy?.termsText === 'string' ? (meta as any).licensePolicy.termsText : undefined
+              m = { ...m,
+                categories, tasks, tags, architectures, frameworks, precision, rights, deliveryMode,
+                modalities: mods,
+                valueProposition, customerDescription, expectedImpact, inputs, outputs, examples, industries, useCases, limitations, prohibited, privacy, deploy, support, supportedLanguages, primaryLanguage, modelType, metrics,
+                quantization, fileFormats, modelSize, artifactSize,
+                python, cuda, pytorch, cudnn, systems, accelerators, computeCapability,
+                dependencies, minVram, minCpu, recRam,
+                maxBatch, contextLength, maxTokens, imageResolution, sampleRate, triton, gpuNotes,
+                termsText,
+                artifactsList
+              }
             }
           } catch {}
         }
@@ -108,23 +216,144 @@ function useEvmModel(id: number | undefined) {
       } catch {
         if (alive) setData(null)
       } finally {
-        if (alive) setLoading(false)
+        if (alive) {
+          setLoading(false)
+          setAttempted(true)
+        }
       }
     }
     load()
     return () => { alive = false }
   }, [id, evmChainId])
 
-  return { data, loading, evmChainId }
+  return { data, loading, attempted, evmChainId }
 }
 
 export default function EvmModelDetailPage() {
   const params = useParams() as { id?: string }
   const id = params?.id ? Number(params.id) : undefined
-  const { data, loading, evmChainId } = useEvmModel(id)
+  const { data, loading, attempted, evmChainId } = useEvmModel(id)
   const { chains } = useConfig() as any
   const [buyOpen, setBuyOpen] = React.useState(false)
+  const [buyStep, setBuyStep] = React.useState<'select'|'review'>('select')
+  const [buyKind, setBuyKind] = React.useState<'perpetual'|'subscription'|undefined>(undefined)
+  const [buyMonths, setBuyMonths] = React.useState<number>(1)
   const demoAnchorRef = React.useRef<HTMLDivElement | null>(null)
+  const { writeContractAsync } = useWriteContract()
+  const publicClient = usePublicClient()
+  const { switchChainAsync } = useSwitchChain()
+  const [txLoading, setTxLoading] = React.useState(false)
+  const [snkOpen, setSnkOpen] = React.useState(false)
+  const [snkMsg, setSnkMsg] = React.useState<string>('')
+  const [snkSev, setSnkSev] = React.useState<'success'|'error'|'info'|'warning'>('info')
+  const { isConnected, chain } = useAccount()
+  const detectIsES = React.useCallback(()=>{
+    try {
+      const langAttr = (typeof document !== 'undefined' ? (document.documentElement.lang || '') : '')
+      const navLang = (typeof navigator !== 'undefined' ? (navigator.language || '') : '')
+      const byPath = (typeof window !== 'undefined' ? (window.location.pathname.split('/')[1] || '') : '')
+      const qLang = (typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('lang') || '') : '')
+      const cookieStr = (typeof document !== 'undefined' ? document.cookie : '') || ''
+      const cookieLang = (()=>{ try { const m = cookieStr.split(';').map(s=> s.trim()).find(s=> s.startsWith('lang=')); return m ? m.replace('lang=','') : '' } catch { return '' } })()
+      const v = String(qLang || langAttr || cookieLang || navLang || '').toLowerCase()
+      return v.startsWith('es') || ['es','es-419','es-mx','es-ar','es-co'].includes(byPath.toLowerCase())
+    } catch { return false }
+  }, [])
+  const [isES, setIsES] = React.useState<boolean>(detectIsES)
+  React.useEffect(()=>{
+    try {
+      const is = detectIsES()
+      setIsES(is)
+      // persist query lang to cookie if present
+      if (typeof window !== 'undefined') {
+        const q = new URLSearchParams(window.location.search).get('lang')
+        if (q) { try { document.cookie = `lang=${q}; Max-Age=${60*60*24*365}; Path=/` } catch {} }
+      }
+    } catch {}
+  }, [detectIsES])
+  const L = {
+    back: isES ? 'Volver' : 'Back',
+    buy: isES ? 'Comprar licencia' : 'Buy license',
+    tryDemo: isES ? 'Probar demo' : 'Try demo',
+    noCover: isES ? 'Sin portada' : 'No cover',
+    perpetual: isES ? 'Licencia perpetua' : 'Perpetual',
+    subscriptionMo: isES ? 'Suscripción / mes' : 'Subscription / month',
+    version: isES ? 'v' : 'v',
+    uri: isES ? 'URI' : 'URI',
+    notFound: isES ? 'Modelo no encontrado.' : 'Model not found.',
+    whatItDoes: isES ? 'Qué hace este modelo' : 'What this model does',
+    valueProp: isES ? 'Propuesta de valor' : 'Value proposition',
+    descMissing: isES ? 'Descripción no especificada.' : 'No description provided.',
+    expectedImpact: isES ? 'El impacto esperado en su negocio' : 'The expected impact on your business',
+    customerSheet: isES ? 'Ficha para clientes' : 'Customer sheet',
+    ioTitle: isES ? 'Entradas y salidas' : 'Inputs and outputs',
+    ioSubtitle: isES ? 'Qué entregan los usuarios y qué reciben.' : 'What users provide and receive.',
+    inputs: isES ? 'Entradas' : 'Inputs',
+    outputs: isES ? 'Salidas' : 'Outputs',
+    examples: isES ? 'Ejemplos' : 'Examples',
+    exampleIn: isES ? 'Entrada' : 'Input',
+    exampleOut: isES ? 'Respuesta del modelo' : 'Model response',
+    note: isES ? 'Nota' : 'Note',
+    noExamples: isES ? 'El creador aún no ha añadido ejemplos.' : 'The creator has not added examples yet.',
+    industriesUseCases: isES ? 'Industrias y casos de uso' : 'Industries and use cases',
+    industries: isES ? 'Industrias' : 'Industries',
+    useCases: isES ? 'Casos de uso' : 'Use cases',
+    unspecified: isES ? 'No especificado' : 'Not specified',
+    knownLimits: isES ? 'Limitaciones conocidas' : 'Known limitations',
+    prohibited: isES ? 'Usos prohibidos' : 'Prohibited uses',
+    privacy: isES ? 'Privacidad' : 'Privacy',
+    deploy: isES ? 'Deploy' : 'Deploy',
+    support: isES ? 'Soporte' : 'Support',
+    techConfig: isES ? 'Configuración técnica' : 'Technical configuration',
+    capabilities: isES ? 'Capacidades' : 'Capabilities',
+    modalities: isES ? 'Modalidades' : 'Modalities',
+    architecture: isES ? 'Arquitectura' : 'Architecture',
+    frameworks: isES ? 'Frameworks' : 'Frameworks',
+    architectures: isES ? 'Architectures' : 'Architectures',
+    precision: isES ? 'Precision' : 'Precision',
+    quantization: isES ? 'Quantization' : 'Quantization',
+    fileFormats: isES ? 'Formatos de archivo' : 'File formats',
+    modelSize: isES ? 'Tamaño del modelo' : 'Model size',
+    artifactSize: isES ? 'Tamaño del artefacto' : 'Artifact size',
+    runtime: isES ? 'Runtime' : 'Runtime',
+    dependencies: isES ? 'Dependencias' : 'Dependencies',
+    minResources: isES ? 'Recursos mínimos' : 'Minimum resources',
+    minVram: isES ? 'VRAM mínima' : 'Min VRAM',
+    cpuCores: isES ? 'CPU cores' : 'CPU cores',
+    recRam: isES ? 'RAM recomendada' : 'Recommended RAM',
+    inferenceOpts: isES ? 'Opciones de inferencia' : 'Inference options',
+    maxBatch: isES ? 'Max batch size' : 'Max batch size',
+    contextLength: isES ? 'Context length' : 'Context length',
+    maxTokens: isES ? 'Max tokens' : 'Max tokens',
+    referenceLatency: isES ? 'Latencia de referencia' : 'Reference latency',
+    triton: 'Triton',
+    imageResolution: isES ? 'Resolución imagen' : 'Image resolution',
+    artifactsDemo: isES ? 'Artefactos & demo' : 'Artifacts & demo',
+    artifacts: 'Artifacts (IPFS)',
+    cid: 'CID', filename: isES ? 'Archivo' : 'Filename', size: isES ? 'Tamaño' : 'Size', sha256: 'SHA-256', actions: isES ? 'Acciones' : 'Actions',
+    open: isES ? 'Abrir' : 'Open', copy: isES ? 'Copiar' : 'Copy', copyHash: isES ? 'Copiar hash' : 'Copy hash',
+    noArtifacts: isES ? 'No hay artefactos publicados.' : 'No artifacts published.',
+    hostedDemo: isES ? 'Demo (Hosted)' : 'Demo (Hosted)',
+    runDemo: isES ? 'Run demo' : 'Run demo',
+    noDemo: isES ? 'Este modelo no tiene una demo configurada.' : 'This model has no demo configured.',
+    licensesTerms: isES ? 'Licencias y términos' : 'Licenses and terms',
+    perpetualLicense: isES ? 'Perpetual license' : 'Perpetual license',
+    subscriptionPerMonth: isES ? 'Subscription / month' : 'Subscription / month',
+    baseDuration: isES ? 'Duración base' : 'Base duration',
+    rightsDelivery: isES ? 'Delivery' : 'Delivery',
+    deliveryHint: isES ? 'Cómo recibes el modelo: API, descarga o ambos.' : 'How you get the model: API, download, or both',
+    transferableHint: isES ? ', puedes transferir la licencia según los términos.' : ', you may transfer the license as allowed by the terms.',
+    termsKey: isES ? 'Términos clave' : 'Key terms',
+    termsHash: isES ? 'Terms hash (SHA-256):' : 'Terms hash (SHA-256):',
+    buyModalTitle: isES ? 'Comprar licencia' : 'Buy license',
+    buyModalHint: isES ? 'Selecciona la opción de licencia que prefieras.' : 'Select your preferred license option.',
+    close: isES ? 'Cerrar' : 'Close',
+    continue: isES ? 'Continuar' : 'Continue',
+    months: isES ? 'Meses' : 'Months',
+    selectType: isES ? 'Tipo de licencia' : 'License type',
+    review: isES ? 'Revisar compra' : 'Review purchase',
+    purchase: isES ? 'Comprar' : 'Purchase',
+  }
   const evmSymbol = React.useMemo(()=>{
     try {
       if (typeof evmChainId !== 'number') return 'ETH'
@@ -135,13 +364,120 @@ export default function EvmModelDetailPage() {
       return 'ETH'
     }
   }, [evmChainId, chains])
+  const marketAddress = React.useMemo(() => {
+    try {
+      if (typeof evmChainId !== 'number') return undefined
+      // Use explicit env references so Next.js inlines them at build time
+      const map: Record<number, `0x${string}` | undefined> = {
+        43113: (process.env.NEXT_PUBLIC_EVM_MARKET_43113 as any),
+        43114: (process.env.NEXT_PUBLIC_EVM_MARKET_43114 as any),
+        84532: (process.env.NEXT_PUBLIC_EVM_MARKET_84532 as any),
+        8453: (process.env.NEXT_PUBLIC_EVM_MARKET_8453 as any),
+      }
+      return map[evmChainId]
+    } catch { return undefined }
+  }, [evmChainId])
+
+  const handleOpenBuy = React.useCallback(() => {
+    // set default months from default_duration_days rounded to months (1..12)
+    const days = (data as any)?.default_duration_days
+    const m = Math.max(1, Math.min(12, Math.round((typeof days === 'number' ? (days/30) : 1))))
+    setBuyMonths(m)
+    setBuyKind(undefined)
+    setBuyStep('select')
+    setBuyOpen(true)
+  }, [data])
+
+  const handlePurchase = React.useCallback(async ()=>{
+    try {
+      if (!id || typeof evmChainId !== 'number' || !buyKind) return
+      if (!marketAddress) { setSnkSev('error'); setSnkMsg(isES ? 'No se configuró la dirección del marketplace para esta red.' : 'Marketplace address is not configured for this network.'); setSnkOpen(true); return }
+      // require wallet connection
+      if (!isConnected) { setSnkSev('warning'); setSnkMsg(isES ? 'Conecta tu wallet para continuar.' : 'Connect your wallet to continue.'); setSnkOpen(true); return }
+      // validate network and auto-switch
+      const currentChainId = chain?.id
+      const desiredChainId = evmChainId
+      if (currentChainId !== desiredChainId) {
+        try {
+          await switchChainAsync({ chainId: desiredChainId })
+        } catch {
+          setSnkSev('warning'); setSnkMsg(isES ? 'Red incorrecta. Cambia a la red objetivo.' : 'Wrong network. Please switch to the target network.'); setSnkOpen(true)
+          return
+        }
+      }
+      const abi = (MARKET_ARTIFACT as any).abi
+      const licenseKind = buyKind === 'perpetual' ? 0 : 1
+      const months = buyKind === 'subscription' ? buyMonths : 0
+      const transferable = Boolean((data as any)?.rights?.transferable)
+      const priceP = (data as any)?.price_perpetual
+      const priceS = (data as any)?.price_subscription
+      const valueWei = buyKind === 'perpetual'
+        ? (typeof priceP === 'number' ? BigInt(Math.max(0, Math.floor(priceP))) : 0n)
+        : (typeof priceS === 'number' ? BigInt(Math.max(0, Math.floor(priceS * months))) : 0n)
+      setTxLoading(true)
+      const hash = await writeContractAsync({
+        address: marketAddress as `0x${string}`,
+        abi: abi as any,
+        functionName: 'buyLicense',
+        args: [BigInt(id), Number(licenseKind), Number(months), Boolean(transferable)],
+        chainId: evmChainId,
+        value: valueWei,
+      })
+      if (publicClient && hash) {
+        await publicClient.waitForTransactionReceipt({ hash })
+      }
+      setSnkSev('success'); setSnkMsg(isES ? 'Compra realizada con éxito.' : 'Purchase completed successfully.'); setSnkOpen(true)
+      setBuyOpen(false)
+      setBuyStep('select')
+      setBuyKind(undefined)
+    } catch (e: any) {
+      const msg = String(e?.shortMessage || e?.message || e || '')
+      setSnkSev('error'); setSnkMsg((isES ? 'Error al comprar la licencia: ' : 'Failed to purchase the license: ') + msg)
+      setSnkOpen(true)
+    }
+    finally { setTxLoading(false) }
+  }, [id, marketAddress, evmChainId, buyKind, buyMonths, data, writeContractAsync])
+  const chainName = React.useMemo(()=>{
+    try {
+      if (typeof evmChainId !== 'number') return 'EVM'
+      const ch = Array.isArray(chains) ? chains.find((c:any)=> c?.id === evmChainId) : undefined
+      return typeof ch?.name === 'string' && ch.name ? ch.name : 'EVM'
+    } catch {
+      return 'EVM'
+    }
+  }, [evmChainId, chains])
+
+  const chainIconSrc = React.useMemo(() => {
+    const id = evmChainId
+    if (id === 43113 || id === 43114) return '/icons/avalanche.svg'
+    if (id === 84532 || id === 8453) return '/icons/base.svg'
+    return undefined
+  }, [evmChainId])
+
+  const truncateAddr = React.useCallback((s: any) => {
+    const v = typeof s === 'string' ? s : ''
+    if (!v) return ''
+    return v.length > 12 ? `${v.slice(0,6)}…${v.slice(-4)}` : v
+  }, [])
+
+  const ChainIcon: React.FC = React.useCallback(() => {
+    const id = evmChainId
+    const color = (id === 43113 || id === 43114) ? '#E84142' /* Avalanche */
+      : (id === 84532 || id === 8453) ? '#0052FF' /* Base */
+      : '#627EEA' /* Ethereum default */
+    return (
+      <SvgIcon fontSize="small" sx={{ color }} viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" fill="currentColor" />
+      </SvgIcon>
+    )
+  }, [evmChainId])
 
   return (
     <Box>
       <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-          <Button component={Link} href="/" startIcon={<ArrowBackIcon />}>
-            Back
+          <Button component={Link} href={isES ? '/es/models' : '/en/models'} startIcon={<ArrowBackIcon />}>
+            {L.back}
           </Button>
         </Stack>
         {loading && (
@@ -159,100 +495,104 @@ export default function EvmModelDetailPage() {
           </Grid>
         )}
         {!loading && data && (
-          <Grid container spacing={3}>
+          <Grid container spacing={3} alignItems="stretch">
             {/* Hero Resumen */}
-            <Grid item xs={12} md={5}>
-              <Card>
+            <Grid item xs={12} md={5} sx={{ display:'flex' }}>
+              <Card sx={{ flex:1, display:'flex', flexDirection:'column' }}>
                 <CardContent>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {data.imageUrl ? (
                     <img src={data.imageUrl} alt={data.name || 'cover'} style={{ width:'100%', borderRadius: 12, display:'block' }} />
                   ) : (
                     <Box sx={{ border: '1px dashed rgba(0,0,0,0.2)', borderRadius: 2, height: 300, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <Typography color="text.secondary">No cover</Typography>
+                      <Typography color="text.secondary">{L.noCover}</Typography>
                     </Box>
                   )}
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} md={7}>
-              <Card>
+            <Grid item xs={12} md={7} sx={{ display:'flex' }}>
+              <Card sx={{ flex:1, display:'flex', flexDirection:'column' }}>
                 <CardContent>
                   <Stack spacing={1}>
                     <Typography variant="h4" fontWeight={800}>{data.name || `Model #${id}`}</Typography>
-                    {data.owner && (
-                      <Typography variant="body2" color="text.secondary">Owner: {data.owner}</Typography>
+                    {data.description && (
+                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace:'pre-wrap' }}>{data.description}</Typography>
                     )}
-                    <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap:'wrap' }}>
+                    {data.owner && (
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="body2" color="text.secondary"><b>Owner:</b> </Typography>
+                        <Tooltip title={String(data.owner)}>
+                          <Typography variant="body2" color="text.secondary">{truncateAddr(data.owner)}</Typography>
+                        </Tooltip>
+                        <Tooltip title={L.copy}>
+                          <span>
+                            <IconButton size="small" aria-label={L.copy} onClick={()=>{ try { navigator.clipboard.writeText(String(data.owner||'')) } catch {} }}>
+                              <ContentCopyIcon fontSize="inherit" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title={chainName}>
+                          <span>
+                            {chainIconSrc ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={chainIconSrc} alt={chainName} style={{ width: 18, height: 18, display:'block' }} />
+                            ) : (
+                              <ChainIcon />
+                            )}
+                          </span>
+                        </Tooltip>
+                      </Stack>
+                    )}
+                    <Stack direction={{ xs:'column', sm:'row' }} spacing={1} sx={{ mt: 1, alignItems:{ xs:'stretch', sm:'center' } }}>
                       {typeof data.price_perpetual === 'number' && data.price_perpetual > 0 && (
-                        <Chip label={`Perpetual: ${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}`} color="primary" />
+                        <Chip label={`Perpetual: ${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}`} color="primary" sx={{ width:{ xs:'100%', sm:'auto' } }} />
                       )}
                       {typeof data.price_subscription === 'number' && data.price_subscription > 0 && (
-                        <Chip label={`Subscription: ${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}/mo`} />
+                        <Chip label={`Subscription: ${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}/mo`} sx={{ width:{ xs:'100%', sm:'auto' } }} />
                       )}
                       {typeof data.version === 'number' && data.version > 0 && (
-                        <Chip label={`v${data.version}`} />)
+                        <Chip label={`v${data.version}`} sx={{ width:{ xs:'fit-content', sm:'auto' } }} />)
                       }
                     </Stack>
                     <Stack direction={{ xs:'column', sm:'row' }} spacing={1} sx={{ mt: 2 }}>
-                      <Button variant="contained" onClick={()=> setBuyOpen(true)}>{'Comprar licencia'}</Button>
-                      <Button variant="outlined" onClick={()=> demoAnchorRef.current?.scrollIntoView({ behavior: 'smooth' })} disabled={!data?.demoPreset}>{'Probar demo'}</Button>
+                      <Button variant="contained" onClick={handleOpenBuy}>{L.buy}</Button>
+                      <Button variant="outlined" onClick={()=> demoAnchorRef.current?.scrollIntoView({ behavior: 'smooth' })} disabled={!data?.demoPreset}>{L.tryDemo}</Button>
                     </Stack>
-                    <Divider sx={{ my: 2 }} />
-                    {/* Chips principales */}
-                    {(Array.isArray(data.categories) && data.categories.length > 0) && (
-                      <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap:'wrap' }}>
-                        {data.categories.map((c:string, i:number)=> (<Chip key={`cat-${i}`} label={c} size="small" />))}
-                      </Stack>
-                    )}
-                    {(Array.isArray(data.tasks) && data.tasks.length > 0) && (
-                      <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap:'wrap' }}>
-                        {data.tasks.map((t:string, i:number)=> (<Chip key={`task-${i}`} label={t} size="small" color="secondary" variant="outlined" />))}
-                      </Stack>
-                    )}
-                    {(Array.isArray(data.tags) && data.tags.length > 0) && (
-                      <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap:'wrap' }}>
-                        {data.tags.map((t:string, i:number)=> (<Chip key={`tag-${i}`} label={t} size="small" variant="outlined" />))}
-                      </Stack>
-                    )}
-                    {(Array.isArray(data.architectures) || Array.isArray(data.frameworks) || Array.isArray(data.precision)) && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        {[...(data.architectures||[]), ...(data.frameworks||[]), ...(data.precision||[])].filter(Boolean).join(' • ')}
-                      </Typography>
-                    )}
-                    <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap:'wrap' }}>
-                      {data.deliveryMode === 'api' && (<Chip size="small" label="API" />)}
-                      {data.deliveryMode === 'download' && (<Chip size="small" label="Download" />)}
-                      {data.deliveryMode === 'both' && (<Chip size="small" label="API + Download" />)}
-                      {data.rights?.api && (<Chip size="small" label="API rights" variant="outlined" />)}
-                      {data.rights?.download && (<Chip size="small" label="Download rights" variant="outlined" />)}
-                      {data.rights?.transferable && (<Chip size="small" label="Transferable" variant="outlined" />)}
-                    </Stack>
-                    {data.uri && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>URI: {data.uri}</Typography>
-                    )}
                   </Stack>
                 </CardContent>
               </Card>
             </Grid>
           </Grid>
         )}
-        {!loading && !data && (
-          <Typography color="error">Model not found.</Typography>
+        {!loading && !data && !attempted && (
+          <Card sx={{ mt: 2 }}>
+            <CardContent>
+              <Stack spacing={1} alignItems="center" sx={{ py: 2 }}>
+                <Typography variant="subtitle1" fontWeight={700}>{isES ? 'Cargando el modelo…' : 'Loading the model…'}</Typography>
+                <Typography variant="body2" color="text.secondary">{isES ? 'Un momento por favor, estamos preparando la información.' : 'One moment please, we are preparing the information.'}</Typography>
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
+        {!loading && !data && attempted && (
+          <Typography color="error">{L.notFound}</Typography>
         )}
 
         {/* Sección: Qué hace este modelo (Resumen extendido) */}
         {!loading && data && (
           <Box sx={{ mt: 4 }}>
             <Card>
-              <CardHeader title={<Typography variant="h5" fontWeight={800}>{'Qué hace este modelo'}</Typography>} />
+              <CardHeader title={<Typography variant="h5" fontWeight={800}>{L.whatItDoes}</Typography>} />
               <CardContent>
                 <Stack spacing={2}>
-                  <Typography variant="subtitle1" fontWeight={700}>{data.valueProposition || 'Propuesta de valor'}</Typography>
-                  <Typography variant="body1" sx={{ whiteSpace:'pre-wrap' }}>{data.customerDescription || data.description || 'Descripción no especificada.'}</Typography>
+                  <Typography variant="subtitle1" fontWeight={700}>{data.valueProposition || L.valueProp}</Typography>
+                  <Typography variant="body1" sx={{ whiteSpace:'pre-wrap' }}>{data.customerDescription || data.description || L.descMissing}</Typography>
+                  {typeof (data as any)?.expectedImpact === 'string' && String((data as any).expectedImpact).trim() && (
+                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap' }}>{(data as any).expectedImpact}</Typography>
+                  )}
                   {Array.isArray((data as any)?.expectedBusinessImpact) ? (
                     <Box>
-                      <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>{'Impacto de negocio esperado'}</Typography>
                       <Stack component="ul" sx={{ pl: 3 }} spacing={0.5}>
                         {((data as any).expectedBusinessImpact as string[]).map((s, i)=>(<li key={i}><Typography variant="body2">{s}</Typography></li>))}
                       </Stack>
@@ -268,23 +608,23 @@ export default function EvmModelDetailPage() {
         {!loading && data && (
           <Box sx={{ mt: 4 }}>
             <Card>
-              <CardHeader title={<Typography variant="h5" fontWeight={800}>{'Ficha para clientes'}</Typography>} />
+              <CardHeader title={<Typography variant="h5" fontWeight={800}>{L.customerSheet}</Typography>} />
               <CardContent>
                 <Grid container spacing={3}>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{'Entradas y salidas'}</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{'Qué entregan los usuarios y qué reciben.'}</Typography>
-                    <Typography variant="body2">{(data as any).inputs || 'Entradas: No especificado'}</Typography>
-                    <Typography variant="body2">{(data as any).outputs || 'Salidas: No especificado'}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>{L.ioTitle}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{L.ioSubtitle}</Typography>
+                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap' }}><b>{L.inputs}:</b> {(data as any).inputs || L.unspecified}</Typography>
+                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap', mt: 0.5 }}><b>{L.outputs}:</b> {(data as any).outputs || L.unspecified}</Typography>
                     <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" fontWeight={700}>{'Ejemplos'}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>{L.examples}</Typography>
                     {Array.isArray((data as any)?.examples) && (data as any).examples.length > 0 ? (
                       <Table size="small">
                         <TableHead>
                           <TableRow>
-                            <TableCell>{'Ejemplo de entrada'}</TableCell>
-                            <TableCell>{'Respuesta del modelo'}</TableCell>
-                            <TableCell>{'Nota'}</TableCell>
+                            <TableCell>{L.exampleIn}</TableCell>
+                            <TableCell>{L.exampleOut}</TableCell>
+                            <TableCell>{L.note}</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -298,50 +638,50 @@ export default function EvmModelDetailPage() {
                         </TableBody>
                       </Table>
                     ) : (
-                      <Typography variant="body2" color="text.secondary">{'El creador aún no ha añadido ejemplos.'}</Typography>
+                      <Typography variant="body2" color="text.secondary">{L.noExamples}</Typography>
                     )}
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{'Industrias y casos de uso'}</Typography>
-                    <Typography variant="body2" fontWeight={700} sx={{ mt: 1 }}>{'Industrias'}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>{L.industriesUseCases}</Typography>
+                    <Typography variant="body2" fontWeight={700} sx={{ mt: 1 }}>{L.industries}</Typography>
                     <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 0.5 }}>
-                      {Array.isArray((data as any)?.industries) ? ((data as any).industries as string[]).map((x,i)=>(<Chip key={i} label={x} size="small" />)) : <Typography variant="body2" color="text.secondary">{'No especificado'}</Typography>}
+                      {Array.isArray((data as any)?.industries) ? ((data as any).industries as string[]).map((x,i)=>(<Chip key={i} label={x} size="small" />)) : <Typography variant="body2" color="text.secondary">{L.unspecified}</Typography>}
                     </Stack>
-                    <Typography variant="body2" fontWeight={700} sx={{ mt: 1 }}>{'Casos de uso'}</Typography>
+                    <Typography variant="body2" fontWeight={700} sx={{ mt: 1 }}>{L.useCases}</Typography>
                     <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 0.5 }}>
-                      {Array.isArray((data as any)?.useCases) ? ((data as any).useCases as string[]).map((x,i)=>(<Chip key={i} label={x} size="small" variant="outlined" />)) : <Typography variant="body2" color="text.secondary">{'No especificado'}</Typography>}
+                      {Array.isArray((data as any)?.useCases) ? ((data as any).useCases as string[]).map((x,i)=>(<Chip key={i} label={x} size="small" variant="outlined" />)) : <Typography variant="body2" color="text.secondary">{L.unspecified}</Typography>}
                     </Stack>
                     <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" fontWeight={700}>{'Limitaciones conocidas'}</Typography>
-                    <Typography variant="body2">{(data as any).limitations || 'No especificado'}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>{L.knownLimits}</Typography>
+                    <Typography variant="body2">{(data as any).limitations || L.unspecified}</Typography>
                     <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" fontWeight={700}>{'Usos prohibidos'}</Typography>
-                    <Typography variant="body2">{(data as any).prohibited || 'No especificado'}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>{L.prohibited}</Typography>
+                    <Typography variant="body2">{(data as any).prohibited || L.unspecified}</Typography>
                   </Grid>
                 </Grid>
                 <Divider sx={{ my: 3 }} />
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={4}>
                     <Card variant="outlined">
-                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700}>{'Privacidad'}</Typography>} />
+                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700}>{L.privacy}</Typography>} />
                       <CardContent>
-                        <Typography variant="body2">{(data as any).privacy || 'No especificado'}</Typography>
+                        <Typography variant="body2">{(data as any).privacy || L.unspecified}</Typography>
                       </CardContent>
                     </Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
                     <Card variant="outlined">
-                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700}>{'Deploy'}</Typography>} />
+                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700}>{L.deploy}</Typography>} />
                       <CardContent>
-                        <Typography variant="body2">{(data as any).deploy || 'No especificado'}</Typography>
+                        <Typography variant="body2">{(data as any).deploy || L.unspecified}</Typography>
                       </CardContent>
                     </Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
                     <Card variant="outlined">
-                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700}>{'Soporte'}</Typography>} />
+                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700}>{L.support}</Typography>} />
                       <CardContent>
-                        <Typography variant="body2">{(data as any).support || 'No especificado'}</Typography>
+                        <Typography variant="body2">{(data as any).support || L.unspecified}</Typography>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -355,127 +695,90 @@ export default function EvmModelDetailPage() {
         {!loading && data && (
           <Box sx={{ mt: 4 }}>
             <Card>
-              <CardHeader title={<Typography variant="h5" fontWeight={800}>{'Configuración técnica'}</Typography>} />
+              <CardHeader title={<Typography variant="h5" fontWeight={800}>{L.techConfig}</Typography>} />
               <CardContent>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{'Capacidades'}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>{L.capabilities}</Typography>
                     <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 1 }}>
                       {Array.isArray(data.tasks) && data.tasks.length ? data.tasks.map((t:string, i:number)=>(<Chip key={i} label={t} size="small" />)) : <Typography variant="body2" color="text.secondary">{'No especificado'}</Typography>}
                     </Stack>
-                    <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2 }}>{'Modalidades'}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2 }}>{L.modalities}</Typography>
                     <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 1 }}>
                       {Array.isArray((data as any)?.modalities) && (data as any).modalities.length ? ((data as any).modalities as string[]).map((m,i)=>(<Chip key={i} label={m} size="small" variant="outlined" />)) : <Typography variant="body2" color="text.secondary">{'No especificado'}</Typography>}
                     </Stack>
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{'Arquitectura'}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>{L.architecture}</Typography>
                     <Stack spacing={0.5} sx={{ mt: 1 }}>
-                      <Typography variant="body2"><b>Frameworks:</b> {Array.isArray(data.frameworks) && data.frameworks.length ? data.frameworks.join(', ') : 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>Architectures:</b> {Array.isArray(data.architectures) && data.architectures.length ? data.architectures.join(', ') : 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>Precision:</b> {Array.isArray(data.precision) && data.precision.length ? data.precision.join(', ') : 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>Quantization:</b> {(data as any).quantization || 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>File formats:</b> {Array.isArray((data as any)?.fileFormats) ? ((data as any).fileFormats as string[]).join(', ') : 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>Model size:</b> {(data as any).modelSize || 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>Artifact size:</b> {(data as any).artifactSize || 'No especificado'}</Typography>
+                      <Typography variant="body2"><b>{L.frameworks}:</b> {Array.isArray(data.frameworks) && data.frameworks.length ? data.frameworks.join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2"><b>{L.architectures}:</b> {Array.isArray(data.architectures) && data.architectures.length ? data.architectures.join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2"><b>{L.precision}:</b> {Array.isArray(data.precision) && data.precision.length ? data.precision.join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2"><b>{L.quantization}:</b> {(data as any).quantization || L.unspecified}</Typography>
+                      <Typography variant="body2"><b>{L.fileFormats}:</b> {Array.isArray((data as any)?.fileFormats) ? ((data as any).fileFormats as string[]).join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2"><b>{L.modelSize}:</b> {(data as any).modelSize || L.unspecified}</Typography>
+                      <Typography variant="body2"><b>{L.artifactSize}:</b> {(data as any).artifactSize || L.unspecified}</Typography>
                     </Stack>
                   </Grid>
                 </Grid>
                 <Divider sx={{ my: 2 }} />
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{'Runtime'}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>{L.runtime}</Typography>
                     <Stack spacing={0.5} sx={{ mt: 1 }}>
-                      <Typography variant="body2"><b>Python:</b> {(data as any).python || 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>CUDA:</b> {(data as any).cuda || 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>PyTorch:</b> {(data as any).pytorch || 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>cuDNN:</b> {(data as any).cudnn || 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>Sistemas:</b> {Array.isArray((data as any)?.systems) ? ((data as any).systems as string[]).join(', ') : 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>Aceleradores:</b> {Array.isArray((data as any)?.accelerators) ? ((data as any).accelerators as string[]).join(', ') : 'No especificado'}</Typography>
-                      <Typography variant="body2"><b>Notas GPU:</b> {(data as any).gpuNotes || 'No especificado'}</Typography>
+                      <Typography variant="body2"><b>Python:</b> {(data as any).python || L.unspecified}</Typography>
+                      <Typography variant="body2"><b>CUDA:</b> {(data as any).cuda || L.unspecified}</Typography>
+                      <Typography variant="body2"><b>PyTorch:</b> {(data as any).pytorch || L.unspecified}</Typography>
+                      <Typography variant="body2"><b>cuDNN:</b> {(data as any).cudnn || L.unspecified}</Typography>
+                      <Typography variant="body2"><b>{isES ? 'Sistemas' : 'Systems'}:</b> {Array.isArray((data as any)?.systems) ? ((data as any).systems as string[]).join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2"><b>{isES ? 'Aceleradores' : 'Accelerators'}:</b> {Array.isArray((data as any)?.accelerators) ? ((data as any).accelerators as string[]).join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2"><b>Compute Capability:</b> {(data as any).computeCapability || L.unspecified}</Typography>
                     </Stack>
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{'Dependencias'}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>{L.dependencies}</Typography>
                     <Box component="pre" sx={{ bgcolor:'grey.50', p: 2, borderRadius: 1, fontSize: 12, whiteSpace:'pre-wrap', minHeight: 80 }}>
                       {(data as any).dependencies || 'No especificado'}
                     </Box>
                     <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" fontWeight={700}>{'Recursos mínimos'}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>{L.minResources}</Typography>
                     <Grid container spacing={1} sx={{ mt: 0.5 }}>
-                      <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">VRAM mínima</Typography><Typography variant="body2">{(data as any).minVram || 'No especificado'}</Typography></CardContent></Card></Grid>
-                      <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">CPU cores</Typography><Typography variant="body2">{(data as any).minCpu || 'No especificado'}</Typography></CardContent></Card></Grid>
-                      <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">RAM recomendada</Typography><Typography variant="body2">{(data as any).recRam || 'No especificado'}</Typography></CardContent></Card></Grid>
+                      <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.minVram}</Typography><Typography variant="body2">{(data as any).minVram || L.unspecified}</Typography></CardContent></Card></Grid>
+                      <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.cpuCores}</Typography><Typography variant="body2">{(data as any).minCpu || L.unspecified}</Typography></CardContent></Card></Grid>
+                      <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.recRam}</Typography><Typography variant="body2">{(data as any).recRam || L.unspecified}</Typography></CardContent></Card></Grid>
                     </Grid>
                   </Grid>
                 </Grid>
                 <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" fontWeight={700}>{'Opciones de inferencia'}</Typography>
+                <Typography variant="subtitle2" fontWeight={700}>{L.inferenceOpts}</Typography>
                 <Grid container spacing={1} sx={{ mt: 0.5 }}>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">Max batch size</Typography><Typography variant="body2">{(data as any).maxBatch || 'No especificado'}</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">Context length</Typography><Typography variant="body2">{(data as any).contextLength || 'No especificado'}</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">Max tokens</Typography><Typography variant="body2">{(data as any).maxTokens || 'No especificado'}</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">Sample rate (Hz)</Typography><Typography variant="body2">{(data as any).sampleRate || 'No especificado'}</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">Triton</Typography><Typography variant="body2">{(data as any).triton ? 'Sí' : 'No especificado'}</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">Resolución imagen</Typography><Typography variant="body2">{(data as any).imageResolution || 'No especificado'}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.maxBatch}</Typography><Typography variant="body2">{(data as any).maxBatch || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.contextLength}</Typography><Typography variant="body2">{(data as any).contextLength || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.maxTokens}</Typography><Typography variant="body2">{(data as any).maxTokens || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.referenceLatency}</Typography><Typography variant="body2">{(data as any).gpuNotes || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.triton}</Typography><Typography variant="body2">{(data as any).triton ? (isES ? 'Sí' : 'Yes') : L.unspecified}</Typography></CardContent></Card></Grid>
                 </Grid>
               </CardContent>
             </Card>
           </Box>
         )}
 
-        {/* Sección: Artefactos & demo */}
+        {/* Sección: Demo (solo mostrar demo; ocultar artefactos hasta compra) */}
         {!loading && data && (
           <Box sx={{ mt: 4 }} ref={demoAnchorRef}>
             <Card>
-              <CardHeader title={<Typography variant="h5" fontWeight={800}>{'Artefactos & demo'}</Typography>} />
+              <CardHeader title={<Typography variant="h5" fontWeight={800}>{L.hostedDemo}</Typography>} />
               <CardContent>
-                <Typography variant="subtitle2" fontWeight={700}>{'Artifacts (IPFS)'}</Typography>
-                {Array.isArray((data as any)?.artifactsList) && (data as any).artifactsList.length > 0 ? (
-                  <Table size="small" sx={{ mt: 1 }}>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>{'CID'}</TableCell>
-                        <TableCell>{'Filename'}</TableCell>
-                        <TableCell>{'Size'}</TableCell>
-                        <TableCell>{'SHA-256'}</TableCell>
-                        <TableCell>{'Acciones'}</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {((data as any).artifactsList as any[]).map((a, i)=> (
-                        <TableRow key={i}>
-                          <TableCell>
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              <Typography variant="body2">{String(a.cid||'').slice(0,8)}…{String(a.cid||'').slice(-6)}</Typography>
-                              <Tooltip title="Copiar CID"><IconButton size="small" onClick={()=> navigator.clipboard.writeText(String(a.cid||''))}><ContentCopyIcon fontSize="inherit" /></IconButton></Tooltip>
-                            </Stack>
-                          </TableCell>
-                          <TableCell>{a.filename || '-'}</TableCell>
-                          <TableCell>{a.size || '-'}</TableCell>
-                          <TableCell>{a.sha256 ? `${String(a.sha256).slice(0,10)}…` : '-'}</TableCell>
-                          <TableCell>
-                            <Button size="small" component={Link} href={a.cid ? `/api/ipfs/ipfs/${a.cid}` : '#'} disabled={!a.cid} target="_blank">{'Abrir'}</Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">{'No hay artefactos publicados.'}</Typography>
-                )}
-
-                <Divider sx={{ my: 3 }} />
-                <Typography variant="subtitle2" fontWeight={700}>{'Demo (Hosted)'}</Typography>
+                <Typography variant="subtitle2" fontWeight={700}>{L.hostedDemo}</Typography>
                 {Boolean((data as any)?.demoPreset) ? (
                   <>
                     <Box component="pre" sx={{ bgcolor:'grey.50', p: 2, borderRadius: 1, fontSize: 12, whiteSpace:'pre-wrap' }}>
                       {typeof (data as any).demoPreset === 'string' ? (data as any).demoPreset : JSON.stringify((data as any).demoPreset, null, 2)}
                     </Box>
-                    <Button variant="contained" sx={{ mt: 1 }}>{'Run demo'}</Button>
+                    <Button variant="contained" sx={{ mt: 1 }}>{L.runDemo}</Button>
                   </>
                 ) : (
-                  <Typography variant="body2" color="text.secondary">{'Este modelo no tiene una demo configurada.'}</Typography>
+                  <Typography variant="body2" color="text.secondary">{L.noDemo}</Typography>
                 )}
               </CardContent>
             </Card>
@@ -486,47 +789,43 @@ export default function EvmModelDetailPage() {
         {!loading && data && (
           <Box sx={{ mt: 4 }}>
             <Card>
-              <CardHeader title={<Typography variant="h5" fontWeight={800}>{'Licencias y términos'}</Typography>} />
+              <CardHeader title={<Typography variant="h5" fontWeight={800}>{L.licensesTerms}</Typography>} />
               <CardContent>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={4}>
                     <Card variant="outlined"><CardContent>
-                      <Typography variant="subtitle2" fontWeight={700}>{'Perpetual license'}</Typography>
-                      <Typography variant="h6">{typeof data.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : 'No especificado'}</Typography>
+                      <Typography variant="subtitle2" fontWeight={700}>{L.perpetualLicense}</Typography>
+                      <Typography variant="h6">{typeof data.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
                     </CardContent></Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
                     <Card variant="outlined"><CardContent>
-                      <Typography variant="subtitle2" fontWeight={700}>{'Subscription / month'}</Typography>
-                      <Typography variant="h6">{typeof data.price_subscription === 'number' && data.price_subscription > 0 ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}` : 'No especificado'}</Typography>
+                      <Typography variant="subtitle2" fontWeight={700}>{L.subscriptionPerMonth}</Typography>
+                      <Typography variant="h6">{typeof data.price_subscription === 'number' && data.price_subscription > 0 ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
                     </CardContent></Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
                     <Card variant="outlined"><CardContent>
-                      <Typography variant="subtitle2" fontWeight={700}>{'Base duration'}</Typography>
-                      <Typography variant="h6">{(data as any).default_duration_days ? `${Math.round(((data as any).default_duration_days/30))} mo` : 'No especificado'}</Typography>
+                      <Typography variant="subtitle2" fontWeight={700}>{L.baseDuration}</Typography>
+                      <Typography variant="h6">{(data as any).default_duration_days ? `${Math.round(((data as any).default_duration_days/30))} ${isES ? 'meses' : 'mo'}` : L.unspecified}</Typography>
                     </CardContent></Card>
                   </Grid>
                 </Grid>
                 <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" fontWeight={700}>{'Rights & delivery'}</Typography>
+                <Typography variant="subtitle2" fontWeight={700}>{L.rightsDelivery}</Typography>
                 <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 1 }}>
                   {data.deliveryMode === 'api' && (<Chip size="small" label="API" />)}
                   {data.deliveryMode === 'download' && (<Chip size="small" label="Download" />)}
                   {data.deliveryMode === 'both' && (<Chip size="small" label="API + Download" />)}
-                  {data.rights?.api && (<Chip size="small" label="API rights" variant="outlined" />)}
-                  {data.rights?.download && (<Chip size="small" label="Download rights" variant="outlined" />)}
                   {data.rights?.transferable && (<Chip size="small" label="Transferable" variant="outlined" />)}
                 </Stack>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>{L.deliveryHint}</Typography>
+                {data.rights?.transferable && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25 }}>{L.transferableHint}</Typography>
+                )}
                 <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" fontWeight={700}>{'Términos clave'}</Typography>
-                <Typography variant="body2">{(data as any).termsText || 'No especificado'}</Typography>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
-                  <Typography variant="body2"><b>{'Terms hash (SHA-256):'}</b> {(data as any).terms_hash || 'No firmado'}</Typography>
-                  {Boolean((data as any).terms_hash) && (
-                    <Tooltip title="Copiar hash"><IconButton size="small" onClick={()=> navigator.clipboard.writeText(String((data as any).terms_hash))}><ContentCopyIcon fontSize="inherit" /></IconButton></Tooltip>
-                  )}
-                </Stack>
+                <Typography variant="subtitle2" fontWeight={700}>{L.termsKey}</Typography>
+                <Typography variant="body2">{(data as any).termsText || L.unspecified}</Typography>
               </CardContent>
             </Card>
           </Box>
@@ -534,32 +833,102 @@ export default function EvmModelDetailPage() {
       </Container>
 
       {/* Modal: Comprar licencia */}
-      <Dialog open={buyOpen} onClose={()=> setBuyOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>{'Comprar licencia'}</DialogTitle>
+      <Dialog open={buyOpen} onClose={()=> { setBuyOpen(false); setBuyStep('select'); setBuyKind(undefined); }} fullWidth maxWidth="sm">
+        <DialogTitle>{L.buyModalTitle}</DialogTitle>
         <DialogContent dividers>
-          <Stack spacing={2}>
-            <Typography variant="body2" color="text.secondary">{'Selecciona la opción de licencia que prefieras.'}</Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <Card variant="outlined"><CardContent>
-                  <Typography variant="subtitle2" fontWeight={700}>{'Perpetual'}</Typography>
-                  <Typography variant="h6">{data && typeof data.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : 'No disponible'}</Typography>
-                </CardContent></Card>
+          {buyStep === 'select' && (
+            <Stack spacing={2}>
+              <Typography variant="body2" color="text.secondary">{L.buyModalHint}</Typography>
+              <Box>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>{L.selectType}</Typography>
+                <RadioGroup row value={buyKind || ''} onChange={(e)=> setBuyKind((e.target as HTMLInputElement).value as any)}>
+                  <FormControlLabel value="perpetual" control={<Radio />} label={L.perpetual} />
+                  <FormControlLabel value="subscription" control={<Radio />} label={L.subscriptionPerMonth} />
+                </RadioGroup>
+              </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Card variant="outlined" sx={{ borderColor: buyKind==='perpetual' ? 'primary.main' : undefined }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" fontWeight={700}>{L.perpetual}</Typography>
+                      <Typography variant="h6">{data && typeof data.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Card variant="outlined" sx={{ borderColor: buyKind==='subscription' ? 'primary.main' : undefined }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" fontWeight={700}>{L.subscriptionPerMonth}</Typography>
+                      <Typography variant="h6">{data && typeof data.price_subscription === 'number' && data.price_subscription > 0 ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                      {buyKind === 'subscription' && (
+                        <Box sx={{ mt: 2 }}>
+                          <TextField
+                            label={L.months}
+                            size="small"
+                            select
+                            fullWidth
+                            value={buyMonths}
+                            onChange={(e)=> setBuyMonths(Number(e.target.value) || 1)}
+                          >
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map(m=> (<MenuItem key={m} value={m}>{m}</MenuItem>))}
+                          </TextField>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <Card variant="outlined"><CardContent>
-                  <Typography variant="subtitle2" fontWeight={700}>{'Subscription / month'}</Typography>
-                  <Typography variant="h6">{data && typeof data.price_subscription === 'number' && data.price_subscription > 0 ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}` : 'No disponible'}</Typography>
-                </CardContent></Card>
-              </Grid>
-            </Grid>
-          </Stack>
+            </Stack>
+          )}
+          {buyStep === 'review' && (
+            <Stack spacing={2}>
+              <Typography variant="subtitle2" fontWeight={700}>{L.review}</Typography>
+              <Stack spacing={0.5}>
+                <Typography variant="body2"><b>{L.selectType}:</b> {buyKind === 'perpetual' ? L.perpetual : L.subscriptionPerMonth}</Typography>
+                {buyKind === 'subscription' && (
+                  <Typography variant="body2"><b>{L.months}:</b> {buyMonths}</Typography>
+                )}
+                <Divider sx={{ my: 1 }} />
+                <Typography variant="body2">
+                  {buyKind === 'perpetual' ? (
+                    <>{typeof data?.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</>
+                  ) : (
+                    <>
+                      {typeof data?.price_subscription === 'number' && data.price_subscription > 0
+                        ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol} × ${buyMonths} = ${(((data.price_subscription*buyMonths)/1e18)).toFixed(2)} ${evmSymbol}`
+                        : L.unspecified}
+                    </>
+                  )}
+                </Typography>
+              </Stack>
+            </Stack>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={()=> setBuyOpen(false)}>{'Cerrar'}</Button>
-          <Button variant="contained" disabled>{'Continuar'}</Button>
+          {buyStep === 'review' ? (
+            <>
+              <Button onClick={()=> setBuyStep('select')}>{L.back}</Button>
+              <Button variant="contained" onClick={handlePurchase} disabled={txLoading} startIcon={txLoading ? <CircularProgress size={16} /> : undefined}>{L.purchase}</Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={()=> { setBuyOpen(false); setBuyStep('select'); setBuyKind(undefined); }}>{L.close}</Button>
+              <Button
+                variant="contained"
+                disabled={!buyKind || (buyKind==='subscription' && (!data?.price_subscription || data.price_subscription <= 0 || buyMonths < 1 || buyMonths > 12)) || (buyKind==='perpetual' && (!data?.price_perpetual || data.price_perpetual <= 0))}
+                onClick={()=> setBuyStep('review')}
+              >
+                {L.continue}
+              </Button>
+            </>
+          )}
         </DialogActions>
       </Dialog>
+      <Snackbar open={snkOpen} autoHideDuration={6000} onClose={()=> setSnkOpen(false)} anchorOrigin={{ vertical:'bottom', horizontal:'center' }}>
+        <Alert onClose={()=> setSnkOpen(false)} severity={snkSev} sx={{ width: '100%' }}>
+          {snkMsg}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

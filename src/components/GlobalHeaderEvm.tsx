@@ -33,7 +33,7 @@ export function GlobalHeaderEvm() {
   const nav = [
     { label: t('header.nav.explore'), href: `/${locale}/models` },
     { label: t('header.nav.publish'), href: `/${locale}/publish/wizard` },
-    { label: t('header.nav.licenses'), href: `/${locale}/licenses` },
+    { label: t('header.nav.licenses'), href: `/evm/licenses` },
   ];
   const switchLocale = (next: 'en'|'es') => {
     if (next === locale) return;
