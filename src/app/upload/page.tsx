@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import NextDynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation';
 import {
   Box,
@@ -36,7 +37,11 @@ async function sha256ToBytes(input: string): Promise<Uint8Array> {
   return new Uint8Array(hashBuf);
 }
 
-export default function UploadPage() {
+export const dynamic = 'force-dynamic'
+
+export default NextDynamic(() => Promise.resolve(UploadPageImpl), { ssr: false })
+
+function UploadPageImpl() {
   const account = useCurrentAccount();
   const { mutateAsync: signAndExecute, status } = useSignAndExecuteTransaction();
   const router = useRouter();

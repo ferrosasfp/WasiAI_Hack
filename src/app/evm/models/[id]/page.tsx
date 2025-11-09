@@ -16,6 +16,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import Link from 'next/link'
 import { useChainId as useEvmChainId, useWriteContract, usePublicClient, useSwitchChain, useAccount } from 'wagmi'
 import MARKET_ARTIFACT from '@/abis/Marketplace.json'
+import { useTranslations, useLocale } from 'next-intl'
 
 function useEvmModel(id: number | undefined) {
   const evmChainId = useEvmChainId()
@@ -234,6 +235,8 @@ export default function EvmModelDetailPage() {
   const id = params?.id ? Number(params.id) : undefined
   const { data, loading, attempted, evmChainId } = useEvmModel(id)
   const { chains } = useConfig() as any
+  const t = useTranslations('evm.detail')
+  const locale = useLocale()
   const [buyOpen, setBuyOpen] = React.useState(false)
   const [buyStep, setBuyStep] = React.useState<'select'|'review'>('select')
   const [buyKind, setBuyKind] = React.useState<'perpetual'|'subscription'|undefined>(undefined)
@@ -247,113 +250,105 @@ export default function EvmModelDetailPage() {
   const [snkMsg, setSnkMsg] = React.useState<string>('')
   const [snkSev, setSnkSev] = React.useState<'success'|'error'|'info'|'warning'>('info')
   const { isConnected, chain } = useAccount()
-  const detectIsES = React.useCallback(()=>{
-    try {
-      const langAttr = (typeof document !== 'undefined' ? (document.documentElement.lang || '') : '')
-      const navLang = (typeof navigator !== 'undefined' ? (navigator.language || '') : '')
-      const byPath = (typeof window !== 'undefined' ? (window.location.pathname.split('/')[1] || '') : '')
-      const qLang = (typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('lang') || '') : '')
-      const cookieStr = (typeof document !== 'undefined' ? document.cookie : '') || ''
-      const cookieLang = (()=>{ try { const m = cookieStr.split(';').map(s=> s.trim()).find(s=> s.startsWith('lang=')); return m ? m.replace('lang=','') : '' } catch { return '' } })()
-      const v = String(qLang || langAttr || cookieLang || navLang || '').toLowerCase()
-      return v.startsWith('es') || ['es','es-419','es-mx','es-ar','es-co'].includes(byPath.toLowerCase())
-    } catch { return false }
-  }, [])
-  const [isES, setIsES] = React.useState<boolean>(detectIsES)
-  React.useEffect(()=>{
-    try {
-      const is = detectIsES()
-      setIsES(is)
-      // persist query lang to cookie if present
-      if (typeof window !== 'undefined') {
-        const q = new URLSearchParams(window.location.search).get('lang')
-        if (q) { try { document.cookie = `lang=${q}; Max-Age=${60*60*24*365}; Path=/` } catch {} }
-      }
-    } catch {}
-  }, [detectIsES])
-  const L = {
-    back: isES ? 'Volver' : 'Back',
-    buy: isES ? 'Comprar licencia' : 'Buy license',
-    tryDemo: isES ? 'Probar demo' : 'Try demo',
-    noCover: isES ? 'Sin portada' : 'No cover',
-    perpetual: isES ? 'Licencia perpetua' : 'Perpetual',
-    subscriptionMo: isES ? 'Suscripción / mes' : 'Subscription / month',
-    version: isES ? 'v' : 'v',
-    uri: isES ? 'URI' : 'URI',
-    notFound: isES ? 'Modelo no encontrado.' : 'Model not found.',
-    whatItDoes: isES ? 'Qué hace este modelo' : 'What this model does',
-    valueProp: isES ? 'Propuesta de valor' : 'Value proposition',
-    descMissing: isES ? 'Descripción no especificada.' : 'No description provided.',
-    expectedImpact: isES ? 'El impacto esperado en su negocio' : 'The expected impact on your business',
-    customerSheet: isES ? 'Ficha para clientes' : 'Customer sheet',
-    ioTitle: isES ? 'Entradas y salidas' : 'Inputs and outputs',
-    ioSubtitle: isES ? 'Qué entregan los usuarios y qué reciben.' : 'What users provide and receive.',
-    inputs: isES ? 'Entradas' : 'Inputs',
-    outputs: isES ? 'Salidas' : 'Outputs',
-    examples: isES ? 'Ejemplos' : 'Examples',
-    exampleIn: isES ? 'Entrada' : 'Input',
-    exampleOut: isES ? 'Respuesta del modelo' : 'Model response',
-    note: isES ? 'Nota' : 'Note',
-    noExamples: isES ? 'El creador aún no ha añadido ejemplos.' : 'The creator has not added examples yet.',
-    industriesUseCases: isES ? 'Industrias y casos de uso' : 'Industries and use cases',
-    industries: isES ? 'Industrias' : 'Industries',
-    useCases: isES ? 'Casos de uso' : 'Use cases',
-    unspecified: isES ? 'No especificado' : 'Not specified',
-    knownLimits: isES ? 'Limitaciones conocidas' : 'Known limitations',
-    prohibited: isES ? 'Usos prohibidos' : 'Prohibited uses',
-    privacy: isES ? 'Privacidad' : 'Privacy',
-    deploy: isES ? 'Deploy' : 'Deploy',
-    support: isES ? 'Soporte' : 'Support',
-    techConfig: isES ? 'Configuración técnica' : 'Technical configuration',
-    capabilities: isES ? 'Capacidades' : 'Capabilities',
-    modalities: isES ? 'Modalidades' : 'Modalities',
-    architecture: isES ? 'Arquitectura' : 'Architecture',
-    frameworks: isES ? 'Frameworks' : 'Frameworks',
-    architectures: isES ? 'Architectures' : 'Architectures',
-    precision: isES ? 'Precision' : 'Precision',
-    quantization: isES ? 'Quantization' : 'Quantization',
-    fileFormats: isES ? 'Formatos de archivo' : 'File formats',
-    modelSize: isES ? 'Tamaño del modelo' : 'Model size',
-    artifactSize: isES ? 'Tamaño del artefacto' : 'Artifact size',
-    runtime: isES ? 'Runtime' : 'Runtime',
-    dependencies: isES ? 'Dependencias' : 'Dependencies',
-    minResources: isES ? 'Recursos mínimos' : 'Minimum resources',
-    minVram: isES ? 'VRAM mínima' : 'Min VRAM',
-    cpuCores: isES ? 'CPU cores' : 'CPU cores',
-    recRam: isES ? 'RAM recomendada' : 'Recommended RAM',
-    inferenceOpts: isES ? 'Opciones de inferencia' : 'Inference options',
-    maxBatch: isES ? 'Max batch size' : 'Max batch size',
-    contextLength: isES ? 'Context length' : 'Context length',
-    maxTokens: isES ? 'Max tokens' : 'Max tokens',
-    referenceLatency: isES ? 'Latencia de referencia' : 'Reference latency',
-    triton: 'Triton',
-    imageResolution: isES ? 'Resolución imagen' : 'Image resolution',
-    artifactsDemo: isES ? 'Artefactos & demo' : 'Artifacts & demo',
-    artifacts: 'Artifacts (IPFS)',
-    cid: 'CID', filename: isES ? 'Archivo' : 'Filename', size: isES ? 'Tamaño' : 'Size', sha256: 'SHA-256', actions: isES ? 'Acciones' : 'Actions',
-    open: isES ? 'Abrir' : 'Open', copy: isES ? 'Copiar' : 'Copy', copyHash: isES ? 'Copiar hash' : 'Copy hash',
-    noArtifacts: isES ? 'No hay artefactos publicados.' : 'No artifacts published.',
-    hostedDemo: isES ? 'Demo (Hosted)' : 'Demo (Hosted)',
-    runDemo: isES ? 'Run demo' : 'Run demo',
-    noDemo: isES ? 'Este modelo no tiene una demo configurada.' : 'This model has no demo configured.',
-    licensesTerms: isES ? 'Licencias y términos' : 'Licenses and terms',
-    perpetualLicense: isES ? 'Perpetual license' : 'Perpetual license',
-    subscriptionPerMonth: isES ? 'Subscription / month' : 'Subscription / month',
-    baseDuration: isES ? 'Duración base' : 'Base duration',
-    rightsDelivery: isES ? 'Delivery' : 'Delivery',
-    deliveryHint: isES ? 'Cómo recibes el modelo: API, descarga o ambos.' : 'How you get the model: API, download, or both',
-    transferableHint: isES ? ', puedes transferir la licencia según los términos.' : ', you may transfer the license as allowed by the terms.',
-    termsKey: isES ? 'Términos clave' : 'Key terms',
-    termsHash: isES ? 'Terms hash (SHA-256):' : 'Terms hash (SHA-256):',
-    buyModalTitle: isES ? 'Comprar licencia' : 'Buy license',
-    buyModalHint: isES ? 'Selecciona la opción de licencia que prefieras.' : 'Select your preferred license option.',
-    close: isES ? 'Cerrar' : 'Close',
-    continue: isES ? 'Continuar' : 'Continue',
-    months: isES ? 'Meses' : 'Months',
-    selectType: isES ? 'Tipo de licencia' : 'License type',
-    review: isES ? 'Revisar compra' : 'Review purchase',
-    purchase: isES ? 'Comprar' : 'Purchase',
-  }
+  const L = React.useMemo(()=>({
+    back: t('back'),
+    buy: t('buy'),
+    tryDemo: t('tryDemo'),
+    noCover: t('noCover'),
+    perpetual: t('perpetual'),
+    subscriptionMo: t('subscriptionMo'),
+    version: t('version'),
+    uri: t('uri'),
+    notFound: t('notFound'),
+    whatItDoes: t('whatItDoes'),
+    valueProp: t('valueProp'),
+    descMissing: t('descMissing'),
+    expectedImpact: t('expectedImpact'),
+    customerSheet: t('customerSheet'),
+    ioTitle: t('ioTitle'),
+    ioSubtitle: t('ioSubtitle'),
+    inputs: t('inputs'),
+    outputs: t('outputs'),
+    examples: t('examples'),
+    exampleIn: t('exampleIn'),
+    exampleOut: t('exampleOut'),
+    note: t('note'),
+    noExamples: t('noExamples'),
+    industriesUseCases: t('industriesUseCases'),
+    industries: t('industries'),
+    useCases: t('useCases'),
+    unspecified: t('unspecified'),
+    knownLimits: t('knownLimits'),
+    prohibited: t('prohibited'),
+    privacy: t('privacy'),
+    deploy: t('deploy'),
+    support: t('support'),
+    techConfig: t('techConfig'),
+    capabilities: t('capabilities'),
+    modalities: t('modalities'),
+    architecture: t('architecture'),
+    frameworks: t('frameworks'),
+    architectures: t('architectures'),
+    precision: t('precision'),
+    quantization: t('quantization'),
+    fileFormats: t('fileFormats'),
+    modelSize: t('modelSize'),
+    artifactSize: t('artifactSize'),
+    runtime: t('runtime'),
+    dependencies: t('dependencies'),
+    minResources: t('minResources'),
+    minVram: t('minVram'),
+    cpuCores: t('cpuCores'),
+    recRam: t('recRam'),
+    inferenceOpts: t('inferenceOpts'),
+    maxBatch: t('maxBatch'),
+    contextLength: t('contextLength'),
+    maxTokens: t('maxTokens'),
+    referenceLatency: t('referenceLatency'),
+    triton: t('triton'),
+    imageResolution: t('imageResolution'),
+    artifactsDemo: t('artifactsDemo'),
+    artifacts: t('artifacts'),
+    cid: t('cid'),
+    filename: t('filename'),
+    size: t('size'),
+    sha256: t('sha256'),
+    actions: t('actions'),
+    open: t('open'),
+    copy: t('copy'),
+    copyHash: t('copyHash'),
+    noArtifacts: t('noArtifacts'),
+    hostedDemo: t('hostedDemo'),
+    runDemo: t('runDemo'),
+    noDemo: t('noDemo'),
+    licensesTerms: t('licensesTerms'),
+    perpetualLicense: t('perpetualLicense'),
+    subscriptionPerMonth: t('subscriptionPerMonth'),
+    baseDuration: t('baseDuration'),
+    rightsDelivery: t('rightsDelivery'),
+    deliveryHint: t('deliveryHint'),
+    transferableHint: t('transferableHint'),
+    termsKey: t('termsKey'),
+    termsHash: t('termsHash'),
+    buyModalTitle: t('buyModalTitle'),
+    buyModalHint: t('buyModalHint'),
+    close: t('close'),
+    continue: t('continue'),
+    months: t('months'),
+    selectType: t('selectType'),
+    review: t('review'),
+    purchase: t('purchase'),
+    // snack / status
+    connectWallet: t('connectWallet'),
+    wrongNetwork: t('wrongNetwork'),
+    purchaseSuccess: t('purchaseSuccess'),
+    purchaseErrorPrefix: t('purchaseErrorPrefix'),
+    marketAddressMissing: t('marketAddressMissing'),
+    loadingModelTitle: t('loadingModelTitle'),
+    loadingModelBody: t('loadingModelBody'),
+    systems: t('systems'),
+    accelerators: t('accelerators'),
+  }), [t])
   const evmSymbol = React.useMemo(()=>{
     try {
       if (typeof evmChainId !== 'number') return 'ETH'
@@ -391,9 +386,9 @@ export default function EvmModelDetailPage() {
   const handlePurchase = React.useCallback(async ()=>{
     try {
       if (!id || typeof evmChainId !== 'number' || !buyKind) return
-      if (!marketAddress) { setSnkSev('error'); setSnkMsg(isES ? 'No se configuró la dirección del marketplace para esta red.' : 'Marketplace address is not configured for this network.'); setSnkOpen(true); return }
+      if (!marketAddress) { setSnkSev('error'); setSnkMsg(L.marketAddressMissing); setSnkOpen(true); return }
       // require wallet connection
-      if (!isConnected) { setSnkSev('warning'); setSnkMsg(isES ? 'Conecta tu wallet para continuar.' : 'Connect your wallet to continue.'); setSnkOpen(true); return }
+      if (!isConnected) { setSnkSev('warning'); setSnkMsg(L.connectWallet); setSnkOpen(true); return }
       // validate network and auto-switch
       const currentChainId = chain?.id
       const desiredChainId = evmChainId
@@ -401,7 +396,7 @@ export default function EvmModelDetailPage() {
         try {
           await switchChainAsync({ chainId: desiredChainId })
         } catch {
-          setSnkSev('warning'); setSnkMsg(isES ? 'Red incorrecta. Cambia a la red objetivo.' : 'Wrong network. Please switch to the target network.'); setSnkOpen(true)
+          setSnkSev('warning'); setSnkMsg(L.wrongNetwork); setSnkOpen(true)
           return
         }
       }
@@ -426,13 +421,13 @@ export default function EvmModelDetailPage() {
       if (publicClient && hash) {
         await publicClient.waitForTransactionReceipt({ hash })
       }
-      setSnkSev('success'); setSnkMsg(isES ? 'Compra realizada con éxito.' : 'Purchase completed successfully.'); setSnkOpen(true)
+      setSnkSev('success'); setSnkMsg(L.purchaseSuccess); setSnkOpen(true)
       setBuyOpen(false)
       setBuyStep('select')
       setBuyKind(undefined)
     } catch (e: any) {
       const msg = String(e?.shortMessage || e?.message || e || '')
-      setSnkSev('error'); setSnkMsg((isES ? 'Error al comprar la licencia: ' : 'Failed to purchase the license: ') + msg)
+      setSnkSev('error'); setSnkMsg(L.purchaseErrorPrefix + msg)
       setSnkOpen(true)
     }
     finally { setTxLoading(false) }
@@ -472,11 +467,12 @@ export default function EvmModelDetailPage() {
     )
   }, [evmChainId])
 
+  const backHref = React.useMemo(()=> `/${locale}/models`, [locale])
   return (
     <Box>
       <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-          <Button component={Link} href={isES ? '/es/models' : '/en/models'} startIcon={<ArrowBackIcon />}>
+          <Button component={Link} href={backHref} startIcon={<ArrowBackIcon />}>
             {L.back}
           </Button>
         </Stack>
@@ -546,10 +542,10 @@ export default function EvmModelDetailPage() {
                     )}
                     <Stack direction={{ xs:'column', sm:'row' }} spacing={1} sx={{ mt: 1, alignItems:{ xs:'stretch', sm:'center' } }}>
                       {typeof data.price_perpetual === 'number' && data.price_perpetual > 0 && (
-                        <Chip label={`Perpetual: ${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}`} color="primary" sx={{ width:{ xs:'100%', sm:'auto' } }} />
+                        <Chip label={`${L.perpetual}: ${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}`} color="primary" sx={{ width:{ xs:'100%', sm:'auto' } }} />
                       )}
                       {typeof data.price_subscription === 'number' && data.price_subscription > 0 && (
-                        <Chip label={`Subscription: ${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}/mo`} sx={{ width:{ xs:'100%', sm:'auto' } }} />
+                        <Chip label={`${L.subscriptionPerMonth}: ${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}/` + t('monthShort')} sx={{ width:{ xs:'100%', sm:'auto' } }} />
                       )}
                       {typeof data.version === 'number' && data.version > 0 && (
                         <Chip label={`v${data.version}`} sx={{ width:{ xs:'fit-content', sm:'auto' } }} />)
@@ -569,8 +565,8 @@ export default function EvmModelDetailPage() {
           <Card sx={{ mt: 2 }}>
             <CardContent>
               <Stack spacing={1} alignItems="center" sx={{ py: 2 }}>
-                <Typography variant="subtitle1" fontWeight={700}>{isES ? 'Cargando el modelo…' : 'Loading the model…'}</Typography>
-                <Typography variant="body2" color="text.secondary">{isES ? 'Un momento por favor, estamos preparando la información.' : 'One moment please, we are preparing the information.'}</Typography>
+                <Typography variant="subtitle1" fontWeight={700}>{L.loadingModelTitle}</Typography>
+                <Typography variant="body2" color="text.secondary">{L.loadingModelBody}</Typography>
               </Stack>
             </CardContent>
           </Card>
@@ -730,15 +726,15 @@ export default function EvmModelDetailPage() {
                       <Typography variant="body2"><b>CUDA:</b> {(data as any).cuda || L.unspecified}</Typography>
                       <Typography variant="body2"><b>PyTorch:</b> {(data as any).pytorch || L.unspecified}</Typography>
                       <Typography variant="body2"><b>cuDNN:</b> {(data as any).cudnn || L.unspecified}</Typography>
-                      <Typography variant="body2"><b>{isES ? 'Sistemas' : 'Systems'}:</b> {Array.isArray((data as any)?.systems) ? ((data as any).systems as string[]).join(', ') : L.unspecified}</Typography>
-                      <Typography variant="body2"><b>{isES ? 'Aceleradores' : 'Accelerators'}:</b> {Array.isArray((data as any)?.accelerators) ? ((data as any).accelerators as string[]).join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2"><b>{L.systems}:</b> {Array.isArray((data as any)?.systems) ? ((data as any).systems as string[]).join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2"><b>{L.accelerators}:</b> {Array.isArray((data as any)?.accelerators) ? ((data as any).accelerators as string[]).join(', ') : L.unspecified}</Typography>
                       <Typography variant="body2"><b>Compute Capability:</b> {(data as any).computeCapability || L.unspecified}</Typography>
                     </Stack>
                   </Grid>
                   <Grid item xs={12} md={6}>
                     <Typography variant="subtitle2" fontWeight={700}>{L.dependencies}</Typography>
                     <Box component="pre" sx={{ bgcolor:'grey.50', p: 2, borderRadius: 1, fontSize: 12, whiteSpace:'pre-wrap', minHeight: 80 }}>
-                      {(data as any).dependencies || 'No especificado'}
+                      {(data as any).dependencies || L.unspecified}
                     </Box>
                     <Divider sx={{ my: 2 }} />
                     <Typography variant="subtitle2" fontWeight={700}>{L.minResources}</Typography>
@@ -756,7 +752,7 @@ export default function EvmModelDetailPage() {
                   <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.contextLength}</Typography><Typography variant="body2">{(data as any).contextLength || L.unspecified}</Typography></CardContent></Card></Grid>
                   <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.maxTokens}</Typography><Typography variant="body2">{(data as any).maxTokens || L.unspecified}</Typography></CardContent></Card></Grid>
                   <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.referenceLatency}</Typography><Typography variant="body2">{(data as any).gpuNotes || L.unspecified}</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.triton}</Typography><Typography variant="body2">{(data as any).triton ? (isES ? 'Sí' : 'Yes') : L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.triton}</Typography><Typography variant="body2">{(data as any).triton ? t('yes') : L.unspecified}</Typography></CardContent></Card></Grid>
                 </Grid>
               </CardContent>
             </Card>
@@ -807,17 +803,17 @@ export default function EvmModelDetailPage() {
                   <Grid item xs={12} md={4}>
                     <Card variant="outlined"><CardContent>
                       <Typography variant="subtitle2" fontWeight={700}>{L.baseDuration}</Typography>
-                      <Typography variant="h6">{(data as any).default_duration_days ? `${Math.round(((data as any).default_duration_days/30))} ${isES ? 'meses' : 'mo'}` : L.unspecified}</Typography>
+                      <Typography variant="h6">{(data as any).default_duration_days ? `${Math.round(((data as any).default_duration_days/30))} ${t('monthsShort')}` : L.unspecified}</Typography>
                     </CardContent></Card>
                   </Grid>
                 </Grid>
                 <Divider sx={{ my: 2 }} />
                 <Typography variant="subtitle2" fontWeight={700}>{L.rightsDelivery}</Typography>
                 <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 1 }}>
-                  {data.deliveryMode === 'api' && (<Chip size="small" label="API" />)}
-                  {data.deliveryMode === 'download' && (<Chip size="small" label="Download" />)}
-                  {data.deliveryMode === 'both' && (<Chip size="small" label="API + Download" />)}
-                  {data.rights?.transferable && (<Chip size="small" label="Transferable" variant="outlined" />)}
+                  {data.deliveryMode === 'api' && (<Chip size="small" label={t('deliveryApi')} />)}
+                  {data.deliveryMode === 'download' && (<Chip size="small" label={t('deliveryDownload')} />)}
+                  {data.deliveryMode === 'both' && (<Chip size="small" label={t('deliveryBoth')} />)}
+                  {data.rights?.transferable && (<Chip size="small" label={t('transferable')} variant="outlined" />)}
                 </Stack>
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>{L.deliveryHint}</Typography>
                 {data.rights?.transferable && (

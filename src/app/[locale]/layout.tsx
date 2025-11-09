@@ -5,8 +5,8 @@ import { GlobalHeader } from '@/components/GlobalHeader';
 import { GlobalHeaderEvm } from '@/components/GlobalHeaderEvm';
 import EmotionRegistry from '@/app/emotion/registry'
 
-export const locales = ['en', 'es'] as const;
-export type Locale = (typeof locales)[number];
+const locales = ['en', 'es'] as const;
+type Locale = (typeof locales)[number];
 
 async function getMessages(locale: Locale) {
   try {

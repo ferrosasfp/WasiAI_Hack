@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import NextDynamic from 'next/dynamic'
 import { useCurrentAccount } from '@mysten/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { getSuiClient } from '@/lib/sui';
@@ -33,12 +34,16 @@ function useMyLicenses(address?: string | null) {
   });
 }
 
+export const dynamic = 'force-dynamic'
+
+export default NextDynamic(() => Promise.resolve(LicensesPageImpl), { ssr: false })
+
 function formatTimestamp(tsSec: number) {
   if (!tsSec) return '-';
   return new Date(tsSec * 1000).toLocaleString();
 }
 
-export default function LicensesPage() {
+function LicensesPageImpl() {
   const account = useCurrentAccount();
   const { data, isLoading } = useMyLicenses(account?.address);
 

@@ -16,22 +16,7 @@ export default function middleware(req: NextRequest) {
   const { nextUrl, headers, cookies } = req
   const url = nextUrl.clone()
 
-  // 1) If ?lang= is present, set cookie and redirect to segmented URL
-  const qpLang = url.searchParams.get('lang')
-  if (qpLang) {
-    const loc = normalizeLocale(qpLang)
-    url.searchParams.delete('lang')
-    // Replace or prefix locale segment
-    const seg0 = url.pathname.split('/')[1]
-    if (seg0 === 'en' || seg0 === 'es') {
-      url.pathname = url.pathname.replace(/^\/(en|es)/, `/${loc}`)
-    } else {
-      url.pathname = `/${loc}${url.pathname}`
-    }
-    const res = NextResponse.redirect(url)
-    res.cookies.set('lang', loc, { path: '/', maxAge: 60*60*24*365 })
-    return res
-  }
+  // legacy ?lang support removed; only localized routes are supported
 
   const seg = url.pathname.split('/')[1]
   const hasLocaleInPath = LOCALES.includes(seg as any)

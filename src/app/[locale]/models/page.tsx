@@ -603,7 +603,7 @@ export default function ExploreModelsPage() {
                   : undefined),
                   pricePerpetual: m.price_perpetual ? (ecosystem==='sui' ? `${(m.price_perpetual/1_000_000_000).toFixed(2)} SUI` : `${(m.price_perpetual/1e18).toFixed(4)} ${evmSymbol}`) : undefined,
                   priceSubscription: m.price_subscription ? (ecosystem==='sui' ? `${(m.price_subscription/1_000_000_000).toFixed(2)} SUI/${isES?'mes':'mo'}` : `${(m.price_subscription/1e18).toFixed(4)} ${evmSymbol}/${isES?'mes':'mo'}`) : undefined,
-                }} href={ecosystem==='sui' ? `/models/${m.modelId ?? ''}` : (m.modelId ? `/evm/models/${m.modelId}?lang=${locale}` : undefined)} priority={idx < 3} onMeta={onCardMeta} preMeta={(m as any).__preMeta} />
+                }} href={ecosystem==='sui' ? `/models/${m.modelId ?? ''}` : (m.modelId ? `/${locale}/evm/models/${m.modelId}` : undefined)} priority={idx < 3} onMeta={onCardMeta} preMeta={(m as any).__preMeta} />
               </Grid>
             ))}
           </Grid>
