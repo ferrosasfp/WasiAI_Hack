@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import { Roboto } from 'next/font/google';
 import { Providers } from './providers';
-import { ProvidersEvm } from './providers-evm';
 import '@/styles/globals.css';
 import '@mysten/dapp-kit/dist/index.css';
+import { GlobalHeader } from '@/components/GlobalHeader';
 
 const roboto = Roboto({
   weight: ['300', '400', '500', '700'],
@@ -47,19 +47,13 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const enableSui = (process.env.NEXT_PUBLIC_ENABLE_SUI || '').toLowerCase() === 'true'
   return (
     <html lang="en" className={roboto.variable}>
       <body>
-        {enableSui ? (
-          <Providers>
-            {children}
-          </Providers>
-        ) : (
-          <ProvidersEvm>
-            {children}
-          </ProvidersEvm>
-        )}
+        <Providers>
+          <GlobalHeader />
+          {children}
+        </Providers>
       </body>
     </html>
   );

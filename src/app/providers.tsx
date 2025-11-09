@@ -6,12 +6,6 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
 import { getFullnodeUrl } from '@mysten/sui/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WagmiConfig, createConfig, http } from 'wagmi'
-import { base, baseSepolia, avalanche, avalancheFuji } from 'wagmi/chains'
-import { injected } from 'wagmi/connectors'
-import dynamic from 'next/dynamic'
-import '@rainbow-me/rainbowkit/styles.css'
-import { WalletEcosystemProvider } from '@/contexts/WalletEcosystemContext'
 
 import theme from '@/styles/theme';
 
@@ -42,60 +36,16 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  const isMainnet = (process.env.NEXT_PUBLIC_NETWORK_ENV || '').toLowerCase() === 'mainnet'
-  const evmChainsArr = isMainnet ? [base, avalanche] : [baseSepolia, avalancheFuji]
-  const transports = Object.fromEntries(evmChainsArr.map(c => [c.id, http()]))
-
-  const wagmiConfig = React.useMemo(() => createConfig({
-    chains: [evmChainsArr[0], ...evmChainsArr.slice(1)] as any,
-    transports: transports as any,
-    connectors: [injected({ shimDisconnect: true })],
-  }), [isMainnet])
-
-  // Evita ejecutar RainbowKit/Wagmi en SSR (acceso a localStorage)
-  const Noop: React.FC<{children: React.ReactNode}> = ({ children }) => <>{children}</>
-  const [mounted, setMounted] = React.useState(false)
-  React.useEffect(() => { setMounted(true) }, [])
-  if (!mounted) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <WagmiConfig config={wagmiConfig} reconnectOnMount={false}>
-          {/* Mantener la forma del árbol sin ejecutar RainbowKit (usa localStorage en mount) */}
-          <Noop>
-            <SuiClientProvider networks={networks} defaultNetwork={(process.env.NEXT_PUBLIC_SUI_NETWORK as any) || 'testnet'}>
-              <WalletProvider autoConnect>
-                <WalletEcosystemProvider>
-                  <ThemeProvider theme={theme}>
-                    <CssBaseline />
-                    {children}
-                  </ThemeProvider>
-                </WalletEcosystemProvider>
-              </WalletProvider>
-            </SuiClientProvider>
-          </Noop>
-        </WagmiConfig>
-      </QueryClientProvider>
-    )
-  }
-
-  const RainbowKitProvider = dynamic(() => import('@rainbow-me/rainbowkit').then(m => m.RainbowKitProvider), { ssr: false })
-
   return (
     <QueryClientProvider client={queryClient}>
-      <WagmiConfig config={wagmiConfig} reconnectOnMount={false}>
-        <RainbowKitProvider>
-          <SuiClientProvider networks={networks} defaultNetwork={(process.env.NEXT_PUBLIC_SUI_NETWORK as any) || 'testnet'}>
-            <WalletProvider autoConnect>
-              <WalletEcosystemProvider>
-                <ThemeProvider theme={theme}>
-                  <CssBaseline />
-                  {children}
-                </ThemeProvider>
-              </WalletEcosystemProvider>
-            </WalletProvider>
-          </SuiClientProvider>
-        </RainbowKitProvider>
-      </WagmiConfig>
+      <SuiClientProvider networks={networks} defaultNetwork="testnet">
+        <WalletProvider autoConnect>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            {children}
+          </ThemeProvider>
+        </WalletProvider>
+      </SuiClientProvider>
     </QueryClientProvider>
   );
 }

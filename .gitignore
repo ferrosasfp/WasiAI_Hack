@@ -34,13 +34,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-contracts/evm/node_modules/
-*.swp
-
-# ignore heavy coverage and test artifacts
-contracts/evm/coverage/
-contracts/evm/coverage.json
-contracts/evm/coverage-*/
-contracts/evm/artifacts/contracts/test/
-contracts/evm/test/
-contracts/evm/deploy.out.json

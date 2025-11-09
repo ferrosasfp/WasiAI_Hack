@@ -1,0 +1,9 @@
+{
+  "network": "avax",
+  "chainId": 43113,
+  "marketplace": "0x1F5cEc5098eE92C3FC5D8F7F12808aFC63Bc0945",
+  "licenseNFT": "0x32a828a3deF268fd8D52fb61e6FEB9543BFC1Ec1",
+  "feeBps": 2000,
+  "feeRecipient": "0xfb652f4506731aC58E51b39DCa4F5ECDcb2C1543",
+  "modelsLimit": 0
+}

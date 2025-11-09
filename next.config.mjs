@@ -1,5 +1,3 @@
-import createNextIntlPlugin from 'next-intl/plugin';
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: true,
@@ -28,22 +26,22 @@ const nextConfig = {
     },
     
     // Configuración de Webpack
-    webpack: (config) => {
-      // Fallbacks comunes
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-        crypto: false,
-      };
-      // Silenciar módulos no compatibles en web/SSR
-      config.resolve.alias = {
-        ...(config.resolve.alias || {}),
-        process: 'process/browser',
-        '@react-native-async-storage/async-storage': false,
-        'pino-pretty': false,
-      };
+    webpack: (config, { isServer }) => {
+      // Solución para módulos de Node.js en el cliente
+      if (!isServer) {
+        config.resolve.fallback = {
+          ...config.resolve.fallback,
+          fs: false,
+          net: false,
+          tls: false,
+          crypto: false,
+        };
+        config.resolve.alias = {
+          ...(config.resolve.alias || {}),
+          process: 'process/browser',
+        };
+      }
+      
       return config;
     },
     
@@ -106,6 +104,5 @@ const nextConfig = {
     },
   };
   
-  // ✅ CORRECTO: Export ES Module con next-intl plugin
-  const withNextIntl = createNextIntlPlugin();
-  export default withNextIntl(nextConfig);
+  // ✅ CORRECTO: Export ES Module
+  export default nextConfig;

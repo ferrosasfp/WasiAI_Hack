@@ -2,9 +2,9 @@
 import type { IModelsService } from './service';
 import type { ChainKind } from './types';
 import { getSuiModelsService } from '@/adapters/sui/models';
-import { getEvmModelsService } from '@/adapters/evm/models';
 
-export function getModelsService(chain: ChainKind, evmChainId?: number): IModelsService {
+export function getModelsService(chain: ChainKind): IModelsService {
   if (chain === 'sui') return getSuiModelsService();
-  return getEvmModelsService(evmChainId);
+  // Placeholder: EVM vendrá luego
+  return getSuiModelsService();
 }

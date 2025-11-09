@@ -19,21 +19,3 @@ model ModelKey {
 
   @@index([slug])
 }
-
-model ModelIndex {
-  id         Int      @id @default(autoincrement())
-  chain      String   @db.VarChar(16)   // 'sui' | 'evm'
-  network    String   @db.VarChar(32)   // 'testnet' | 'base' | 'avax'
-  modelId    String?  @db.VarChar(128)  // u64 en Sui o uint256/otro id si aplica
-  slug       String?  @db.VarChar(120)
-  name       String?  @db.VarChar(200)
-  uri        String   @db.VarChar(255)
-  version    Int?
-  owner      String?  @db.VarChar(128)
-  txHash     String?  @db.VarChar(130)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([chain, network])
-  @@index([slug])
-}
