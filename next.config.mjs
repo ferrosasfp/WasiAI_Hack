@@ -39,6 +39,7 @@ const nextConfig = {
         config.resolve.alias = {
           ...(config.resolve.alias || {}),
           process: 'process/browser',
+          '@react-native-async-storage/async-storage': false,
         };
       }
       
