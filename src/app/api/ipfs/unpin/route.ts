@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 async function unpinFromIPFS(cid: string) {
   const jwt = process.env.PINATA_JWT
   const key = process.env.PINATA_API_KEY
   const secret = process.env.PINATA_SECRET_KEY
-  if (!jwt && !(key && secret)) throw new Error('pinata_credentials_missing')
+  if (!jwt && !(key && secret)) return { ok: true, skipped: true, reason: 'pinata_credentials_missing' as const }
 
   const headers: Record<string, string> = {}
   if (jwt) headers['Authorization'] = `Bearer ${jwt}`
@@ -19,7 +20,8 @@ async function unpinFromIPFS(cid: string) {
     method: 'DELETE',
     headers,
   })
-  if (!res.ok) {
+  // Treat 404 (already unpinned/missing) as success to avoid noisy failures
+  if (!res.ok && res.status !== 404) {
     const txt = await res.text()
     throw new Error(`unpin_failed:${res.status}:${txt}`)
   }
@@ -31,9 +33,10 @@ export async function POST(req: Request) {
     const body = await req.json().catch(()=> ({})) as any
     const cid = String(body?.cid || '')
     if (!cid) return NextResponse.json({ ok: false, error: 'cid_missing' }, { status: 400 })
-    await unpinFromIPFS(cid)
-    return NextResponse.json({ ok: true })
+    const res = await unpinFromIPFS(cid)
+    return NextResponse.json(res)
   } catch (e:any) {
-    return NextResponse.json({ ok: false, error: String(e?.message||e) }, { status: 500 })
+    // Do not surface 500s to the client for unpin operations; respond gracefully
+    return NextResponse.json({ ok: true, skipped: true, reason: String(e?.message||e) })
   }
 }

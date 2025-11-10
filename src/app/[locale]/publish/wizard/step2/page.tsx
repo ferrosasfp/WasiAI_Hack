@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState, useRef, useEffect } from 'react'
  
-import { Box, Stack, Typography, Paper, Tooltip, TextField, Autocomplete, Chip, Grid, Divider, Button, FormHelperText, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, IconButton, Card, CardActionArea, CircularProgress, Skeleton } from '@mui/material'
+import { Box, Stack, Typography, Paper, Tooltip, TextField, Autocomplete, Chip, Grid, Divider, Button, FormHelperText, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, IconButton, Card, CardActionArea, CircularProgress, Skeleton, GlobalStyles } from '@mui/material'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
@@ -1048,10 +1048,63 @@ export default function Step2CompatibilityLocalized() {
   }, [tasks, modalities, modelType, frameworks, architectures, precisions, quantization, modelSizeParams, modelFiles, artifactSize, embedDim, python, cuda, torch, cudnn, oses, accelerators, computeCapability, pipDeps, vramGB, cpuCores, ramGB, maxBatch, contextLen, maxTokens, imgResolution, sampleRate, useTriton, refPerf, valueProp, customerDesc, industries, useCases, expectedImpact, inputsDesc, outputsDesc, ioExamplesList, risks, privacy, deployOptions, support, supportedLangs, primaryLanguage, metrics, prohibited])
   ;
   return (
-    <Box sx={{ p: { xs:2, md:4 }, maxWidth: 1000, mx: 'auto' }}>
+    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0f2740 0%, #0b1626 30%, #0a111c 100%)' }}>
+      <Box sx={{
+        p: { xs:2, md:4 },
+        maxWidth: 1000,
+        mx: 'auto',
+        color:'#ffffffd6',
+        '& .MuiTypography-h6': { color:'#fff' },
+        '& .MuiTypography-subtitle1': { color:'#fff' },
+        '& .MuiTypography-subtitle2': { color:'#fff' },
+        '& .MuiTypography-body2': { color:'#ffffffcc' },
+        '& .MuiTypography-caption': { color:'#ffffff99' },
+        '& .MuiFormLabel-root': { color:'#ffffffcc' },
+        '& .MuiFormLabel-root.Mui-focused': { color:'#fff' },
+        '& .MuiSvgIcon-root': { color:'#fff' },
+        '& .MuiIconButton-root': { color:'#fff' },
+        '& .MuiSelect-select': { color:'#fff' },
+        '& .MuiSelect-icon': { color:'#fff' },
+        '& .MuiAutocomplete-endAdornment .MuiSvgIcon-root': { color:'#fff' },
+        '& .MuiAutocomplete-popupIndicator .MuiSvgIcon-root': { color:'#fff' },
+        '& .MuiAutocomplete-clearIndicator .MuiSvgIcon-root': { color:'#fff' },
+        '& .MuiChip-deleteIcon': { color:'#fff', opacity: 1 },
+        '& .MuiChip-root .MuiChip-deleteIcon:hover': { color:'#fff', opacity: 1 },
+        '& .MuiChip-root': { color:'#fff', borderColor:'rgba(255,255,255,0.28)' },
+        '& .MuiInputBase-input': { color:'#fff', WebkitTextFillColor:'#fff' },
+        '& .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.28)' },
+        '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.40)' },
+        '& .MuiFormHelperText-root': { color:'#ffffffcc' },
+        '& .MuiFormControlLabel-root': { color:'#fff' },
+        '& .MuiAccordion-root': { background:'transparent', boxShadow:'none' },
+        '& .MuiAccordionSummary-content': { color:'#fff' },
+        '& .MuiAccordionSummary-expandIconWrapper .MuiSvgIcon-root': { color:'#fff' },
+        '& .MuiPaper-outlined': {
+          borderRadius: '16px',
+          border:'2px solid',
+          borderColor:'oklch(0.30 0 0)',
+          background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))',
+          boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)',
+          backdropFilter:'blur(10px)'
+        }
+      }}>
+      <GlobalStyles styles={{
+        '.MuiPopover-root .MuiPaper, .MuiMenu-paper, .MuiAutocomplete-popper .MuiPaper, .MuiAutocomplete-paper': {
+          borderRadius: 12,
+          border: '2px solid oklch(0.30 0 0)',
+          background: 'linear-gradient(180deg, rgba(38,46,64,0.92), rgba(20,26,42,0.92))',
+          boxShadow: '0 0 0 1px rgba(255,255,255,0.05) inset, 0 16px 36px rgba(0,0,0,0.45)',
+          backdropFilter: 'blur(10px)',
+          color: '#fff'
+        },
+        '.MuiAutocomplete-listbox': { background: 'transparent' },
+        '.MuiMenuItem-root, .MuiAutocomplete-option': { color: '#fff' },
+        '.MuiMenuItem-root .MuiSvgIcon-root, .MuiAutocomplete-option .MuiSvgIcon-root': { color: '#fff' },
+        '.MuiMenuItem-root.Mui-selected, .MuiAutocomplete-option.Mui-focused': { backgroundColor: 'rgba(255,255,255,0.10)' }
+      }} />
       <Stack spacing={2} sx={{ mb: 2 }}>
-        <Typography variant="h4" fontWeight={700}>{t('wizard.step2.title')}</Typography>
-        <Typography color="text.secondary">{t('wizard.step2.subtitle')}</Typography>
+        <Typography variant="h4" fontWeight={700} sx={{ color:'#fff' }}>{t('wizard.step2.title')}</Typography>
+        <Typography sx={{ color:'#ffffffcc' }}>{t('wizard.step2.subtitle')}</Typography>
         {draftLoading && (
           <Typography variant="body2" color="text.secondary">
             {locale==='es' ? 'Cargando tu borrador…' : 'Loading your draft…'}
@@ -1073,11 +1126,11 @@ export default function Step2CompatibilityLocalized() {
         </Stack>
         <Box sx={{ mb: 1, position: 'relative' }}>
           <Box sx={{ position:'absolute', inset: 0, pointerEvents:'none' }} />
-          <IconButton aria-label="prev" onClick={()=>scrollPresets('prev')} sx={{ position:'absolute', left: -8, top: '50%', transform:'translateY(-50%)', zIndex:1, bgcolor:'background.paper', boxShadow:1 }}>
-            <ArrowBackIcon fontSize="small" />
+          <IconButton aria-label="prev" onClick={()=>scrollPresets('prev')} sx={{ position:'absolute', left: -8, top: '50%', transform:'translateY(-50%)', zIndex:1, bgcolor:'background.paper', boxShadow:1, '& .MuiSvgIcon-root': { color: 'text.primary' } }}>
+            <ArrowBackIcon fontSize="small" sx={{ color: 'text.primary' }} />
           </IconButton>
-          <IconButton aria-label="next" onClick={()=>scrollPresets('next')} sx={{ position:'absolute', right: -8, top: '50%', transform:'translateY(-50%)', zIndex:1, bgcolor:'background.paper', boxShadow:1 }}>
-            <ArrowForwardIcon fontSize="small" />
+          <IconButton aria-label="next" onClick={()=>scrollPresets('next')} sx={{ position:'absolute', right: -8, top: '50%', transform:'translateY(-50%)', zIndex:1, bgcolor:'background.paper', boxShadow:1, '& .MuiSvgIcon-root': { color: 'text.primary' } }}>
+            <ArrowForwardIcon fontSize="small" sx={{ color: 'text.primary' }} />
           </IconButton>
           <Box ref={presetsRef} sx={{ overflowX: 'auto', display: 'flex', gap: 1, scrollSnapType: 'x mandatory', px: 1, '&::-webkit-scrollbar': { display: 'none' } }}>
             {PRESETS.map((p, idx) => {
@@ -1190,7 +1243,7 @@ export default function Step2CompatibilityLocalized() {
 
       {/* Secciones técnicas */}
       {draftLoading ? (
-        <Paper variant="outlined" sx={{ p: { xs:2, md:3 }, mb: 3, borderRadius:2 }}>
+        <Paper variant="outlined" sx={{ p: { xs:2, md:3 }, mb: 3, borderRadius:'16px', border:'2px solid', borderColor:'oklch(0.30 0 0)', background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter:'blur(10px)' }}>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
             <Skeleton animation="wave" variant="rounded" width={180} height={24} />
           </Stack>
@@ -1211,7 +1264,7 @@ export default function Step2CompatibilityLocalized() {
         <AccordionDetails>
           {/* Capacidades, Arquitectura, Runtime, Dependencias, Recursos, Inferencia: bloques del original */}
           <Stack spacing={3}>
-            <Paper variant="outlined" sx={{ p: { xs:2, md:3 }, borderRadius:2 }}>
+            <Paper variant="outlined" sx={{ p: { xs:2, md:3 }, borderRadius:'16px', border:'2px solid', borderColor:'oklch(0.30 0 0)', background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter:'blur(10px)' }}>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                 <Typography variant="subtitle1" fontWeight={600}>{t('wizard.step2.tech.titles.capabilities')}</Typography>
                 <Tooltip title={t('wizard.step2.tech.helps.capabilities')}><InfoOutlinedIcon fontSize="small" color="action"/></Tooltip>
@@ -1339,6 +1392,7 @@ export default function Step2CompatibilityLocalized() {
       </Box>
 
       {msg && <Typography sx={{ mt:1 }} color={msg===t('wizard.common.saved') ? 'success.main' : 'warning.main'}>{msg}</Typography>}
+    </Box>
     </Box>
   )
 }

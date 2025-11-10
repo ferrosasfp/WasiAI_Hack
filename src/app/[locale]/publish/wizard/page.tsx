@@ -54,27 +54,28 @@ export default function WizardIndexLocalized() {
   }, [router, base])
 
   return (
-    <Box sx={{ p: { xs:2, md:4 }, maxWidth: 1100, mx: 'auto' }}>
+    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0f2740 0%, #0b1626 30%, #0a111c 100%)' }}>
+      <Box sx={{ p: { xs:2, md:4 }, maxWidth: 1100, mx: 'auto' }}>
       <Grid container spacing={3} alignItems="center">
         <Grid item xs={12} md={7}>
           <Stack spacing={2}>
-            <Typography variant="h3" fontWeight={800}>{t('wizard.step0.title')}</Typography>
-            <Typography color="text.secondary">{t('wizard.step0.subtitle')}</Typography>
+            <Typography variant="h3" fontWeight={800} sx={{ color:'#fff' }}>{t('wizard.step0.title')}</Typography>
+            <Typography sx={{ color:'#ffffffcc' }}>{t('wizard.step0.subtitle')}</Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap">
-              <Chip label={t('wizard.step0.blocks.value.items.0')} />
-              <Chip label={t('wizard.step0.blocks.value.items.1')} />
-              <Chip label={t('wizard.step0.blocks.value.items.2')} />
+              <Chip label={t('wizard.step0.blocks.value.items.0')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color:'#fff', border:'1px solid rgba(255,255,255,0.18)' }} />
+              <Chip label={t('wizard.step0.blocks.value.items.1')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color:'#fff', border:'1px solid rgba(255,255,255,0.18)' }} />
+              <Chip label={t('wizard.step0.blocks.value.items.2')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color:'#fff', border:'1px solid rgba(255,255,255,0.18)' }} />
             </Stack>
-            <Typography variant="body2" color="text.secondary">{t('wizard.step0.pitch.body')}</Typography>
+            <Typography variant="body2" sx={{ color:'#ffffffcc' }}>{t('wizard.step0.pitch.body')}</Typography>
             <Stack direction="row" spacing={1}>
-              <Button onClick={onStart} variant="contained" color="primary" size="large" endIcon={<ArrowForwardIcon />} sx={{ px: 3 }}>
+              <Button onClick={onStart} variant="contained" color="primary" size="large" endIcon={<ArrowForwardIcon />} sx={{ px: 3, backgroundImage:'linear-gradient(90deg, #7c5cff, #2ea0ff)', color:'#fff', textTransform:'none', fontWeight:800, boxShadow:'0 6px 20px rgba(46,160,255,0.25)', '&:hover': { filter:'brightness(1.05)', backgroundImage:'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}>
                 {t('wizard.step0.cta')}
               </Button>
             </Stack>
           </Stack>
         </Grid>
         <Grid item xs={12} md={5}>
-          <Paper variant="outlined" sx={{ p: 0, borderRadius: 2, overflow:'hidden' }}>
+          <Paper variant="outlined" sx={{ p: 0, borderRadius: '16px', overflow:'hidden', border:'2px solid', borderColor:'oklch(0.30 0 0)', background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter:'blur(10px)' }}>
             {heroSrc ? (
               <Image
                 src={heroSrc}
@@ -87,56 +88,62 @@ export default function WizardIndexLocalized() {
                 priority={false}
               />
             ) : (
-              <Box sx={{ height: { xs: 200, md: 320 }, background: (t)=>`linear-gradient(135deg, ${t.palette.primary.light} 0%, ${t.palette.success.light} 100%)` }} />
+              <Box sx={{ height: { xs: 200, md: 320 }, background: 'linear-gradient(135deg, #3b3f54 0%, #1a2033 100%)' }} />
             )}
           </Paper>
         </Grid>
       </Grid>
 
-      <Paper variant="outlined" sx={{ p: { xs:2, md:3 }, borderRadius:2, mt: 4 }}>
+      <Paper variant="outlined" sx={{ p: { xs:2, md:3 }, borderRadius:'16px', mt: 4, border:'2px solid', borderColor:'oklch(0.30 0 0)', background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter:'blur(10px)' }}>
         <Stack spacing={1}>
-          <Typography variant="subtitle1" fontWeight={700}>{t('wizard.step0.steps.title')}</Typography>
-          <Typography color="text.secondary">{t('wizard.step0.steps.subtitle')}</Typography>
+          <Typography variant="subtitle1" fontWeight={700} sx={{ color:'#fff' }}>{t('wizard.step0.steps.title')}</Typography>
+          <Typography sx={{ color:'#ffffffcc' }}>{t('wizard.step0.steps.subtitle')}</Typography>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={12} md={4}>
-              <Typography variant="subtitle2">{t('wizard.index.step1')}</Typography>
-              <Typography color="text.secondary" variant="body2">{t('wizard.step1.subtitle')}</Typography>
+              <Typography variant="subtitle2" sx={{ color:'#fff' }}>{t('wizard.index.step1')}</Typography>
+              <Typography sx={{ color:'#ffffffcc' }} variant="body2">{t('wizard.step1.subtitle')}</Typography>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Typography variant="subtitle2">{t('wizard.index.step2')}</Typography>
-              <Typography color="text.secondary" variant="body2">{t('wizard.step2.subtitle')}</Typography>
+              <Typography variant="subtitle2" sx={{ color:'#fff' }}>{t('wizard.index.step2')}</Typography>
+              <Typography sx={{ color:'#ffffffcc' }} variant="body2">{t('wizard.step2.subtitle')}</Typography>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Typography variant="subtitle2">{t('wizard.index.step3')}</Typography>
-              <Typography color="text.secondary" variant="body2">{t('wizard.step3.subtitle')}</Typography>
+              <Typography variant="subtitle2" sx={{ color:'#fff' }}>{t('wizard.index.step3')}</Typography>
+              <Typography sx={{ color:'#ffffffcc' }} variant="body2">{t('wizard.step3.subtitle')}</Typography>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Typography variant="subtitle2">{t('wizard.index.step4')}</Typography>
-              <Typography color="text.secondary" variant="body2">{t('wizard.step4.subtitle')}</Typography>
+              <Typography variant="subtitle2" sx={{ color:'#fff' }}>{t('wizard.index.step4')}</Typography>
+              <Typography sx={{ color:'#ffffffcc' }} variant="body2">{t('wizard.step4.subtitle')}</Typography>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Typography variant="subtitle2">{t('wizard.index.step5')}</Typography>
-              <Typography color="text.secondary" variant="body2">{t('wizard.step5.subtitle')}</Typography>
+              <Typography variant="subtitle2" sx={{ color:'#fff' }}>{t('wizard.index.step5')}</Typography>
+              <Typography sx={{ color:'#ffffffcc' }} variant="body2">{t('wizard.step5.subtitle')}</Typography>
             </Grid>
           </Grid>
         </Stack>
       </Paper>
-      <Dialog open={askConnect} onClose={()=> setAskConnect(false)} fullWidth maxWidth="xs">
-        <DialogTitle sx={{ fontWeight: 800 }}>
+      <Dialog
+        open={askConnect}
+        onClose={()=> setAskConnect(false)}
+        fullWidth maxWidth="xs"
+        PaperProps={{ sx: { borderRadius:'16px', border:'2px solid', borderColor:'oklch(0.30 0 0)', background:'linear-gradient(180deg, rgba(38,46,64,0.90), rgba(20,26,42,0.90))', boxShadow:'0 0 0 1px rgba(255,255,255,0.05) inset, 0 14px 36px rgba(0,0,0,0.45)', backdropFilter:'blur(10px)' } }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, color:'#fff' }}>
           {t('wizard.index.connectModal.title')}
         </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary">
+        <DialogContent sx={{ color:'#ffffffd6' }}>
+          <Typography variant="body2" sx={{ color:'#ffffffcc' }}>
             {t('wizard.index.connectModal.body')}
           </Typography>
           <Box sx={{ mt: 2, display:'flex', justifyContent:'center' }}>
             {askConnect && <UnifiedConnectButton onBeforeOpen={()=> setAskConnect(false)} />}
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={()=> setAskConnect(false)}>{t('wizard.index.connectModal.close')}</Button>
+        <DialogActions sx={{ borderTop:'1px solid rgba(255,255,255,0.08)' }}>
+          <Button onClick={()=> setAskConnect(false)} sx={{ textTransform:'none', color:'#fff' }}>{t('wizard.index.connectModal.close')}</Button>
         </DialogActions>
       </Dialog>
+      </Box>
     </Box>
   )
 }

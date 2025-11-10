@@ -469,8 +469,16 @@ export default function EvmModelDetailPage() {
 
   const backHref = React.useMemo(()=> `/${locale}/models`, [locale])
   return (
-    <Box>
-      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
+    <Box sx={{
+      minHeight: '100vh',
+      background: [
+        'radial-gradient(900px 520px at 88% -140px, rgba(46,160,255,0.22), rgba(46,160,255,0) 60%)',
+        'radial-gradient(700px 420px at -120px 240px, rgba(124,92,255,0.16), rgba(124,92,255,0) 55%)',
+        'linear-gradient(180deg, #0b1422 0%, #0a111c 50%, #070b12 80%, #05080d 100%)'
+      ].join(', '),
+      color: 'oklch(0.985 0 0)'
+    }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 8 } }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
           <Button component={Link} href={backHref} startIcon={<ArrowBackIcon />}>
             {L.back}
@@ -494,37 +502,51 @@ export default function EvmModelDetailPage() {
           <Grid container spacing={3} alignItems="stretch">
             {/* Hero Resumen */}
             <Grid item xs={12} md={5} sx={{ display:'flex' }}>
-              <Card sx={{ flex:1, display:'flex', flexDirection:'column' }}>
-                <CardContent>
+              <Card sx={{ flex:1, display:'flex', flexDirection:'column', borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+                <CardContent sx={{ p: 3 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {data.imageUrl ? (
-                    <img src={data.imageUrl} alt={data.name || 'cover'} style={{ width:'100%', borderRadius: 12, display:'block' }} />
+                    <Box sx={{ position:'relative', width:'100%', height: 300, overflow:'hidden', bgcolor:'#0a111c', p: 1, borderRadius: 2 }}>
+                      <img src={data.imageUrl} alt={data.name || 'cover'} style={{ width:'100%', height:'100%', objectFit:'contain', display:'block' }} />
+                    </Box>
                   ) : (
-                    <Box sx={{ border: '1px dashed rgba(0,0,0,0.2)', borderRadius: 2, height: 300, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <Typography color="text.secondary">{L.noCover}</Typography>
+                    <Box sx={{ border: '1px dashed rgba(255,255,255,0.24)', borderRadius: 2, height: 300, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <Typography sx={{ color: '#ffffffcc' }}>{L.noCover}</Typography>
                     </Box>
                   )}
                 </CardContent>
               </Card>
             </Grid>
             <Grid item xs={12} md={7} sx={{ display:'flex' }}>
-              <Card sx={{ flex:1, display:'flex', flexDirection:'column' }}>
-                <CardContent>
+              <Card sx={{ flex:1, display:'flex', flexDirection:'column', borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+                <CardContent sx={{ p: 3 }}>
                   <Stack spacing={1}>
-                    <Typography variant="h4" fontWeight={800}>{data.name || `Model #${id}`}</Typography>
+                    <Typography variant="h4" fontWeight={800} sx={{ color: '#fff' }}>{data.name || `Model #${id}`}</Typography>
                     {data.description && (
-                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace:'pre-wrap' }}>{data.description}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffd6', whiteSpace:'pre-wrap' }}>{data.description}</Typography>
                     )}
                     {data.owner && (
                       <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography variant="body2" color="text.secondary"><b>Owner:</b> </Typography>
+                        <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>Owner:</b> </Typography>
                         <Tooltip title={String(data.owner)}>
-                          <Typography variant="body2" color="text.secondary">{truncateAddr(data.owner)}</Typography>
+                          <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{truncateAddr(data.owner)}</Typography>
                         </Tooltip>
                         <Tooltip title={L.copy}>
                           <span>
-                            <IconButton size="small" aria-label={L.copy} onClick={()=>{ try { navigator.clipboard.writeText(String(data.owner||'')) } catch {} }}>
-                              <ContentCopyIcon fontSize="inherit" />
+                            <IconButton
+                              size="small"
+                              aria-label={L.copy}
+                              onClick={()=>{ try { navigator.clipboard.writeText(String(data.owner||'')) } catch {} }}
+                              sx={{
+                                color: '#fff',
+                                border: 'none',
+                                backgroundColor: 'rgba(255,255,255,0.08)',
+                                '&:hover': {
+                                  backgroundColor: 'rgba(255,255,255,0.14)'
+                                }
+                              }}
+                            >
+                              <ContentCopyIcon fontSize="inherit" sx={{ color: '#fff' }} />
                             </IconButton>
                           </span>
                         </Tooltip>
@@ -542,18 +564,39 @@ export default function EvmModelDetailPage() {
                     )}
                     <Stack direction={{ xs:'column', sm:'row' }} spacing={1} sx={{ mt: 1, alignItems:{ xs:'stretch', sm:'center' } }}>
                       {typeof data.price_perpetual === 'number' && data.price_perpetual > 0 && (
-                        <Chip label={`${L.perpetual}: ${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}`} color="primary" sx={{ width:{ xs:'100%', sm:'auto' } }} />
+                        <Chip label={`${L.perpetual}: ${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}`} sx={{ width:{ xs:'100%', sm:'auto' }, bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />
                       )}
                       {typeof data.price_subscription === 'number' && data.price_subscription > 0 && (
-                        <Chip label={`${L.subscriptionPerMonth}: ${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}/` + t('monthShort')} sx={{ width:{ xs:'100%', sm:'auto' } }} />
+                        <Chip label={`${L.subscriptionPerMonth}: ${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}/` + t('monthShort')} sx={{ width:{ xs:'100%', sm:'auto' }, bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />
                       )}
                       {typeof data.version === 'number' && data.version > 0 && (
-                        <Chip label={`v${data.version}`} sx={{ width:{ xs:'fit-content', sm:'auto' } }} />)
+                        <Chip label={`v${data.version}`} sx={{ width:{ xs:'fit-content', sm:'auto' }, bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)
                       }
                     </Stack>
                     <Stack direction={{ xs:'column', sm:'row' }} spacing={1} sx={{ mt: 2 }}>
-                      <Button variant="contained" onClick={handleOpenBuy}>{L.buy}</Button>
-                      <Button variant="outlined" onClick={()=> demoAnchorRef.current?.scrollIntoView({ behavior: 'smooth' })} disabled={!data?.demoPreset}>{L.tryDemo}</Button>
+                      <Button variant="contained" onClick={handleOpenBuy} sx={{ backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color: '#fff', textTransform: 'none', fontWeight: 700, boxShadow: '0 6px 20px rgba(46,160,255,0.25)', '&:hover': { filter: 'brightness(1.05)', backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}>{L.buy}</Button>
+                      <Button
+                        variant="outlined"
+                        onClick={()=> demoAnchorRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                        disabled={!data?.demoPreset}
+                        sx={{
+                          textTransform: 'none',
+                          fontWeight: 700,
+                          color: '#fff',
+                          borderColor: 'rgba(255,255,255,0.28)',
+                          backgroundColor: 'rgba(255,255,255,0.06)',
+                          '&:hover': {
+                            borderColor: 'rgba(255,255,255,0.40)',
+                            backgroundColor: 'rgba(255,255,255,0.10)'
+                          },
+                          '&.Mui-disabled': {
+                            color: 'rgba(255,255,255,0.5)',
+                            borderColor: 'rgba(255,255,255,0.16)'
+                          }
+                        }}
+                      >
+                        {L.tryDemo}
+                      </Button>
                     </Stack>
                   </Stack>
                 </CardContent>
@@ -578,19 +621,19 @@ export default function EvmModelDetailPage() {
         {/* Sección: Qué hace este modelo (Resumen extendido) */}
         {!loading && data && (
           <Box sx={{ mt: 4 }}>
-            <Card>
-              <CardHeader title={<Typography variant="h5" fontWeight={800}>{L.whatItDoes}</Typography>} />
-              <CardContent>
+            <Card sx={{ borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+              <CardHeader title={<Typography variant="h5" fontWeight={800} sx={{ color: '#fff' }}>{L.whatItDoes}</Typography>} />
+              <CardContent sx={{ color: '#ffffffd6' }}>
                 <Stack spacing={2}>
-                  <Typography variant="subtitle1" fontWeight={700}>{data.valueProposition || L.valueProp}</Typography>
-                  <Typography variant="body1" sx={{ whiteSpace:'pre-wrap' }}>{data.customerDescription || data.description || L.descMissing}</Typography>
+                  <Typography variant="subtitle1" fontWeight={700} sx={{ color: '#fff' }}>{data.valueProposition || L.valueProp}</Typography>
+                  <Typography variant="body1" sx={{ whiteSpace:'pre-wrap', color: '#ffffffd6' }}>{data.customerDescription || data.description || L.descMissing}</Typography>
                   {typeof (data as any)?.expectedImpact === 'string' && String((data as any).expectedImpact).trim() && (
-                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap' }}>{(data as any).expectedImpact}</Typography>
+                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap', color: '#ffffffcc' }}>{(data as any).expectedImpact}</Typography>
                   )}
                   {Array.isArray((data as any)?.expectedBusinessImpact) ? (
                     <Box>
                       <Stack component="ul" sx={{ pl: 3 }} spacing={0.5}>
-                        {((data as any).expectedBusinessImpact as string[]).map((s, i)=>(<li key={i}><Typography variant="body2">{s}</Typography></li>))}
+                        {((data as any).expectedBusinessImpact as string[]).map((s, i)=>(<li key={i}><Typography variant="body2" sx={{ color: '#ffffffcc' }}>{s}</Typography></li>))}
                       </Stack>
                     </Box>
                   ) : null}
@@ -603,81 +646,81 @@ export default function EvmModelDetailPage() {
         {/* Sección: Ficha para clientes */}
         {!loading && data && (
           <Box sx={{ mt: 4 }}>
-            <Card>
-              <CardHeader title={<Typography variant="h5" fontWeight={800}>{L.customerSheet}</Typography>} />
-              <CardContent>
+            <Card sx={{ borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+              <CardHeader title={<Typography variant="h5" fontWeight={800} sx={{ color: '#fff' }}>{L.customerSheet}</Typography>} />
+              <CardContent sx={{ color: '#ffffffd6' }}>
                 <Grid container spacing={3}>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{L.ioTitle}</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{L.ioSubtitle}</Typography>
-                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap' }}><b>{L.inputs}:</b> {(data as any).inputs || L.unspecified}</Typography>
-                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap', mt: 0.5 }}><b>{L.outputs}:</b> {(data as any).outputs || L.unspecified}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.ioTitle}</Typography>
+                    <Typography variant="body2" sx={{ mb: 1, color: '#ffffff99' }}>{L.ioSubtitle}</Typography>
+                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap', color: '#ffffffcc' }}><b>{L.inputs}:</b> {(data as any).inputs || L.unspecified}</Typography>
+                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap', mt: 0.5, color: '#ffffffcc' }}><b>{L.outputs}:</b> {(data as any).outputs || L.unspecified}</Typography>
                     <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" fontWeight={700}>{L.examples}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.examples}</Typography>
                     {Array.isArray((data as any)?.examples) && (data as any).examples.length > 0 ? (
                       <Table size="small">
                         <TableHead>
                           <TableRow>
-                            <TableCell>{L.exampleIn}</TableCell>
-                            <TableCell>{L.exampleOut}</TableCell>
-                            <TableCell>{L.note}</TableCell>
+                            <TableCell sx={{ color: '#fff' }}>{L.exampleIn}</TableCell>
+                            <TableCell sx={{ color: '#fff' }}>{L.exampleOut}</TableCell>
+                            <TableCell sx={{ color: '#fff' }}>{L.note}</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
                           {((data as any).examples as any[]).map((ex, i)=> (
                             <TableRow key={i}>
-                              <TableCell>{ex.input || '-'}</TableCell>
-                              <TableCell>{ex.output || '-'}</TableCell>
-                              <TableCell>{ex.note || '-'}</TableCell>
+                              <TableCell sx={{ color: '#ffffffcc' }}>{ex.input || '-'}</TableCell>
+                              <TableCell sx={{ color: '#ffffffcc' }}>{ex.output || '-'}</TableCell>
+                              <TableCell sx={{ color: '#ffffffcc' }}>{ex.note || '-'}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
                     ) : (
-                      <Typography variant="body2" color="text.secondary">{L.noExamples}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffff99' }}>{L.noExamples}</Typography>
                     )}
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{L.industriesUseCases}</Typography>
-                    <Typography variant="body2" fontWeight={700} sx={{ mt: 1 }}>{L.industries}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.industriesUseCases}</Typography>
+                    <Typography variant="body2" fontWeight={700} sx={{ mt: 1, color: '#fff' }}>{L.industries}</Typography>
                     <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 0.5 }}>
-                      {Array.isArray((data as any)?.industries) ? ((data as any).industries as string[]).map((x,i)=>(<Chip key={i} label={x} size="small" />)) : <Typography variant="body2" color="text.secondary">{L.unspecified}</Typography>}
+                      {Array.isArray((data as any)?.industries) ? ((data as any).industries as string[]).map((x,i)=>(<Chip key={i} label={x} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)) : <Typography variant="body2" sx={{ color: '#ffffff99' }}>{L.unspecified}</Typography>}
                     </Stack>
-                    <Typography variant="body2" fontWeight={700} sx={{ mt: 1 }}>{L.useCases}</Typography>
+                    <Typography variant="body2" fontWeight={700} sx={{ mt: 1, color: '#fff' }}>{L.useCases}</Typography>
                     <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 0.5 }}>
-                      {Array.isArray((data as any)?.useCases) ? ((data as any).useCases as string[]).map((x,i)=>(<Chip key={i} label={x} size="small" variant="outlined" />)) : <Typography variant="body2" color="text.secondary">{L.unspecified}</Typography>}
+                      {Array.isArray((data as any)?.useCases) ? ((data as any).useCases as string[]).map((x,i)=>(<Chip key={i} label={x} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)) : <Typography variant="body2" sx={{ color: '#ffffff99' }}>{L.unspecified}</Typography>}
                     </Stack>
                     <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" fontWeight={700}>{L.knownLimits}</Typography>
-                    <Typography variant="body2">{(data as any).limitations || L.unspecified}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.knownLimits}</Typography>
+                    <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).limitations || L.unspecified}</Typography>
                     <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" fontWeight={700}>{L.prohibited}</Typography>
-                    <Typography variant="body2">{(data as any).prohibited || L.unspecified}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.prohibited}</Typography>
+                    <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).prohibited || L.unspecified}</Typography>
                   </Grid>
                 </Grid>
                 <Divider sx={{ my: 3 }} />
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={4}>
-                    <Card variant="outlined">
-                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700}>{L.privacy}</Typography>} />
+                    <Card sx={{ borderRadius: '14px', border: '1px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(42,50,70,0.78), rgba(22,28,46,0.78))' }}>
+                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.privacy}</Typography>} />
                       <CardContent>
-                        <Typography variant="body2">{(data as any).privacy || L.unspecified}</Typography>
+                        <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).privacy || L.unspecified}</Typography>
                       </CardContent>
                     </Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Card variant="outlined">
-                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700}>{L.deploy}</Typography>} />
+                    <Card sx={{ borderRadius: '14px', border: '1px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(42,50,70,0.78), rgba(22,28,46,0.78))' }}>
+                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.deploy}</Typography>} />
                       <CardContent>
-                        <Typography variant="body2">{(data as any).deploy || L.unspecified}</Typography>
+                        <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).deploy || L.unspecified}</Typography>
                       </CardContent>
                     </Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Card variant="outlined">
-                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700}>{L.support}</Typography>} />
+                    <Card sx={{ borderRadius: '14px', border: '1px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(42,50,70,0.78), rgba(22,28,46,0.78))' }}>
+                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.support}</Typography>} />
                       <CardContent>
-                        <Typography variant="body2">{(data as any).support || L.unspecified}</Typography>
+                        <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).support || L.unspecified}</Typography>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -690,69 +733,69 @@ export default function EvmModelDetailPage() {
         {/* Sección: Configuración técnica */}
         {!loading && data && (
           <Box sx={{ mt: 4 }}>
-            <Card>
-              <CardHeader title={<Typography variant="h5" fontWeight={800}>{L.techConfig}</Typography>} />
-              <CardContent>
+            <Card sx={{ borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+              <CardHeader title={<Typography variant="h5" fontWeight={800} sx={{ color: '#fff' }}>{L.techConfig}</Typography>} />
+              <CardContent sx={{ color: '#ffffffd6' }}>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{L.capabilities}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.capabilities}</Typography>
                     <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 1 }}>
-                      {Array.isArray(data.tasks) && data.tasks.length ? data.tasks.map((t:string, i:number)=>(<Chip key={i} label={t} size="small" />)) : <Typography variant="body2" color="text.secondary">{'No especificado'}</Typography>}
+                      {Array.isArray(data.tasks) && data.tasks.length ? data.tasks.map((t:string, i:number)=>(<Chip key={i} label={t} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)) : <Typography variant="body2" sx={{ color: '#ffffff99' }}>{'No especificado'}</Typography>}
                     </Stack>
-                    <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2 }}>{L.modalities}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2, color: '#fff' }}>{L.modalities}</Typography>
                     <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 1 }}>
-                      {Array.isArray((data as any)?.modalities) && (data as any).modalities.length ? ((data as any).modalities as string[]).map((m,i)=>(<Chip key={i} label={m} size="small" variant="outlined" />)) : <Typography variant="body2" color="text.secondary">{'No especificado'}</Typography>}
+                      {Array.isArray((data as any)?.modalities) && (data as any).modalities.length ? ((data as any).modalities as string[]).map((m,i)=>(<Chip key={i} label={m} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)) : <Typography variant="body2" sx={{ color: '#ffffff99' }}>{'No especificado'}</Typography>}
                     </Stack>
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{L.architecture}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.architecture}</Typography>
                     <Stack spacing={0.5} sx={{ mt: 1 }}>
-                      <Typography variant="body2"><b>{L.frameworks}:</b> {Array.isArray(data.frameworks) && data.frameworks.length ? data.frameworks.join(', ') : L.unspecified}</Typography>
-                      <Typography variant="body2"><b>{L.architectures}:</b> {Array.isArray(data.architectures) && data.architectures.length ? data.architectures.join(', ') : L.unspecified}</Typography>
-                      <Typography variant="body2"><b>{L.precision}:</b> {Array.isArray(data.precision) && data.precision.length ? data.precision.join(', ') : L.unspecified}</Typography>
-                      <Typography variant="body2"><b>{L.quantization}:</b> {(data as any).quantization || L.unspecified}</Typography>
-                      <Typography variant="body2"><b>{L.fileFormats}:</b> {Array.isArray((data as any)?.fileFormats) ? ((data as any).fileFormats as string[]).join(', ') : L.unspecified}</Typography>
-                      <Typography variant="body2"><b>{L.modelSize}:</b> {(data as any).modelSize || L.unspecified}</Typography>
-                      <Typography variant="body2"><b>{L.artifactSize}:</b> {(data as any).artifactSize || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.frameworks}:</b> {Array.isArray(data.frameworks) && data.frameworks.length ? data.frameworks.join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.architectures}:</b> {Array.isArray(data.architectures) && data.architectures.length ? data.architectures.join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.precision}:</b> {Array.isArray(data.precision) && data.precision.length ? data.precision.join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.quantization}:</b> {(data as any).quantization || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.fileFormats}:</b> {Array.isArray((data as any)?.fileFormats) ? ((data as any).fileFormats as string[]).join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.modelSize}:</b> {(data as any).modelSize || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.artifactSize}:</b> {(data as any).artifactSize || L.unspecified}</Typography>
                     </Stack>
                   </Grid>
                 </Grid>
                 <Divider sx={{ my: 2 }} />
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{L.runtime}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.runtime}</Typography>
                     <Stack spacing={0.5} sx={{ mt: 1 }}>
-                      <Typography variant="body2"><b>Python:</b> {(data as any).python || L.unspecified}</Typography>
-                      <Typography variant="body2"><b>CUDA:</b> {(data as any).cuda || L.unspecified}</Typography>
-                      <Typography variant="body2"><b>PyTorch:</b> {(data as any).pytorch || L.unspecified}</Typography>
-                      <Typography variant="body2"><b>cuDNN:</b> {(data as any).cudnn || L.unspecified}</Typography>
-                      <Typography variant="body2"><b>{L.systems}:</b> {Array.isArray((data as any)?.systems) ? ((data as any).systems as string[]).join(', ') : L.unspecified}</Typography>
-                      <Typography variant="body2"><b>{L.accelerators}:</b> {Array.isArray((data as any)?.accelerators) ? ((data as any).accelerators as string[]).join(', ') : L.unspecified}</Typography>
-                      <Typography variant="body2"><b>Compute Capability:</b> {(data as any).computeCapability || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>Python:</b> {(data as any).python || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>CUDA:</b> {(data as any).cuda || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>PyTorch:</b> {(data as any).pytorch || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>cuDNN:</b> {(data as any).cudnn || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.systems}:</b> {Array.isArray((data as any)?.systems) ? ((data as any).systems as string[]).join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.accelerators}:</b> {Array.isArray((data as any)?.accelerators) ? ((data as any).accelerators as string[]).join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>Compute Capability:</b> {(data as any).computeCapability || L.unspecified}</Typography>
                     </Stack>
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="subtitle2" fontWeight={700}>{L.dependencies}</Typography>
-                    <Box component="pre" sx={{ bgcolor:'grey.50', p: 2, borderRadius: 1, fontSize: 12, whiteSpace:'pre-wrap', minHeight: 80 }}>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.dependencies}</Typography>
+                    <Box component="pre" sx={{ bgcolor:'rgba(255,255,255,0.06)', color:'#fff', border: '1px solid rgba(255,255,255,0.18)', p: 2, borderRadius: 1.5, fontSize: 12, whiteSpace:'pre-wrap', minHeight: 80 }}>
                       {(data as any).dependencies || L.unspecified}
                     </Box>
                     <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" fontWeight={700}>{L.minResources}</Typography>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.minResources}</Typography>
                     <Grid container spacing={1} sx={{ mt: 0.5 }}>
-                      <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.minVram}</Typography><Typography variant="body2">{(data as any).minVram || L.unspecified}</Typography></CardContent></Card></Grid>
-                      <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.cpuCores}</Typography><Typography variant="body2">{(data as any).minCpu || L.unspecified}</Typography></CardContent></Card></Grid>
-                      <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.recRam}</Typography><Typography variant="body2">{(data as any).recRam || L.unspecified}</Typography></CardContent></Card></Grid>
+                      <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.minVram}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).minVram || L.unspecified}</Typography></CardContent></Card></Grid>
+                      <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.cpuCores}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).minCpu || L.unspecified}</Typography></CardContent></Card></Grid>
+                      <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.recRam}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).recRam || L.unspecified}</Typography></CardContent></Card></Grid>
                     </Grid>
                   </Grid>
                 </Grid>
                 <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" fontWeight={700}>{L.inferenceOpts}</Typography>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.inferenceOpts}</Typography>
                 <Grid container spacing={1} sx={{ mt: 0.5 }}>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.maxBatch}</Typography><Typography variant="body2">{(data as any).maxBatch || L.unspecified}</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.contextLength}</Typography><Typography variant="body2">{(data as any).contextLength || L.unspecified}</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.maxTokens}</Typography><Typography variant="body2">{(data as any).maxTokens || L.unspecified}</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.referenceLatency}</Typography><Typography variant="body2">{(data as any).gpuNotes || L.unspecified}</Typography></CardContent></Card></Grid>
-                  <Grid item xs={12} sm={4}><Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">{L.triton}</Typography><Typography variant="body2">{(data as any).triton ? t('yes') : L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.maxBatch}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).maxBatch || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.contextLength}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).contextLength || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.maxTokens}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).maxTokens || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.referenceLatency}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).gpuNotes || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.triton}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).triton ? t('yes') : L.unspecified}</Typography></CardContent></Card></Grid>
                 </Grid>
               </CardContent>
             </Card>
@@ -762,19 +805,19 @@ export default function EvmModelDetailPage() {
         {/* Sección: Demo (solo mostrar demo; ocultar artefactos hasta compra) */}
         {!loading && data && (
           <Box sx={{ mt: 4 }} ref={demoAnchorRef}>
-            <Card>
-              <CardHeader title={<Typography variant="h5" fontWeight={800}>{L.hostedDemo}</Typography>} />
+            <Card sx={{ borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+              <CardHeader title={<Typography variant="h5" fontWeight={800} sx={{ color: '#fff' }}>{L.hostedDemo}</Typography>} />
               <CardContent>
-                <Typography variant="subtitle2" fontWeight={700}>{L.hostedDemo}</Typography>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.hostedDemo}</Typography>
                 {Boolean((data as any)?.demoPreset) ? (
                   <>
-                    <Box component="pre" sx={{ bgcolor:'grey.50', p: 2, borderRadius: 1, fontSize: 12, whiteSpace:'pre-wrap' }}>
+                    <Box component="pre" sx={{ bgcolor:'rgba(255,255,255,0.06)', color:'#fff', border: '1px solid rgba(255,255,255,0.18)', p: 2, borderRadius: 1.5, fontSize: 12, whiteSpace:'pre-wrap' }}>
                       {typeof (data as any).demoPreset === 'string' ? (data as any).demoPreset : JSON.stringify((data as any).demoPreset, null, 2)}
                     </Box>
-                    <Button variant="contained" sx={{ mt: 1 }}>{L.runDemo}</Button>
+                    <Button variant="contained" sx={{ mt: 1, backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color: '#fff', fontWeight: 700, '&:hover': { filter: 'brightness(1.05)', backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}>{L.runDemo}</Button>
                   </>
                 ) : (
-                  <Typography variant="body2" color="text.secondary">{L.noDemo}</Typography>
+                  <Typography variant="body2" sx={{ color: '#ffffff99' }}>{L.noDemo}</Typography>
                 )}
               </CardContent>
             </Card>
@@ -784,44 +827,44 @@ export default function EvmModelDetailPage() {
         {/* Sección: Licencias y términos */}
         {!loading && data && (
           <Box sx={{ mt: 4 }}>
-            <Card>
-              <CardHeader title={<Typography variant="h5" fontWeight={800}>{L.licensesTerms}</Typography>} />
+            <Card sx={{ borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+              <CardHeader title={<Typography variant="h5" fontWeight={800} sx={{ color: '#fff' }}>{L.licensesTerms}</Typography>} />
               <CardContent>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={4}>
-                    <Card variant="outlined"><CardContent>
-                      <Typography variant="subtitle2" fontWeight={700}>{L.perpetualLicense}</Typography>
-                      <Typography variant="h6">{typeof data.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                    <Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.perpetualLicense}</Typography>
+                      <Typography variant="h6" sx={{ color: '#4fe1ff' }}>{typeof data.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
                     </CardContent></Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Card variant="outlined"><CardContent>
-                      <Typography variant="subtitle2" fontWeight={700}>{L.subscriptionPerMonth}</Typography>
-                      <Typography variant="h6">{typeof data.price_subscription === 'number' && data.price_subscription > 0 ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                    <Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.subscriptionPerMonth}</Typography>
+                      <Typography variant="h6" sx={{ color: '#4fe1ff' }}>{typeof data.price_subscription === 'number' && data.price_subscription > 0 ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
                     </CardContent></Card>
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <Card variant="outlined"><CardContent>
-                      <Typography variant="subtitle2" fontWeight={700}>{L.baseDuration}</Typography>
-                      <Typography variant="h6">{(data as any).default_duration_days ? `${Math.round(((data as any).default_duration_days/30))} ${t('monthsShort')}` : L.unspecified}</Typography>
+                    <Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.baseDuration}</Typography>
+                      <Typography variant="h6" sx={{ color: '#4fe1ff' }}>{(data as any).default_duration_days ? `${Math.round(((data as any).default_duration_days/30))} ${t('monthsShort')}` : L.unspecified}</Typography>
                     </CardContent></Card>
                   </Grid>
                 </Grid>
                 <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" fontWeight={700}>{L.rightsDelivery}</Typography>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.rightsDelivery}</Typography>
                 <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 1 }}>
-                  {data.deliveryMode === 'api' && (<Chip size="small" label={t('deliveryApi')} />)}
-                  {data.deliveryMode === 'download' && (<Chip size="small" label={t('deliveryDownload')} />)}
-                  {data.deliveryMode === 'both' && (<Chip size="small" label={t('deliveryBoth')} />)}
-                  {data.rights?.transferable && (<Chip size="small" label={t('transferable')} variant="outlined" />)}
+                  {data.deliveryMode === 'api' && (<Chip size="small" label={t('deliveryApi')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
+                  {data.deliveryMode === 'download' && (<Chip size="small" label={t('deliveryDownload')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
+                  {data.deliveryMode === 'both' && (<Chip size="small" label={t('deliveryBoth')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
+                  {data.rights?.transferable && (<Chip size="small" label={t('transferable')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
                 </Stack>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>{L.deliveryHint}</Typography>
+                <Typography variant="caption" sx={{ mt: 0.5, color: '#ffffff99' }}>{L.deliveryHint}</Typography>
                 {data.rights?.transferable && (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25 }}>{L.transferableHint}</Typography>
+                  <Typography variant="caption" sx={{ mt: 0.25, color: '#ffffff99' }}>{L.transferableHint}</Typography>
                 )}
                 <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" fontWeight={700}>{L.termsKey}</Typography>
-                <Typography variant="body2">{(data as any).termsText || L.unspecified}</Typography>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.termsKey}</Typography>
+                <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).termsText || L.unspecified}</Typography>
               </CardContent>
             </Card>
           </Box>
@@ -829,33 +872,58 @@ export default function EvmModelDetailPage() {
       </Container>
 
       {/* Modal: Comprar licencia */}
-      <Dialog open={buyOpen} onClose={()=> { setBuyOpen(false); setBuyStep('select'); setBuyKind(undefined); }} fullWidth maxWidth="sm">
-        <DialogTitle>{L.buyModalTitle}</DialogTitle>
-        <DialogContent dividers>
+      <Dialog
+        open={buyOpen}
+        onClose={()=> { setBuyOpen(false); setBuyStep('select'); setBuyKind(undefined); }}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: '16px',
+            border: '2px solid',
+            borderColor: 'oklch(0.30 0 0)',
+            background: 'linear-gradient(180deg, rgba(38,46,64,0.90), rgba(20,26,42,0.90))',
+            boxShadow: '0 0 0 1px rgba(255,255,255,0.05) inset, 0 14px 36px rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(10px)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ color:'#fff', fontWeight:800 }}>{L.buyModalTitle}</DialogTitle>
+        <DialogContent dividers sx={{ color:'#ffffffd6', borderColor:'rgba(255,255,255,0.08)' }}>
           {buyStep === 'select' && (
             <Stack spacing={2}>
-              <Typography variant="body2" color="text.secondary">{L.buyModalHint}</Typography>
+              <Typography variant="body2" sx={{ color:'#ffffff99' }}>{L.buyModalHint}</Typography>
               <Box>
-                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>{L.selectType}</Typography>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, color:'#fff' }}>{L.selectType}</Typography>
                 <RadioGroup row value={buyKind || ''} onChange={(e)=> setBuyKind((e.target as HTMLInputElement).value as any)}>
-                  <FormControlLabel value="perpetual" control={<Radio />} label={L.perpetual} />
-                  <FormControlLabel value="subscription" control={<Radio />} label={L.subscriptionPerMonth} />
+                  <FormControlLabel
+                    value="perpetual"
+                    control={<Radio sx={{ color:'#ffffffb3', '&.Mui-checked': { color:'#fff' } }} />}
+                    label={L.perpetual}
+                    sx={{ color:'#fff' }}
+                  />
+                  <FormControlLabel
+                    value="subscription"
+                    control={<Radio sx={{ color:'#ffffffb3', '&.Mui-checked': { color:'#fff' } }} />}
+                    label={L.subscriptionPerMonth}
+                    sx={{ color:'#fff' }}
+                  />
                 </RadioGroup>
               </Box>
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
-                  <Card variant="outlined" sx={{ borderColor: buyKind==='perpetual' ? 'primary.main' : undefined }}>
+                  <Card sx={{ borderRadius: 2, border:'1px solid', borderColor: buyKind==='perpetual' ? 'primary.main' : 'rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}>
                     <CardContent>
-                      <Typography variant="subtitle2" fontWeight={700}>{L.perpetual}</Typography>
-                      <Typography variant="h6">{data && typeof data.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ color:'#fff' }}>{L.perpetual}</Typography>
+                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{data && typeof data.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Card variant="outlined" sx={{ borderColor: buyKind==='subscription' ? 'primary.main' : undefined }}>
+                  <Card sx={{ borderRadius: 2, border:'1px solid', borderColor: buyKind==='subscription' ? 'primary.main' : 'rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}>
                     <CardContent>
-                      <Typography variant="subtitle2" fontWeight={700}>{L.subscriptionPerMonth}</Typography>
-                      <Typography variant="h6">{data && typeof data.price_subscription === 'number' && data.price_subscription > 0 ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ color:'#fff' }}>{L.subscriptionPerMonth}</Typography>
+                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{data && typeof data.price_subscription === 'number' && data.price_subscription > 0 ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
                       {buyKind === 'subscription' && (
                         <Box sx={{ mt: 2 }}>
                           <TextField
@@ -865,6 +933,12 @@ export default function EvmModelDetailPage() {
                             fullWidth
                             value={buyMonths}
                             onChange={(e)=> setBuyMonths(Number(e.target.value) || 1)}
+                            sx={{
+                              '& .MuiInputBase-input': { color:'#fff' },
+                              '& .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.28)' },
+                              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.40)' },
+                              '& .MuiInputLabel-root': { color:'#ffffffcc' }
+                            }}
                           >
                             {Array.from({ length: 12 }, (_, i) => i + 1).map(m=> (<MenuItem key={m} value={m}>{m}</MenuItem>))}
                           </TextField>
@@ -878,14 +952,14 @@ export default function EvmModelDetailPage() {
           )}
           {buyStep === 'review' && (
             <Stack spacing={2}>
-              <Typography variant="subtitle2" fontWeight={700}>{L.review}</Typography>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ color:'#fff' }}>{L.review}</Typography>
               <Stack spacing={0.5}>
-                <Typography variant="body2"><b>{L.selectType}:</b> {buyKind === 'perpetual' ? L.perpetual : L.subscriptionPerMonth}</Typography>
+                <Typography variant="body2" sx={{ color:'#ffffffcc' }}><b>{L.selectType}:</b> {buyKind === 'perpetual' ? L.perpetual : L.subscriptionPerMonth}</Typography>
                 {buyKind === 'subscription' && (
-                  <Typography variant="body2"><b>{L.months}:</b> {buyMonths}</Typography>
+                  <Typography variant="body2" sx={{ color:'#ffffffcc' }}><b>{L.months}:</b> {buyMonths}</Typography>
                 )}
                 <Divider sx={{ my: 1 }} />
-                <Typography variant="body2">
+                <Typography variant="body2" sx={{ color:'#ffffffcc' }}>
                   {buyKind === 'perpetual' ? (
                     <>{typeof data?.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</>
                   ) : (
@@ -900,19 +974,20 @@ export default function EvmModelDetailPage() {
             </Stack>
           )}
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           {buyStep === 'review' ? (
             <>
-              <Button onClick={()=> setBuyStep('select')}>{L.back}</Button>
-              <Button variant="contained" onClick={handlePurchase} disabled={txLoading} startIcon={txLoading ? <CircularProgress size={16} /> : undefined}>{L.purchase}</Button>
+              <Button onClick={()=> setBuyStep('select')} sx={{ textTransform:'none', color:'#fff' }}>{L.back}</Button>
+              <Button variant="contained" onClick={handlePurchase} disabled={txLoading} startIcon={txLoading ? <CircularProgress size={16} /> : undefined} sx={{ backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color:'#fff', fontWeight:700, '&:hover': { filter:'brightness(1.05)', backgroundImage:'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}>{L.purchase}</Button>
             </>
           ) : (
             <>
-              <Button onClick={()=> { setBuyOpen(false); setBuyStep('select'); setBuyKind(undefined); }}>{L.close}</Button>
+              <Button onClick={()=> { setBuyOpen(false); setBuyStep('select'); setBuyKind(undefined); }} sx={{ textTransform:'none', color:'#fff' }}>{L.close}</Button>
               <Button
                 variant="contained"
                 disabled={!buyKind || (buyKind==='subscription' && (!data?.price_subscription || data.price_subscription <= 0 || buyMonths < 1 || buyMonths > 12)) || (buyKind==='perpetual' && (!data?.price_perpetual || data.price_perpetual <= 0))}
                 onClick={()=> setBuyStep('review')}
+                sx={{ backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color:'#fff', fontWeight:700, '&:hover': { filter:'brightness(1.05)', backgroundImage:'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}
               >
                 {L.continue}
               </Button>

@@ -332,46 +332,59 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
   }, [deliveryMode, rights])
 
   return (
-    <Card sx={{ height: '100%', borderRadius: 2, boxShadow: 1, position:'relative', overflow:'hidden', '&:hover': { boxShadow: 3 } }} ref={rootRef}>
+    <Card
+      sx={{
+        height: '100%',
+        borderRadius: '16px',
+        border: '2px solid',
+        borderColor: 'oklch(0.30 0 0)',
+        background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))',
+        boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)',
+        backdropFilter: 'blur(10px)',
+        position:'relative',
+        overflow:'hidden'
+      }}
+      ref={rootRef}
+    >
       <CardActionArea component={href ? Link : 'div'} href={href as any} sx={{ alignItems:'stretch', display:'flex', flexDirection:'column', height:'100%', position:'relative' }}>
         {coverSrc ? (
-          <Box sx={{ position:'relative', width:'100%', aspectRatio:'16/9' }}>
-            <Image src={(coverSrc && (coverSrc.startsWith('http') || coverSrc.startsWith('/'))) ? coverSrc : toHttpFromIpfs(String(coverSrc||''))} alt={data.name} fill sizes="(max-width: 600px) 100vw, (max-width: 1200px) 50vw, 33vw" style={{ objectFit:'cover' }} loading={priority ? undefined : 'lazy'} priority={!!priority} unoptimized />
+          <Box sx={{ position:'relative', width:'100%', height: { xs: 160, sm: 180 }, overflow:'hidden', bgcolor:'#0a111c', p: 1 }}>
+            <Image src={(coverSrc && (coverSrc.startsWith('http') || coverSrc.startsWith('/'))) ? coverSrc : toHttpFromIpfs(String(coverSrc||''))} alt={data.name} fill sizes="(max-width: 600px) 100vw, (max-width: 1200px) 50vw, 33vw" style={{ objectFit:'contain', objectPosition: 'center' }} loading={priority ? undefined : 'lazy'} priority={!!priority} unoptimized />
           </Box>
         ) : (
-          <Box sx={{ aspectRatio:'16/9', bgcolor:'grey.100', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <Box sx={{ width:'100%', height: { xs: 160, sm: 180 }, bgcolor:'#0a111c', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <ScienceIcon color="primary" />
           </Box>
         )}
         <Box sx={{ position:'absolute', right: 12, top: 12, opacity: 0, transition:'opacity .2s', '.MuiCardActionArea-root:hover &': { opacity: 1 } }}>
-          <Button size="small" variant="contained">{t('details')}</Button>
+          <Button size="small" variant="contained" sx={{ backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color: '#fff', textTransform: 'none', fontWeight: 600, boxShadow: '0 6px 18px rgba(46,160,255,0.25)', '&:hover': { filter: 'brightness(1.05)', backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}>{t('details')}</Button>
         </Box>
-        <CardContent sx={{ flex:1 }}>
+        <CardContent sx={{ flex:1, p: { xs: 3, sm: 3.25 } }}>
           <Stack spacing={1}>
-            <Typography variant="h6" fontWeight={700} noWrap title={data.name}>{data.name}</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ display:'-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+            <Typography variant="h6" fontWeight={800} noWrap title={data.name} sx={{ color: '#fff' }}>{data.name}</Typography>
+            <Typography variant="body2" sx={{ color: '#ffffffd6', display:'-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
               {description || data.summary || valueProposition}
             </Typography>
             {/* author/rating line intentionally removed per spec */}
             <Stack direction="row" spacing={0.5} sx={{ flexWrap:'wrap' }}>
-              {(categories||[]).slice(0,2).map((c)=> <Chip key={`cat-${c}`} size="small" label={c} />)}
-              {(tasks||[]).slice(0,2).map((t)=> <Chip key={`task-${t}`} size="small" variant="outlined" label={t} />)}
-              {(tags||[]).slice(0,3).map((g)=> <Chip key={`tag-${g}`} size="small" variant="outlined" label={g} />)}
+              {(categories||[]).slice(0,2).map((c)=> <Chip key={`cat-${c}`} size="small" label={c} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
+              {(tasks||[]).slice(0,2).map((t)=> <Chip key={`task-${t}`} size="small" label={t} sx={{ bgcolor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
+              {(tags||[]).slice(0,3).map((g)=> <Chip key={`tag-${g}`} size="small" label={g} sx={{ bgcolor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
             </Stack>
             {techLine && (
               <Stack direction="row" spacing={0.5} alignItems="center">
                 <SettingsIcon fontSize="small" sx={{ color:'text.secondary' }} />
-                <Typography variant="caption" color="text.secondary" noWrap title={techLine}>{techLine}</Typography>
+                <Typography variant="caption" sx={{ color: '#e2eeff' }} noWrap title={techLine}>{techLine}</Typography>
               </Stack>
             )}
             <Stack spacing={0.25}>
               {showConnect ? null : data.pricePerpetual && (
-                <Typography variant="subtitle1" fontWeight={700}>
+                <Typography variant="subtitle1" fontWeight={800} sx={{ color: '#4fe1ff' }}>
                   {data.pricePerpetual} · {t('oneTime')}
                 </Typography>
               )}
               {showConnect ? null : data.priceSubscription && (
-                <Typography variant="subtitle2" color="text.secondary">
+                <Typography variant="subtitle2" sx={{ color: '#ffffffcc' }}>
                   {data.priceSubscription} {t('subscription')}
                 </Typography>
               )}
@@ -380,12 +393,16 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
               )}
             </Stack>
             <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexWrap:'wrap' }}>
-              {deliveryFlags.api && <Chip size="small" icon={<CloudDoneIcon />} label={t('chips.apiUsage')} />}
-              {deliveryFlags.download && <Chip size="small" icon={<DownloadDoneIcon />} label={t('chips.modelDownload')} />}
+              {deliveryFlags.api && (
+                <Chip size="small" icon={<CloudDoneIcon sx={{ color: '#fff' }} />} label={t('chips.apiUsage')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', '& .MuiChip-icon': { color: '#fff' } }} />
+              )}
+              {deliveryFlags.download && (
+                <Chip size="small" icon={<DownloadDoneIcon sx={{ color: '#fff' }} />} label={t('chips.modelDownload')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', '& .MuiChip-icon': { color: '#fff' } }} />
+              )}
             </Stack>
             {rights?.transferable && (
               <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexWrap:'wrap' }}>
-                <Chip size="small" icon={<SwapHorizIcon />} label={t('chips.transferable')} />
+                <Chip size="small" icon={<SwapHorizIcon sx={{ color: '#fff' }} />} label={t('chips.transferable')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', '& .MuiChip-icon': { color: '#fff' } }} />
               </Stack>
             )}
             {data.knownLimitations && (

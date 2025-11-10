@@ -502,9 +502,40 @@ export default function Step4LicensesTermsLocalized() {
   }, [chainId])
 
   return (
-    <div style={{padding:24, maxWidth:900, margin:'0 auto'}}>
-      <Typography variant="h5" sx={{ fontWeight:700 }}>{t('wizard.step4.title')}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mt:0.5, mb:1.5 }}>
+    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0f2740 0%, #0b1626 30%, #0a111c 100%)' }}>
+      <Box sx={{
+      p: 3,
+      maxWidth: 900,
+      mx: 'auto',
+      color:'#ffffffd6',
+      '& .MuiTypography-h6': { color:'#fff' },
+      '& .MuiTypography-subtitle2': { color:'#fff' },
+      '& .MuiTypography-body2': { color:'#ffffffcc' },
+      '& .MuiTypography-caption': { color:'#ffffff99' },
+      '& .MuiFormLabel-root': { color:'#ffffffcc' },
+      '& .MuiFormLabel-root.Mui-focused': { color:'#fff' },
+      '& .MuiInputBase-input': { color:'#fff', WebkitTextFillColor:'#fff' },
+      '& .MuiInputBase-input.Mui-disabled': { color:'#ffffffb3', WebkitTextFillColor:'#ffffffb3' },
+      '& .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.28)' },
+      '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.40)' },
+      '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.20)' },
+      '& .MuiFormHelperText-root': { color:'#ffffffcc' },
+      '& .MuiFormControlLabel-root': { color:'#fff' },
+      '& .MuiInputLabel-root.Mui-disabled': { color:'#ffffffb3' },
+      '& .MuiInputAdornment-root': { color:'#fff' },
+      '& .MuiIconButton-root': { color:'#fff' },
+      '& .MuiSvgIcon-root': { color:'#fff' },
+      '& .MuiPaper-outlined': {
+        borderRadius: '16px',
+        border:'2px solid',
+        borderColor:'oklch(0.30 0 0)',
+        background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))',
+        boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)',
+        backdropFilter:'blur(10px)'
+      }
+    }}>
+      <Typography variant="h5" sx={{ fontWeight:700, color:'#fff' }}>{t('wizard.step4.title')}</Typography>
+      <Typography variant="body2" sx={{ mt:0.5, mb:1.5, color:'#ffffffcc' }}>
         {t('wizard.step4.subtitle')}
       </Typography>
 
@@ -530,7 +561,7 @@ export default function Step4LicensesTermsLocalized() {
               error={invalidPerp}
               helperText={invalidPerp ? t('wizard.step4.validation.intNonNegative') : ' '}
               inputProps={{ step: '0.0001' }}
-              InputProps={{ endAdornment: <InputAdornment position="end">{unit}</InputAdornment> }}
+              InputProps={{ endAdornment: <InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>{unit}</InputAdornment> }}
             />
           </Grid>
           <Grid item xs={12} md={4}>
@@ -543,7 +574,7 @@ export default function Step4LicensesTermsLocalized() {
               error={invalidSub}
               helperText={invalidSub ? t('wizard.step4.validation.intNonNegative') : ' '}
               inputProps={{ step: '0.0001' }}
-              InputProps={{ endAdornment: <InputAdornment position="end">{unit}</InputAdornment> }}
+              InputProps={{ endAdornment: <InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>{unit}</InputAdornment> }}
             />
           </Grid>
           <Grid item xs={12} md={4}>
@@ -556,7 +587,7 @@ export default function Step4LicensesTermsLocalized() {
               error={invalidDur}
               disabled={subDisabled}
               inputProps={{ step: '1', min: 0, max: 12 }}
-              InputProps={{ endAdornment: <InputAdornment position="end">{locale==='es' ? 'MES(es)' : 'MONTH(s)'}</InputAdornment> }}
+              InputProps={{ endAdornment: <InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>{locale==='es' ? 'MES(es)' : 'MONTH(s)'}</InputAdornment> }}
               helperText={subNeedsDuration ? t('wizard.step4.validation.durationRequired') : invalidDur ? t('wizard.step4.validation.durationRange') : ' '}
             />
           </Grid>
@@ -576,7 +607,7 @@ export default function Step4LicensesTermsLocalized() {
                 setRoyaltyPercent(String(n))
               }}
               inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', min: 0, max: 20 }}
-              InputProps={{ endAdornment: (<InputAdornment position="end">%</InputAdornment>) }}
+              InputProps={{ endAdornment: (<InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>%</InputAdornment>) }}
               helperText={locale==='es' ? '0–20%' : '0–20%'}
             />
           </Grid>
@@ -727,6 +758,7 @@ export default function Step4LicensesTermsLocalized() {
       </Box>
 
       {msg && <p>{msg}</p>}
-    </div>
+    </Box>
+    </Box>
   )
 }

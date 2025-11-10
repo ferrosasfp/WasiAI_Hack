@@ -10,9 +10,10 @@ import ListItemText from "@mui/material/ListItemText";
 import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import LogoutIcon from "@mui/icons-material/Logout";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
 import { useAccount as useEvmAccount, useDisconnect, useChainId, useConfig } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useLocale } from "next-intl";
 
 function WalletIcon({ size = 18 }: { size?: number }) {
   return (
@@ -34,24 +35,36 @@ export default function UnifiedConnectButtonEvm() {
   const { openConnectModal } = useConnectModal();
   const { disconnectAsync } = useDisconnect();
   const chainId = useChainId();
+  const locale = useLocale();
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const menuOpen = Boolean(menuAnchor);
   const [busy, setBusy] = useState(false);
 
+  const L = useMemo(() => {
+    const es = locale === 'es';
+    return {
+      networkPrefix: es ? 'Red:' : 'Network:',
+      disconnect: es ? 'Desconectar' : 'Disconnect',
+      connect: es ? 'Conectar wallet' : 'Connect Wallet',
+      unknown: es ? 'Desconocida' : 'Unknown',
+      chainPrefix: es ? 'Cadena' : 'Chain',
+    };
+  }, [locale]);
+
   const label = useMemo(() => {
-    if (!isConnected) return "Connect Wallet";
+    if (!isConnected) return L.connect;
     return shorten(evmAddress);
-  }, [isConnected, evmAddress]);
+  }, [isConnected, evmAddress, L.connect]);
 
   const networkName = useMemo(() => {
     try {
       const ch = (config as any)?.chains?.find((c:any)=> c?.id === chainId)
       const nm = ch?.name
-      return typeof nm === 'string' && nm ? nm : (chainId ? `Chain ${chainId}` : 'Unknown')
+      return typeof nm === 'string' && nm ? nm : (chainId ? `${L.chainPrefix} ${chainId}` : L.unknown)
     } catch {
-      return chainId ? `Chain ${chainId}` : 'Unknown'
+      return chainId ? `${L.chainPrefix} ${chainId}` : L.unknown
     }
-  }, [chainId, config]);
+  }, [chainId, config, L.chainPrefix, L.unknown]);
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (isConnected) {
@@ -113,19 +126,27 @@ export default function UnifiedConnectButtonEvm() {
         {label}
       </Button>
 
-      <Menu anchorEl={menuAnchor} open={menuOpen} onClose={()=>setMenuAnchor(null)} anchorOrigin={{ vertical:'bottom', horizontal:'right' }} transformOrigin={{ vertical:'top', horizontal:'right' }}>
-        <MenuItem disabled>
-          <ListItemText>Network: {networkName}</ListItemText>
+      <Menu
+        anchorEl={menuAnchor}
+        open={menuOpen}
+        onClose={()=>setMenuAnchor(null)}
+        anchorOrigin={{ vertical:'bottom', horizontal:'right' }}
+        transformOrigin={{ vertical:'top', horizontal:'right' }}
+        PaperProps={{ sx: { bgcolor: 'rgba(14,18,26,0.98)', border: '1px solid oklch(0.22 0 0)', color: 'oklch(0.95 0 0)', borderRadius: '10px', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', overflow: 'hidden' } }}
+        MenuListProps={{ dense: true, sx: { py: 0.5 } }}
+      >
+        <MenuItem disabled sx={{ cursor: 'default', opacity: 1, py: 1 }}>
+          <ListItemText primary={`${L.networkPrefix} ${networkName}`} primaryTypographyProps={{ sx: { color: 'oklch(0.75 0 0)', fontSize: 12, fontWeight: 600, letterSpacing: 0.2 } }} />
         </MenuItem>
-        <Divider />
-        <MenuItem onClick={onCopy} disabled={!isConnected}>
-          <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{shorten(evmAddress)}</ListItemText>
+        <Divider sx={{ borderColor: 'oklch(0.22 0 0)' }} />
+        <MenuItem onClick={onCopy} disabled={!isConnected} sx={{ color: 'oklch(0.95 0 0)', py: 1, '&:hover': { bgcolor: 'rgba(255,255,255,0.06)' } }}>
+          <ListItemIcon sx={{ minWidth: 32, color: 'oklch(0.85 0 0)' }}><ContentCopyIcon fontSize="small" /></ListItemIcon>
+          <ListItemText primary={shorten(evmAddress)} primaryTypographyProps={{ sx: { color: 'oklch(0.95 0 0)', fontSize: 14 } }} />
         </MenuItem>
-        <Divider />
-        <MenuItem onClick={onLogout}>
-          <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Log Out</ListItemText>
+        <Divider sx={{ borderColor: 'oklch(0.22 0 0)' }} />
+        <MenuItem onClick={onLogout} sx={{ color: 'oklch(0.95 0 0)', py: 1, '&:hover': { bgcolor: 'rgba(255,255,255,0.06)' } }}>
+          <ListItemIcon sx={{ minWidth: 32, color: 'oklch(0.85 0 0)' }}><LinkOffIcon fontSize="small" /></ListItemIcon>
+          <ListItemText primary={L.disconnect} primaryTypographyProps={{ sx: { color: 'oklch(0.95 0 0)', fontSize: 14 } }} />
         </MenuItem>
       </Menu>
     </Stack>

@@ -305,8 +305,8 @@ export default function Step5ReviewPublishLocalized() {
   const Row: React.FC<{ label: React.ReactNode; value: React.ReactNode }> = ({ label, value }) => (
     <ListItem sx={{ py: { xs:0.75, md:0.5 } }}>
       <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'minmax(120px, 42%) 1fr', sm:'minmax(160px, 38%) 1fr', md:'220px 1fr' }, alignItems:'start', columnGap: 1.5, width:'100%' }}>
-        <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600, pr:{ xs:0.5, md:0 } }}>{label}</Typography>
-        <Box sx={{ minWidth:0, wordBreak:'break-word' }}>{value}</Box>
+        <Typography variant="body2" sx={{ color:'#ffffffcc', fontWeight:600, pr:{ xs:0.5, md:0 } }}>{label}</Typography>
+        <Box sx={{ minWidth:0, wordBreak:'break-word', color:'#fff' }}>{value}</Box>
       </Box>
     </ListItem>
   )
@@ -542,9 +542,30 @@ export default function Step5ReviewPublishLocalized() {
   }
 
   return (
-    <div style={{padding:24, maxWidth:1000, margin:'0 auto'}}>
-      <Typography variant="h5" sx={{ fontWeight:700 }}>{t('wizard.step5.title')}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mt:0.5, mb:1.5 }}>
+    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0f2740 0%, #0b1626 30%, #0a111c 100%)' }}>
+      <Box sx={{
+        p: 3,
+        maxWidth: 1000,
+        mx: 'auto',
+        color:'#ffffffd6',
+        '& .MuiTypography-h6': { color:'#fff' },
+        '& .MuiTypography-subtitle2': { color:'#fff' },
+        '& .MuiTypography-body2': { color:'#ffffffcc' },
+        '& .MuiTypography-caption': { color:'#ffffff99' },
+        '& .MuiFormLabel-root': { color:'#ffffffcc' },
+        '& .MuiIconButton-root': { color:'#fff' },
+        '& .MuiSvgIcon-root': { color:'#fff' },
+        '& .MuiPaper-outlined': {
+          borderRadius: '16px',
+          border:'2px solid',
+          borderColor:'oklch(0.30 0 0)',
+          background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))',
+          boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)',
+          backdropFilter:'blur(10px)'
+        }
+      }}>
+      <Typography variant="h5" sx={{ fontWeight:700, color:'#fff' }}>{t('wizard.step5.title')}</Typography>
+      <Typography variant="body2" sx={{ mt:0.5, mb:1.5, color:'#ffffffcc' }}>
         {t('wizard.step5.subtitle')}
       </Typography>
 
@@ -558,7 +579,7 @@ export default function Step5ReviewPublishLocalized() {
             <div key={secId} draggable onDragStart={()=>onDragStart(secId)} onDragOver={(e)=>onDragOver(e,secId)} onDrop={()=>onDrop(secId)}>
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
                 <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1 }}>
-                  <Typography variant="subtitle2" sx={{ color:'primary.main', fontWeight:700 }}>{t('wizard.step5.sections.modelInfo')}</Typography>
+                  <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700 }}>{t('wizard.step5.sections.modelInfo')}</Typography>
                   <Tooltip title={COMMON.edit}>
                     <IconButton size="small" href={`${base}/step1`} aria-label={COMMON.edit}>
                       <EditOutlinedIcon fontSize="small" />
@@ -581,7 +602,7 @@ export default function Step5ReviewPublishLocalized() {
                         <ListItem>
                           <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'center', columnGap: 1, width:'100%' }}>
                             <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{t('wizard.step5.labels.name')}:</Typography>
-                            <Box><Trunc value={metadata?.name} max={40} /></Box>
+                            <Box sx={{ color:'#fff' }}><Trunc value={metadata?.name} max={40} /></Box>
                           </Box>
                         </ListItem>
                         {Boolean((metadata as any)?.slug) && (
@@ -589,7 +610,7 @@ export default function Step5ReviewPublishLocalized() {
                             <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'center', columnGap: 1, width:'100%' }}>
                               <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{locale==='es' ? 'Identificador (URL)' : 'Identifier (URL)'}:</Typography>
                               <Box>
-                                <Typography variant="body2" color="text.secondary">
+                                <Typography variant="body2" sx={{ color:'#fff' }}>
                                   {(typeof window!=='undefined' ? window.location.origin : '') + `/${locale}/models/` + String((metadata as any).slug || '')}
                                 </Typography>
                               </Box>
@@ -599,7 +620,7 @@ export default function Step5ReviewPublishLocalized() {
                         <ListItem>
                           <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'center', columnGap: 1, width:'100%' }}>
                             <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{t('wizard.step5.labels.author')}:</Typography>
-                            <Box><Trunc value={(metadata as any)?.author?.displayName} max={40} /></Box>
+                            <Box sx={{ color:'#fff' }}><Trunc value={(metadata as any)?.author?.displayName} max={40} /></Box>
                           </Box>
                         </ListItem>
                         {Boolean((metadata as any)?.shortSummary) && (
@@ -664,7 +685,7 @@ export default function Step5ReviewPublishLocalized() {
             <div key={secId} draggable onDragStart={()=>onDragStart(secId)} onDragOver={(e)=>onDragOver(e,secId)} onDrop={()=>onDrop(secId)}>
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
                 <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1 }}>
-                  <Typography variant="subtitle2" sx={{ color:'primary.main', fontWeight:700 }}>{L.sectionTitle}</Typography>
+                  <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700 }}>{L.sectionTitle}</Typography>
                   <Tooltip title={COMMON.edit}>
                     <IconButton size="small" href={`${base}/step4`} aria-label={COMMON.edit}>
                       <EditOutlinedIcon fontSize="small" />
@@ -1136,9 +1157,19 @@ export default function Step5ReviewPublishLocalized() {
             {issues.map((m,i)=>(<div key={i}>{m}</div>))}
           </Alert>
         )}
-        <FormControlLabel control={<Checkbox checked={accepted} onChange={(e)=>setAccepted(e.target.checked)} />} label={acceptLabel} />
+        <FormControlLabel
+          sx={{ color:'#fff', alignItems:'flex-start', '& .MuiSvgIcon-root': { color:'#fff' } }}
+          control={<Checkbox
+            checked={accepted}
+            onChange={(e)=>setAccepted(e.target.checked)}
+            sx={{ color:'#ffffffcc', '&.Mui-checked': { color:'#fff' } }}
+          />}
+          label={<Typography variant="body2" sx={{ color:'#fff' }}>{acceptLabel}</Typography>}
+        />
         <Box sx={{ mt: 1 }}>
-          <Button onClick={onPublish} disabled={publishing || issues.length>0 || !accepted} variant="contained" startIcon={<RocketLaunchIcon/>}>
+          <Button onClick={onPublish} disabled={publishing || issues.length>0 || !accepted} variant="contained" startIcon={<RocketLaunchIcon/>}
+            sx={{ backgroundImage:'linear-gradient(90deg, #7c5cff, #2ea0ff)', color:'#fff', fontWeight:700, textTransform:'none', boxShadow:'0 6px 20px rgba(46,160,255,0.25)', '&:hover': { filter:'brightness(1.05)', backgroundImage:'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}
+          >
             {publishing? t('wizard.step5.buttons.publishing') : t('wizard.step5.buttons.publish')}
           </Button>
         </Box>
@@ -1204,6 +1235,7 @@ export default function Step5ReviewPublishLocalized() {
       </Dialog>
 
       {msg && <p>{msg}</p>}
-    </div>
+      </Box>
+    </Box>
   )
 }

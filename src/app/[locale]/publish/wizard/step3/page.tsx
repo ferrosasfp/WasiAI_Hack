@@ -441,14 +441,41 @@ export default function Step3ArtifactsDemoLocalized() {
   }
 
   return (
-    <div style={{padding:24, maxWidth:900, margin:'0 auto'}}>
+    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0f2740 0%, #0b1626 30%, #0a111c 100%)' }}>
+      <Box sx={{
+        p: 3,
+        maxWidth: 900,
+        mx: 'auto',
+        color:'#ffffffd6',
+        '& .MuiTypography-h6': { color:'#fff' },
+        '& .MuiTypography-subtitle2': { color:'#fff' },
+        '& .MuiTypography-body2': { color:'#ffffffcc' },
+        '& .MuiTypography-caption': { color:'#ffffff99' },
+        '& .MuiFormLabel-root': { color:'#ffffffcc' },
+        '& .MuiFormLabel-root.Mui-focused': { color:'#fff' },
+        '& .MuiInputBase-input': { color:'#fff', WebkitTextFillColor:'#fff' },
+        '& .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.28)' },
+        '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.40)' },
+        '& .MuiFormHelperText-root': { color:'#ffffffcc' },
+        '& .MuiFormControlLabel-root': { color:'#fff' },
+        '& .MuiIconButton-root': { color:'#fff' },
+        '& .MuiSvgIcon-root': { color:'#fff' },
+        '& .MuiPaper-outlined': {
+          borderRadius: '16px',
+          border:'2px solid',
+          borderColor:'oklch(0.30 0 0)',
+          background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))',
+          boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)',
+          backdropFilter:'blur(10px)'
+        }
+      }}>
       {(loadingDraft || anyUploading) && (
         <Box sx={{ mb: 1 }}>
           <LinearProgress />
         </Box>
       )}
-      <Typography variant="h5" sx={{ fontWeight:700 }}>{t('wizard.step3.title')}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+      <Typography variant="h5" sx={{ fontWeight:700, color:'#fff' }}>{t('wizard.step3.title')}</Typography>
+      <Typography variant="body2" sx={{ mt: 0.5, color:'#ffffffcc' }}>
         {t('wizard.step3.subtitle')}
       </Typography>
 
@@ -608,6 +635,7 @@ export default function Step3ArtifactsDemoLocalized() {
       </Box>
 
       {msg && <p>{msg}</p>}
-    </div>
+      </Box>
+    </Box>
   )
 }

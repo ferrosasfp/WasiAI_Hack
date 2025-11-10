@@ -499,27 +499,41 @@ export default function ExploreModelsPage() {
   )
 
   return (
-    <Box>
-      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
+    <Box sx={{
+      minHeight: '100vh',
+      background: [
+        'radial-gradient(900px 520px at 88% -140px, rgba(46,160,255,0.22), rgba(46,160,255,0) 60%)',
+        'radial-gradient(700px 420px at -120px 240px, rgba(124,92,255,0.16), rgba(124,92,255,0) 55%)',
+        'linear-gradient(180deg, #0b1422 0%, #0a111c 50%, #070b12 80%, #05080d 100%)'
+      ].join(', '),
+      color: 'oklch(0.985 0 0)'
+    }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 8 } }}>
         <Grid container spacing={3} alignItems="center">
           <Grid item xs={12} md={7}>
             <Stack spacing={2}>
-              <Chip icon={<VerifiedIcon />} label={isES ? 'Marketplace de modelos de IA' : 'AI Models Marketplace'} sx={{ alignSelf:'flex-start', bgcolor:'rgba(0,0,0,0.06)' }} />
-              <Typography variant="h3" fontWeight={800}>{L.title}</Typography>
-              <Typography variant="h6" color="text.secondary">{L.subtitle}</Typography>
-              <Stack direction={{ xs:'column', sm:'row' }} spacing={2}>
-                <Button startIcon={<RocketIcon />} component={Link} href={`/${locale}/models`} variant="contained">{L.exploreAll}</Button>
-                <Button startIcon={<UploadIcon />} component={Link} href={`/${locale}/publish/wizard`} variant="outlined">{L.publish}</Button>
+              <Chip icon={<VerifiedIcon />} label={isES ? 'Marketplace de modelos de IA' : 'AI Models Marketplace'} sx={{ alignSelf:'flex-start', bgcolor:'rgba(36,48,68,0.5)', color: '#b9d7ff', borderRadius: '999px', border: '1px solid rgba(120,150,200,0.25)' }} />
+              <Typography variant="h3" fontWeight={800} sx={{ letterSpacing: '-0.014em' }}>{L.title}</Typography>
+              <Typography variant="h6" sx={{ color: 'oklch(0.78 0 0)' }}>{L.subtitle}</Typography>
+              <Stack direction={{ xs:'column', sm:'row' }} spacing={2} sx={{ pt: 1 }}>
+                <Button startIcon={<RocketIcon />} component={Link} href={`/${locale}/models`} variant="contained" sx={{ backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color: '#fff', px: 3.5, py: 1.25, borderRadius: '12px', boxShadow: '0 6px 20px rgba(46,160,255,0.25)', '&:hover': { filter: 'brightness(1.05)', backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}>{L.exploreAll}</Button>
+                <Button startIcon={<UploadIcon />} component={Link} href={`/${locale}/publish/wizard`} variant="outlined" sx={{ borderColor: 'oklch(0.28 0 0)', color: 'oklch(0.90 0 0)', borderRadius: '12px', px: 3.5, py: 1.25, backgroundColor: 'rgba(255,255,255,0.02)' }}>{L.publish}</Button>
               </Stack>
             </Stack>
           </Grid>
           <Grid item xs={12} md={5}>
-            <Card>
-              <CardContent>
-                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>{isES ? 'Buscar y filtrar' : 'Search and filter'}</Typography>
+            <Card sx={{ borderRadius: '16px', border: '1px solid', borderColor: 'oklch(0.22 0 0)', background: 'linear-gradient(180deg, rgba(22,26,36,0.6), rgba(12,15,24,0.6))', boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)' }}>
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1, color: 'oklch(0.98 0 0)' }}>{isES ? 'Buscar y filtrar' : 'Search and filter'}</Typography>
                 <Stack direction="row" spacing={1}>
-                  <TextField fullWidth size="small" placeholder={L.searchPh} value={q} onChange={(e)=>setQ(e.target.value)} />
-                  <IconButton onClick={()=>setOpenFilters(true)}><TuneIcon /></IconButton>
+                  <TextField fullWidth size="small" placeholder={L.searchPh} value={q} onChange={(e)=>setQ(e.target.value)} sx={{
+                    '& .MuiInputBase-root': { bgcolor: 'rgba(255,255,255,0.06)', color: 'oklch(0.98 0 0)' },
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'oklch(0.28 0 0)' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'oklch(0.32 0 0)' },
+                    '& .MuiSvgIcon-root': { color: 'oklch(0.90 0 0)' },
+                    '& input::placeholder': { color: 'oklch(0.80 0 0)', opacity: 1 }
+                  }} />
+                  <IconButton onClick={()=>setOpenFilters(true)} sx={{ color: 'oklch(0.98 0 0)', border: '1px solid oklch(0.28 0 0)', bgcolor: 'rgba(255,255,255,0.04)' }}><TuneIcon /></IconButton>
                 </Stack>
               </CardContent>
             </Card>
@@ -529,17 +543,14 @@ export default function ExploreModelsPage() {
         {/* Only category grid remains */}
 
         <Box sx={{ py: 4 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-            <Typography variant="h5" fontWeight={800}>{L.byCategory}</Typography>
-            <Button size="small" variant={debugOn ? 'contained' : 'outlined'} onClick={()=> setDebugOn(v=>!v)}>{debugOn ? 'Debug ON' : 'Debug'}</Button>
-          </Stack>
+          {/* Header hidden per request */}
           {/* Category chips pending real taxonomy */}
           <Grid container spacing={2}>
             {loading && items.length === 0 && Array.from({ length: 6 }).map((_, i) => (
               <Grid key={`sk-${i}`} item xs={12} sm={6} md={4}>
-                <Card>
+                <Card sx={{ borderRadius: '16px', border: '1px solid', borderColor: 'oklch(0.22 0 0)', background: 'linear-gradient(180deg, rgba(22,26,36,0.6), rgba(12,15,24,0.6))', boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)' }}>
                   <Skeleton variant="rectangular" height={160} />
-                  <CardContent>
+                  <CardContent sx={{ p: 3 }}>
                     <Stack spacing={1}>
                       <Skeleton variant="text" width="60%" height={28} />
                       <Skeleton variant="text" width="90%" />
@@ -560,13 +571,13 @@ export default function ExploreModelsPage() {
             ))}
             {!loading && items.length === 0 && (
               <Grid item xs={12}>
-                <Card>
-                  <CardContent>
+                <Card sx={{ borderRadius: '16px', border: '1px solid', borderColor: 'oklch(0.22 0 0)', background: 'linear-gradient(180deg, rgba(22,26,36,0.6), rgba(12,15,24,0.6))', boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)' }}>
+                  <CardContent sx={{ p: 3 }}>
                     <Stack spacing={2} alignItems="center" justifyContent="center" sx={{ py: 4 }}>
-                      <Typography variant="subtitle1" fontWeight={700}>
+                      <Typography variant="subtitle1" fontWeight={700} sx={{ color: 'oklch(0.98 0 0)' }}>
                         {isES ? 'Estamos cargando los modelos…' : 'We are loading the models…'}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{ color: 'oklch(0.78 0 0)' }}>
                         {isES ? 'Esto puede tardar unos segundos si la red está lenta. Reintentaremos automáticamente.' : 'This may take a few seconds if the network is slow. We will retry automatically.'}
                       </Typography>
                     </Stack>

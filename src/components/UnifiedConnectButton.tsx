@@ -197,7 +197,7 @@ export function UnifiedConnectButton({ onBeforeOpen, onConnectError }: { onBefor
       <Dialog open={confirmOpen} onClose={cancelSuiDisconnect} maxWidth="xs" fullWidth>
         <DialogTitle>Disconnect wallet</DialogTitle>
         <DialogContent>
-          <Typography variant="body2">You are connected on Sui. Do you want to disconnect now?</Typography>
+          <Typography variant="body2">Do you want to disconnect now?</Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={cancelSuiDisconnect} color="inherit">Cancel</Button>

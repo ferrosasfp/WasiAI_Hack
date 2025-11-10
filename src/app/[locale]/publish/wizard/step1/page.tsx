@@ -490,22 +490,46 @@ export default function Step1BasicsLocalized() {
   }, [name, slug, isUpgrade, shortSummary, categoriesSel, tagsSel, authorDisplay, socialValues, coverCid, coverThumbCid, coverMime, coverSize, saving])
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1000, mx: 'auto' }}>
+    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0f2740 0%, #0b1626 30%, #0a111c 100%)' }}>
+      <Box sx={{
+        p: { xs: 2, md: 4 },
+        maxWidth: 1000,
+        mx: 'auto',
+        color:'#fff',
+        '& .MuiTypography-h6': { color:'#fff' },
+        '& .MuiTypography-subtitle1': { color:'#fff' },
+        '& .MuiTypography-subtitle2': { color:'#fff' },
+        '& .MuiTypography-body2': { color:'#ffffffcc' },
+        '& .MuiTypography-caption': { color:'#ffffff99' },
+        '& .MuiFormLabel-root': { color:'#ffffffcc' },
+        '& .MuiFormLabel-root.Mui-focused': { color:'#fff' },
+        '& .MuiInputBase-input': { color:'#fff', WebkitTextFillColor:'#fff' },
+        '& .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.28)' },
+        '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.40)' },
+        '& .MuiFormHelperText-root': { color:'#ffffffcc' },
+        '& .MuiFormControlLabel-root': { color:'#fff' },
+        '& .MuiSvgIcon-root': { color:'#fff' },
+        '& .MuiIconButton-root': { color:'#fff' },
+        '& .MuiAutocomplete-endAdornment .MuiSvgIcon-root': { color:'#fff' },
+        '& .MuiChip-deleteIcon': { color:'#fff', opacity: 1 },
+        '& .MuiChip-root': { color:'#fff', borderColor:'rgba(255,255,255,0.28)' },
+        '& a': { color:'#fff' }
+      }}>
       {(loadingDraft || coverUploading) && (
         <Box sx={{ mb: 1 }}>
           <LinearProgress />
         </Box>
       )}
       <Stack spacing={2} sx={{ mb: 2 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>{t('wizard.step1.title')}</Typography>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="h4" sx={{ fontWeight: 700, color:'#fff' }}>{t('wizard.step1.title')}</Typography>
+        <Typography variant="body1" sx={{ color:'#fff' }}>
           {t('wizard.step1.subtitle')}
         </Typography>
       </Stack>
 
-      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: 2 }}>
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: '16px', border:'2px solid', borderColor:'oklch(0.30 0 0)', background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter:'blur(10px)' }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>{t('wizard.step1.sections.identity.title')}</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 600, color:'#fff' }}>{t('wizard.step1.sections.identity.title')}</Typography>
           <Tooltip title={t('wizard.step1.sections.identity.help')}><InfoOutlinedIcon fontSize="small" color="action" /></Tooltip>
         </Stack>
         {loadingDraft ? (
@@ -563,7 +587,7 @@ export default function Step1BasicsLocalized() {
                   </Box>
                 ) : (
                   slug ? (
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{ color:'#ffffff99' }}>
                       {(typeof window!=='undefined' ? window.location.origin : '') + `/${locale}/models/` + slug}
                     </Typography>
                   ) : TXT.slugHelper
@@ -584,9 +608,9 @@ export default function Step1BasicsLocalized() {
         )}
       </Paper>
 
-      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: 2 }}>
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: '16px', border:'2px solid', borderColor:'oklch(0.30 0 0)', background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter:'blur(10px)' }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>{t('wizard.step1.sections.cover.title')}</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 600, color:'#fff' }}>{t('wizard.step1.sections.cover.title')}</Typography>
           <Tooltip title={t('wizard.step1.sections.cover.help')}><InfoOutlinedIcon fontSize="small" color="action" /></Tooltip>
         </Stack>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
@@ -594,13 +618,47 @@ export default function Step1BasicsLocalized() {
             {t('wizard.step1.buttons.chooseImage')}
             <input ref={fileInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={onSelectCover} />
           </Button>
-          <Button variant="contained" onClick={onUploadCover} disabled={!coverFile || coverUploading}>{coverUploading? t('wizard.step1.cover.uploading') : t('wizard.step1.buttons.uploadCover')}</Button>
+          <Button
+            variant="contained"
+            onClick={onUploadCover}
+            disabled={!coverFile || coverUploading}
+            sx={{
+              textTransform:'none',
+              fontWeight:700,
+              color:'#fff',
+              border:'1px solid rgba(255,255,255,0.28)',
+              backgroundColor:'rgba(255,255,255,0.08)',
+              '&:hover':{ backgroundColor:'rgba(255,255,255,0.14)', borderColor:'rgba(255,255,255,0.40)' },
+              '&.Mui-disabled':{ color:'rgba(255,255,255,0.5)', borderColor:'rgba(255,255,255,0.16)' }
+            }}
+          >
+            {coverUploading? t('wizard.step1.cover.uploading') : t('wizard.step1.buttons.uploadCover')}
+          </Button>
           <Tooltip title={t('wizard.step1.buttons.refresh')}>
             <IconButton onClick={handleMenuOpen} size="medium" sx={{ height: 40 }}>
               <MoreVertIcon />
             </IconButton>
           </Tooltip>
-          <Menu anchorEl={menuAnchor} open={openMenu} onClose={handleMenuClose} anchorOrigin={{ vertical:'bottom', horizontal:'left' }}>
+          <Menu
+            anchorEl={menuAnchor}
+            open={openMenu}
+            onClose={handleMenuClose}
+            anchorOrigin={{ vertical:'bottom', horizontal:'left' }}
+            PaperProps={{
+              sx: {
+                borderRadius: 2,
+                border: '2px solid',
+                borderColor: 'oklch(0.30 0 0)',
+                background: 'linear-gradient(180deg, rgba(38,46,64,0.90), rgba(20,26,42,0.90))',
+                boxShadow: '0 0 0 1px rgba(255,255,255,0.05) inset, 0 14px 36px rgba(0,0,0,0.45)',
+                backdropFilter: 'blur(10px)',
+                color: '#fff',
+                '& .MuiSvgIcon-root': { color:'#fff' },
+                '& .MuiMenuItem-root.Mui-disabled': { color: 'rgba(255,255,255,0.5)' }
+              }
+            }}
+            MenuListProps={{ sx: { color:'#fff' } }}
+          >
             <MenuItem onClick={()=>{ handleMenuClose(); onRefreshCover() }} disabled={promoting}>
               <ListItemIcon><RefreshIcon fontSize="small"/></ListItemIcon>
               <ListItemText>{promoting? '...' : t('wizard.step1.buttons.refresh')}</ListItemText>
@@ -638,9 +696,13 @@ export default function Step1BasicsLocalized() {
           <Box sx={{
             width: { xs: '100%', md: 560 },
             height: 120,
-            borderRadius: 2,
+            borderRadius: '12px',
             overflow: 'hidden',
-            bgcolor: '#f2f2f2',
+            border: '2px solid',
+            borderColor: 'oklch(0.30 0 0)',
+            background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))',
+            boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)',
+            backdropFilter: 'blur(6px)',
             display:'flex',
             alignItems:'center',
             justifyContent:'center',
@@ -677,9 +739,9 @@ export default function Step1BasicsLocalized() {
         </Stack>
       </Paper>
 
-      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: 2 }}>
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: '16px', border:'2px solid', borderColor:'oklch(0.30 0 0)', background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter:'blur(10px)' }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>{t('wizard.step1.sections.classification.title')}</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 600, color:'#fff' }}>{t('wizard.step1.sections.classification.title')}</Typography>
           <Tooltip title={t('wizard.step1.sections.classification.help')}><InfoOutlinedIcon fontSize="small" color="action" /></Tooltip>
         </Stack>
         {loadingDraft ? (
@@ -694,6 +756,9 @@ export default function Step1BasicsLocalized() {
               options={CATEGORY_OPTIONS}
               value={categoriesSel}
               onChange={(_, v)=>setCategoriesSel(v)}
+              slotProps={{
+                paper: { sx: { borderRadius: 2, border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.92), rgba(20,26,42,0.92))', boxShadow: '0 0 0 1px rgba(255,255,255,0.05) inset, 0 16px 36px rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)', color:'#fff', '& .MuiAutocomplete-listbox': { background: 'transparent' }, '& .MuiAutocomplete-option': { color:'#fff' }, '& .MuiAutocomplete-option.Mui-focused': { backgroundColor:'rgba(255,255,255,0.10)' } } }
+              }}
               renderTags={(value, getTagProps) => value.map((option, index) => (
                 <Chip variant="outlined" label={option} {...getTagProps({ index })} key={option} />
               ))}
@@ -707,6 +772,9 @@ export default function Step1BasicsLocalized() {
               options={TAG_OPTIONS}
               value={tagsSel}
               onChange={(_, v)=>setTagsSel(v)}
+              slotProps={{
+                paper: { sx: { borderRadius: 2, border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.92), rgba(20,26,42,0.92))', boxShadow: '0 0 0 1px rgba(255,255,255,0.05) inset, 0 16px 36px rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)', color:'#fff', '& .MuiAutocomplete-listbox': { background: 'transparent' }, '& .MuiAutocomplete-option': { color:'#fff' }, '& .MuiAutocomplete-option.Mui-focused': { backgroundColor:'rgba(255,255,255,0.10)' } } }
+              }}
               renderTags={(value, getTagProps) => value.map((option, index) => (
                 <Chip variant="outlined" label={option} {...getTagProps({ index })} key={option} />
               ))}
@@ -718,9 +786,9 @@ export default function Step1BasicsLocalized() {
         )}
       </Paper>
 
-      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: 2 }}>
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: '16px', border:'2px solid', borderColor:'oklch(0.30 0 0)', background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter:'blur(10px)' }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>{t('wizard.step1.sections.authorship.title')}</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 600, color:'#fff' }}>{t('wizard.step1.sections.authorship.title')}</Typography>
           <Tooltip title={t('wizard.step1.sections.authorship.help')}><InfoOutlinedIcon fontSize="small" color="action" /></Tooltip>
         </Stack>
         {loadingDraft ? (
@@ -812,7 +880,8 @@ export default function Step1BasicsLocalized() {
         </Paper>
       </Box>
 
-      {msg && <Typography sx={{ mt:1 }} color={msg===t('wizard.common.saved') ? 'success.main' : 'warning.main'}>{msg}</Typography>}
+      {msg && <p>{msg}</p>}
+      </Box>
     </Box>
   )
 }

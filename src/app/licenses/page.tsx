@@ -43,7 +43,7 @@ function formatTimestamp(tsSec: number) {
   return new Date(tsSec * 1000).toLocaleString();
 }
 
-function LicensesPageImpl() {
+function SuiLicensesInner() {
   const account = useCurrentAccount();
   const { data, isLoading } = useMyLicenses(account?.address);
 
@@ -108,4 +108,27 @@ function LicensesPageImpl() {
       </Container>
     </Box>
   );
+}
+
+function LicensesPageImpl() {
+  const enableSui = (process.env.NEXT_PUBLIC_ENABLE_SUI || '').toLowerCase() === 'true'
+  if (!enableSui) {
+    return (
+      <Box sx={{ minHeight: '60vh', display:'flex', alignItems:'center', justifyContent:'center', px:2 }}>
+        <Container maxWidth="md">
+          <Card>
+            <CardContent>
+              <Stack spacing={1}>
+                <Typography variant="h5" fontWeight={700}>Licencias (Sui) deshabilitadas</Typography>
+                <Typography color="text.secondary">
+                  Esta vista requiere el proveedor Sui. Habilítalo con NEXT_PUBLIC_ENABLE_SUI=true o cambia a la vista EVM correspondiente.
+                </Typography>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Container>
+      </Box>
+    )
+  }
+  return <SuiLicensesInner />
 }

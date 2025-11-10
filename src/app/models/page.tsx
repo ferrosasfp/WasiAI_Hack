@@ -59,6 +59,25 @@ function toNumberLike(v: any): number | undefined {
 }
 
 export default function ModelsPage() {
+  const enableSui = (process.env.NEXT_PUBLIC_ENABLE_SUI || '').toLowerCase() === 'true'
+  if (!enableSui) {
+    return (
+      <Box sx={{ minHeight:'60vh', display:'flex', alignItems:'center', justifyContent:'center', p:2 }}>
+        <Card>
+          <CardContent>
+            <Stack spacing={1}>
+              <Typography variant="h5" fontWeight={700}>Modelos (Sui) deshabilitados</Typography>
+              <Typography color="text.secondary">Esta vista requiere el proveedor Sui. Usa la página de modelos con locale o habilita NEXT_PUBLIC_ENABLE_SUI=true.</Typography>
+            </Stack>
+          </CardContent>
+        </Card>
+      </Box>
+    )
+  }
+  return <SuiModelsInner />
+}
+
+function SuiModelsInner() {
   return (
     <Suspense fallback={
       <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: 6 }}>
@@ -464,37 +483,39 @@ function ModelsPageInner() {
               <Grid item xs={12} md={4} key={m.modelId ?? m.objectId}>
                 <Card>
                   <CardContent>
-                    <Box sx={{ mb: 1, borderRadius: 1, overflow: 'hidden', height: 140, bgcolor: 'background.paper', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Box sx={{ mb: 1, borderRadius: 1, overflow: 'hidden', width: '100%', aspectRatio: '16 / 9', display: 'block' }}>
                       {m.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={m.imageUrl} alt={m.name || 'model'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={m.imageUrl} alt={m.name || 'model'} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
-                        <Typography variant="h5" color="text.disabled">{(m.name || 'Modelo').slice(0, 1).toUpperCase()}</Typography>
+                        <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
+                          <Typography variant="h5" color="text.disabled">{(m.name || 'Modelo').slice(0, 1).toUpperCase()}</Typography>
+                        </Box>
                       )}
                     </Box>
                     <Typography variant="h6" fontWeight="bold">
                       {m.name || `Objeto ${m.objectId.slice(0, 8)}...`}
                     </Typography>
                     <Stack direction="row" spacing={1} sx={{ mt: 0.5, mb: 1 }}>
-                      <Chip size="small" label={m.listed ? 'Listado' : 'No listado'} color={m.listed ? 'success' : 'default'} />
+                      <Chip size="small" label={m.listed ? 'Listado' : 'No listado'} />
                       {typeof m.version === 'number' && m.version > 0 && (
                         <Chip size="small" label={`v${m.version}`} variant="outlined" />
                       )}
                       {typeof m.uri === 'string' && m.uri.includes('.enc') && (
-                        <Chip size="small" label="Encriptado" color="warning" variant="outlined" />
+                        <Chip size="small" label="Encriptado" variant="outlined" />
                       )}
                     </Stack>
                     {m.owner && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 0.5 }}>
                         Vendedor: {truncateAddress(m.owner)}
                       </Typography>
                     )}
                     {m.description && (
-                      <Typography color="text.secondary" sx={{ mb: 1 }}>
+                      <Typography sx={{ mb: 1 }}>
                         {m.description}
                       </Typography>
                     )}
-                    <Typography color="text.secondary" sx={{ mb: 1 }}>
+                    <Typography sx={{ mb: 1 }}>
                       {`Perpetua: ${((m.price_perpetual ?? 0) / 1_000_000_000).toLocaleString('es-MX', { maximumFractionDigits: 4 })} SUI`} {typeof m.price_subscription === 'number' ? `· Sub: ${((m.price_subscription ?? 0) / 1_000_000_000).toLocaleString('es-MX', { maximumFractionDigits: 4 })} SUI/mes` : ''}
                     </Typography>
                     <Divider sx={{ my: 1 }} />
@@ -509,103 +530,45 @@ function ModelsPageInner() {
                           Ver detalle
                         </Button>
                       </Stack>
+                      {m.price_subscription ? (
                       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                        <Select
+                          size="small"
+                          value={monthsMap[m.modelId!] || 1}
+                          onChange={(e) => setMonthsMap((prev) => ({ ...prev, [m.modelId!]: Number(e.target.value) }))}
+                          disabled={!m.price_subscription}
+                          sx={{ width: { xs: '100%', sm: 110 } }}
+                        >
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((mm) => (
+                            <MenuItem key={mm} value={mm}>{mm} mes{mm>1?'es':''}</MenuItem>
+                          ))}
+                        </Select>
                         <Tooltip
                           title={
-                            (!m.hydratedInfoEx && (!m.price_perpetual || typeof m.listed === 'undefined')) ? 'Hidratando info on-chain…' :
+                            (!m.hydratedInfoEx && (typeof m.listed === 'undefined')) ? 'Hidratando info on-chain…' :
                             !account ? 'Conecta tu wallet' :
                             status === 'pending' ? 'Esperando confirmación' :
                             typeof m.modelId !== 'number' ? 'ModelId no disponible' :
                             !m.listed ? 'Modelo no listado' :
-                            !m.price_perpetual ? 'Precio perpetua no disponible' :
-                            (!!m.creator && account?.address?.toLowerCase() === m.creator.toLowerCase()) ? 'No disponible para el creador' :
-                            (!!m.owner && account?.address?.toLowerCase() === m.owner.toLowerCase()) ? 'No disponible para el vendedor' :
-                            `Perpetua • ${((m.price_perpetual || 0)/1_000_000_000).toLocaleString('es-MX', { maximumFractionDigits: 4 })} SUI`
+                            !m.price_subscription ? 'Suscripción no disponible' :
+                            `Total: ${(((m.price_subscription || 0) * (monthsMap[m.modelId!]||1))/1_000_000_000).toLocaleString('es-MX', { maximumFractionDigits: 4 })} SUI`
                           }
                         >
                           <span>
                             <Button
                               size="small"
-                              variant="contained"
+                              variant="outlined"
                               disabled={
-                                (!m.hydratedInfoEx && (!m.price_perpetual || typeof m.listed === 'undefined')) ||
+                                (!m.hydratedInfoEx && (typeof m.listed === 'undefined')) ||
                                 !account ||
                                 status === 'pending' ||
                                 !m.listed ||
-                                !m.price_perpetual ||
+                                !m.price_subscription ||
                                 typeof m.modelId !== 'number' ||
                                 (!!m.creator && account?.address?.toLowerCase() === m.creator.toLowerCase()) ||
                                 (!!m.owner && account?.address?.toLowerCase() === m.owner.toLowerCase())
                               }
                               onClick={async () => {
-                                try {
-                                  if (typeof m.modelId !== 'number' || !m.price_perpetual) {
-                                    setSnack({ open: true, msg: 'Datos insuficientes para comprar (modelId/precio)', severity: 'error' });
-                                    return;
-                                  }
-                                  if (!!m.creator && account?.address?.toLowerCase() === m.creator.toLowerCase()) {
-                                    setSnack({ open: true, msg: 'El creador no puede comprar su propio modelo', severity: 'error' });
-                                    return;
-                                  }
-                                  if (!!m.owner && account?.address?.toLowerCase() === m.owner.toLowerCase()) {
-                                    setSnack({ open: true, msg: 'El vendedor no puede comprar su propio modelo', severity: 'error' });
-                                    return;
-                                  }
-                                  const amount = BigInt(Math.floor(Number(m.price_perpetual)));
-                                  const tx = buildBuyLicenseTx({ modelId: m.modelId, kind: 0, months: 0, transferable: true, amountInMist: amount });
-                                  const res: any = await signAndExecute({ transaction: tx });
-                                  const digest = res?.digest;
-                                  const url = digest ? getTransactionUrl('testnet', digest) : '';
-                                  setSnack({ open: true, msg: `Compra exitosa${url ? ` · ${url}` : ''}`, severity: 'success' });
-                                } catch (e: any) {
-                                  setSnack({ open: true, msg: `Error al comprar: ${String(e?.message || e)}`, severity: 'error' });
-                                }
-                              }}
-                            >
-                              Perpetua
-                            </Button>
-                          </span>
-                        </Tooltip>
-                      </Stack>
-                      {m.price_subscription ? (
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                          <Select
-                            size="small"
-                            value={monthsMap[m.modelId!] || 1}
-                            onChange={(e) => setMonthsMap((prev) => ({ ...prev, [m.modelId!]: Number(e.target.value) }))}
-                            disabled={!m.price_subscription}
-                            sx={{ width: { xs: '100%', sm: 110 } }}
-                          >
-                            {Array.from({ length: 12 }, (_, i) => i + 1).map((mm) => (
-                              <MenuItem key={mm} value={mm}>{mm} mes{mm>1?'es':''}</MenuItem>
-                            ))}
-                          </Select>
-                          <Tooltip
-                            title={
-                              (!m.hydratedInfoEx && (typeof m.listed === 'undefined')) ? 'Hidratando info on-chain…' :
-                              !account ? 'Conecta tu wallet' :
-                              status === 'pending' ? 'Esperando confirmación' :
-                              typeof m.modelId !== 'number' ? 'ModelId no disponible' :
-                              !m.listed ? 'Modelo no listado' :
-                              !m.price_subscription ? 'Suscripción no disponible' :
-                              `Total: ${(((m.price_subscription || 0) * (monthsMap[m.modelId!]||1))/1_000_000_000).toLocaleString('es-MX', { maximumFractionDigits: 4 })} SUI`
-                            }
-                          >
-                            <span>
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                disabled={
-                                  (!m.hydratedInfoEx && (typeof m.listed === 'undefined')) ||
-                                  !account ||
-                                  status === 'pending' ||
-                                  !m.listed ||
-                                  !m.price_subscription ||
-                                  typeof m.modelId !== 'number' ||
-                                  (!!m.creator && account?.address?.toLowerCase() === m.creator.toLowerCase()) ||
-                                  (!!m.owner && account?.address?.toLowerCase() === m.owner.toLowerCase())
-                                }
-                                onClick={async () => {
                                   try {
                                     if (typeof m.modelId !== 'number' || !m.price_subscription) {
                                       setSnack({ open: true, msg: 'Datos insuficientes para comprar (modelId/precio sub)', severity: 'error' });
