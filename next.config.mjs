@@ -1,6 +1,37 @@
+import {createRequire} from 'module';
+import createNextIntlPlugin from 'next-intl/plugin';
+const require = createRequire(import.meta.url);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: true,
+    // Transpile ESM packages that may require bundling through Next
+    transpilePackages: [
+      '@mysten/dapp-kit',
+      '@radix-ui/primitive',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-compose-refs',
+      '@radix-ui/react-context',
+      '@radix-ui/react-id',
+      '@radix-ui/react-use-controllable-state',
+      '@radix-ui/react-dismissable-layer',
+      '@radix-ui/react-focus-scope',
+      '@radix-ui/react-focus-guards',
+      '@radix-ui/react-portal',
+      '@radix-ui/react-presence',
+      '@radix-ui/react-primitive',
+      '@radix-ui/react-menu',
+      '@radix-ui/react-popper',
+      '@radix-ui/react-roving-focus',
+      '@radix-ui/react-use-callback-ref',
+      '@radix-ui/react-use-escape-keydown',
+      '@radix-ui/react-use-layout-effect',
+      '@radix-ui/react-use-size',
+      '@radix-ui/react-collection',
+      '@radix-ui/react-arrow',
+      '@floating-ui/react-dom',
+      '@floating-ui/dom'
+    ],
     eslint: {
       ignoreDuringBuilds: true,
     },
@@ -27,7 +58,7 @@ const nextConfig = {
     
     // Configuración de Webpack
     webpack: (config, { isServer }) => {
-      // Solución para módulos de Node.js en el cliente
+      // Fallbacks sólo para cliente
       if (!isServer) {
         config.resolve.fallback = {
           ...config.resolve.fallback,
@@ -36,13 +67,18 @@ const nextConfig = {
           tls: false,
           crypto: false,
         };
-        config.resolve.alias = {
-          ...(config.resolve.alias || {}),
-          process: 'process/browser',
-          '@react-native-async-storage/async-storage': false,
-        };
       }
-      
+
+      // Aliases compartidos (server y client)
+      const sharedAliases = {
+        process: 'process/browser',
+        '@react-native-async-storage/async-storage': false,
+      };
+      config.resolve.alias = {
+        ...(config.resolve.alias || {}),
+        ...sharedAliases,
+      };
+
       return config;
     },
     
@@ -105,5 +141,6 @@ const nextConfig = {
     },
   };
   
-  // ✅ CORRECTO: Export ES Module
-  export default nextConfig;
+  // ✅ Export con plugin next-intl para detección de config
+  const withNextIntl = createNextIntlPlugin();
+  export default withNextIntl(nextConfig);

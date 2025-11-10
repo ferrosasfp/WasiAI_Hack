@@ -132,7 +132,7 @@ export async function POST(req: Request) {
 
       // Index in DB
       try {
-        await prisma.modelIndex.create({ data: {
+        await (prisma as any).modelIndex?.create?.({ data: {
           chain: 'evm', network,
           modelId: null, slug, name, uri,
           version: null,
@@ -202,7 +202,7 @@ export async function POST(req: Request) {
 
       // Index in DB
       try {
-        await prisma.modelIndex.create({ data: {
+        await (prisma as any).modelIndex?.create?.({ data: {
           chain: 'sui', network: 'testnet',
           modelId: null, slug, name, uri,
           version: Number(metadata.version || 1),

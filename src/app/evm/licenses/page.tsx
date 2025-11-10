@@ -5,6 +5,9 @@ import {
   Container, Box, Stack, Typography, Button, Divider, Alert, Table, TableHead, TableRow, TableCell, TableBody, Chip, CircularProgress, Snackbar
 } from '@mui/material'
 import MARKET_ARTIFACT from '@/abis/Marketplace.json'
+import NextDynamic from 'next/dynamic'
+
+export const dynamic = 'force-dynamic'
 
 function useMarketAddress(chainId: number | undefined) {
   return React.useMemo(() => {
@@ -21,7 +24,7 @@ function useMarketAddress(chainId: number | undefined) {
   }, [chainId])
 }
 
-export default function EvmLicensesPage() {
+function EvmLicensesPageImpl() {
   const { address, isConnected, chain } = useAccount()
   const evmChainId = useEvmChainId()
   const marketAddress = useMarketAddress(evmChainId)
@@ -144,3 +147,5 @@ export default function EvmLicensesPage() {
     </Container>
   )
 }
+
+export default NextDynamic(() => Promise.resolve(EvmLicensesPageImpl), { ssr: false })

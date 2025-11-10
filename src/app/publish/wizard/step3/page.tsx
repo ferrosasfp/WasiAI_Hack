@@ -2,6 +2,9 @@
 import { useState, useEffect } from 'react'
 import { Box, Button, Paper, Typography, Stack, Grid, TextField, IconButton, Chip, LinearProgress, Tooltip, Divider, InputAdornment } from '@mui/material'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
+import NextDynamic from 'next/dynamic'
+
+export const dynamic = 'force-dynamic'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
@@ -44,7 +47,7 @@ async function loadDraft() {
 
 interface Artifact { cid: string; filename: string; sizeBytes?: number; sha256?: string; status?: 'idle'|'uploading'|'ready'|'error'; error?: string; progress?: number }
 
-export default function Step3ArtifactsDemo() {
+function Step3ArtifactsDemoImpl() {
   const detectedLocale = typeof window !== 'undefined' ? (['en','es'].includes((window.location.pathname.split('/')[1]||'').toLowerCase()) ? window.location.pathname.split('/')[1] : 'en') : 'en'
   if (typeof window !== 'undefined' && !/^\/(en|es)\//.test(window.location.pathname)) {
     window.location.replace(`/${detectedLocale}/publish/wizard/step3`)
@@ -409,3 +412,5 @@ export default function Step3ArtifactsDemo() {
     </div>
   )
 }
+
+export default NextDynamic(() => Promise.resolve(Step3ArtifactsDemoImpl), { ssr: false })

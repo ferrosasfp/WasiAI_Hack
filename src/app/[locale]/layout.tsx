@@ -8,6 +8,8 @@ import EmotionRegistry from '@/app/emotion/registry'
 const locales = ['en', 'es'] as const;
 type Locale = (typeof locales)[number];
 
+export const dynamic = 'force-dynamic'
+
 async function getMessages(locale: Locale) {
   try {
     const messages = await import(`@/messages/${locale}.json`);
@@ -17,9 +19,6 @@ async function getMessages(locale: Locale) {
   }
 }
 
-export async function generateStaticParams() {
-  return locales.map((l) => ({ locale: l }));
-}
 
 export default async function LocaleLayout({
   children,

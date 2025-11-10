@@ -1,12 +1,8 @@
 "use client";
+import React from 'react'
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
-import { Box, Button, Paper, Typography, Stack, Grid, TextField, Checkbox, FormControlLabel, Select, MenuItem, Switch, FormGroup, FormControl, InputLabel, Tooltip, IconButton, Alert, InputAdornment, List, ListItem, ListItemText } from '@mui/material'
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
-import ContentCopyIcon from '@mui/icons-material/ContentCopy'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
+import { Box, Stack, Typography, Paper, Tooltip, TextField, Grid, InputAdornment, IconButton, Alert, FormGroup, FormControlLabel, Checkbox, FormControl, InputLabel, Select, MenuItem, Button, List, ListItem, ListItemText, SvgIcon, Switch } from '@mui/material'
 import FormatBoldIcon from '@mui/icons-material/FormatBold'
 import FormatItalicIcon from '@mui/icons-material/FormatItalic'
 import TitleIcon from '@mui/icons-material/Title'
@@ -17,9 +13,17 @@ import FormatQuoteIcon from '@mui/icons-material/FormatQuote'
 import CodeIcon from '@mui/icons-material/Code'
 import ClearIcon from '@mui/icons-material/Clear'
 import CheckBoxIcon from '@mui/icons-material/CheckBox'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
+
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import EditIcon from '@mui/icons-material/Edit'
 import { useLocale, useTranslations } from 'next-intl'
+
+export const dynamic = 'force-dynamic'
 
 async function saveDraft(payload: any) {
   let addr: string | null = null

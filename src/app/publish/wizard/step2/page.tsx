@@ -2,6 +2,7 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
 import { Box, Stack, Typography, Paper, Tooltip, TextField, Autocomplete, Chip, Grid, Divider, Button, FormHelperText, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, IconButton, Card, CardActionArea } from '@mui/material'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
+import NextDynamic from 'next/dynamic'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
@@ -23,9 +24,12 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 
+export const dynamic = 'force-dynamic'
+
 async function saveDraft(payload: any) {
   let addr: string | null = null
   try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
+
   const res = await fetch('/api/models/draft', {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(addr ? { 'X-Wallet-Address': addr } : {}) },
@@ -41,7 +45,7 @@ async function loadDraft() {
   return res.json()
 }
 
-export default function Step2Compatibility() {
+function Step2CompatibilityImpl() {
   const detectedLocale = typeof window !== 'undefined' ? (['en','es'].includes((window.location.pathname.split('/')[1]||'').toLowerCase()) ? window.location.pathname.split('/')[1] : 'en') : 'en'
   // Redirige esta ruta sin prefijo a la localización equivalente
   if (typeof window !== 'undefined' && !/^\/(en|es)\//.test(window.location.pathname)) {
@@ -1094,3 +1098,5 @@ export default function Step2Compatibility() {
     </Box>
   )
 }
+
+export default NextDynamic(() => Promise.resolve(Step2CompatibilityImpl), { ssr: false })

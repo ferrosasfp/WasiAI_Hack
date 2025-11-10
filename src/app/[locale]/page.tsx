@@ -25,7 +25,9 @@ import {
 import Link from 'next/link';
 import {useTranslations, useLocale} from 'next-intl';
 
-export default function LocaleHome() {
+export const dynamic = 'force-dynamic'
+
+export default function LocaleHome({ params }: { params: { locale: string } }) {
   const t = useTranslations('landing');
   const locale = useLocale();
   const isES = String(locale || '').toLowerCase().startsWith('es')

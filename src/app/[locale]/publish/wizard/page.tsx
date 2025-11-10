@@ -1,18 +1,20 @@
 "use client";
 
-import React from 'react'
-import dynamic from 'next/dynamic'
+import React from 'react';
+import NextDynamic from 'next/dynamic'
 import Image from 'next/image'
 import { Box, Stack, Typography, Paper, Button, Grid, Chip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import {useLocale, useTranslations} from 'next-intl';
 import { useRouter } from 'next/navigation'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
-const UnifiedConnectButton = dynamic<any>(
+const UnifiedConnectButton = NextDynamic<any>(
   () => import('@/components/UnifiedConnectButton').then(m => m.UnifiedConnectButton),
   { ssr: false }
 )
 // Removed wallet hooks from this page to keep bundle smaller; connection is handled inside UnifiedConnectButton
+
+export const dynamic = 'force-dynamic'
 
 export default function WizardIndexLocalized() {
   const t = useTranslations()

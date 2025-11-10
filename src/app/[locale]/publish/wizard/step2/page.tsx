@@ -23,6 +23,8 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import { useLocale, useTranslations } from 'next-intl'
 
+export const dynamic = 'force-dynamic'
+
 async function saveDraft(payload: any) {
   let addr: string | null = null
   try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}

@@ -4,6 +4,7 @@ import { getModelsService } from '@/domain/models';
 import type { ChainKind } from '@/domain/models/types';
 import { createPublicClient, http } from 'viem'
 import { avalanche, avalancheFuji, base, baseSepolia } from 'viem/chains'
+import MARKET_ARTIFACT from '@/abis/Marketplace.json'
 
 const MARKET_ABI_MIN = [
   { name: 'nextId', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
@@ -25,6 +26,8 @@ const MARKET_ABI_MIN = [
   ] },
 ] as const
 
+const ABI = (MARKET_ARTIFACT as any).abi
+
 function getChainById(chainId: number) {
   const list = [avalancheFuji, avalanche, baseSepolia, base]
   return list.find(c => c?.id === chainId)
@@ -41,9 +44,15 @@ export async function GET(req: NextRequest) {
     const listedOnly = searchParams.get('listed') === '1' || searchParams.get('listed') === 'true' || undefined;
     const q = searchParams.get('q') || undefined;
 
-    // Elegir servicio por chain (evm placeholder: hoy fallback a Sui)
-    const service = getModelsService(chain, evmChainId);
-    const data = await service.getModelsPage({ start, limit, order, listedOnly, q });
+    // Elegir servicio por chain
+    // Nota: para 'evm' devolvemos placeholder vacío por ahora para evitar 500
+    let data: any = [];
+    if (chain !== 'evm') {
+      try {
+        const service = getModelsService(chain);
+        data = await service.getModelsPage({ start, limit, order, listedOnly, q });
+      } catch {}
+    }
 
     let marketAddress: string | undefined = undefined;
     if (chain === 'evm' && typeof evmChainId === 'number') {
@@ -56,21 +65,66 @@ export async function GET(req: NextRequest) {
       try {
         const chainObj = getChainById(evmChainId);
         if (chainObj) {
-          const client = createPublicClient({ chain: chainObj, transport: http() })
-          const nextId: bigint = await client.readContract({ address: marketAddress as `0x${string}`, abi: MARKET_ABI_MIN as any, functionName: 'nextId', args: [] }) as any
-          const active: bigint = await client.readContract({ address: marketAddress as `0x${string}`, abi: MARKET_ABI_MIN as any, functionName: 'activeModels', args: [] }) as any
+          const rpcs: any = (chainObj as any).rpcUrls || {}
+          const rpcUrl: string | undefined = (rpcs.public && rpcs.public.http && rpcs.public.http[0]) || (rpcs.default && rpcs.default.http && rpcs.default.http[0]) || undefined
+          const client = createPublicClient({ chain: chainObj as any, transport: http(rpcUrl) })
+          const nextId: bigint = await client.readContract({ address: marketAddress as `0x${string}`, abi: ABI as any, functionName: 'nextId', args: [] }) as any
+          const active: bigint = await client.readContract({ address: marketAddress as `0x${string}`, abi: ABI as any, functionName: 'activeModels', args: [] }) as any
           const maxId = Number(nextId) - 1
           const samples: any[] = []
           let firstErr: string | undefined
+          // Recolectar últimas N para debug
           for (let i = Math.max(1, maxId - 2); i <= maxId; i++) {
             try {
-              const m: any = await client.readContract({ address: marketAddress as `0x${string}`, abi: MARKET_ABI_MIN as any, functionName: 'models', args: [BigInt(i)] })
-              samples.push({ id: i, listed: !!m?.listed, name: m?.name || '' })
+              const m: any = await client.readContract({ address: marketAddress as `0x${string}`, abi: ABI as any, functionName: 'models', args: [BigInt(i)] })
+              const listed = typeof m?.listed === 'boolean' ? m.listed : Boolean(m?.[5])
+              const name = typeof m?.name === 'string' ? m.name : (typeof m?.[2] === 'string' ? m[2] : '')
+              samples.push({ id: i, listed, name })
             } catch (e: any) {
               if (!firstErr) firstErr = String(e?.message || e)
             }
           }
           evmDebug = { nextId: Number(nextId), activeModels: Number(active), maxId, lastIds: samples, firstErr }
+
+          // Construir listado mínimo para UI (ModelSummary-like)
+          const evmItems: any[] = []
+          const SCAN = 200
+          for (let i = maxId; i >= Math.max(1, maxId - SCAN + 1); i--) {
+            try {
+              const m: any = await client.readContract({ address: marketAddress as `0x${string}`, abi: ABI as any, functionName: 'models', args: [BigInt(i)] })
+              const listed = typeof m?.listed === 'boolean' ? m.listed : Boolean(m?.[5])
+              const name = typeof m?.name === 'string' ? m.name : (typeof m?.[2] === 'string' ? m[2] : undefined)
+              const uri = typeof m?.uri === 'string' ? m.uri : (typeof m?.[3] === 'string' ? m[3] : undefined)
+              const pricePerp = (m?.pricePerpetual != null) ? m.pricePerpetual : m?.[6]
+              const priceSub = (m?.priceSubscription != null) ? m.priceSubscription : m?.[7]
+              const durDays = (m?.defaultDurationDays != null) ? m.defaultDurationDays : m?.[8]
+              const version = (m?.version != null) ? m.version : m?.[11]
+              const item = {
+                id: i,
+                listed: !!listed,
+                name,
+                uri,
+                price_perpetual: pricePerp != null ? Number(pricePerp) : undefined,
+                price_subscription: priceSub != null ? Number(priceSub) : undefined,
+                default_duration_days: durDays != null ? Number(durDays) : undefined,
+                version: version != null ? Number(version) : undefined,
+              }
+              evmItems.push(item)
+            } catch {}
+          }
+          // Filtros y orden
+          let list = evmItems
+          const query = (q || '').trim().toLowerCase()
+          if (query) list = list.filter(m => (m.name || '').toLowerCase().includes(query))
+          if (listedOnly) list = list.filter(m => !!m.listed)
+          const byPrice = (a: any, b: any) => Number((b.price_perpetual ?? 0) - (a.price_perpetual ?? 0));
+          if (order === 'price_desc') list.sort(byPrice)
+          else if (order === 'price_asc') list.sort((a, b) => Number((a.price_perpetual ?? 0) - (b.price_perpetual ?? 0)))
+          else if (order === 'version_desc') list.sort((a, b) => Number((b.version ?? 0) - (a.version ?? 0)))
+          else if (order === 'recent_desc') list.sort((a, b) => Number((b.id ?? 0) - (a.id ?? 0)))
+          else if (order === 'recent_asc') list.sort((a, b) => Number((a.id ?? 0) - (b.id ?? 0)))
+          else list.sort((a, b) => { const la = !!a.listed, lb = !!b.listed; if (la !== lb) return la ? -1 : 1; return byPrice(a, b); })
+          data = list.slice(start, start + limit)
         }
       } catch {}
     }

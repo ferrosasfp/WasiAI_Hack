@@ -4,6 +4,7 @@ import React from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
+import { WalletEcosystemProvider } from '@/contexts/WalletEcosystemContext';
 import { getFullnodeUrl } from '@mysten/sui/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -40,10 +41,12 @@ export function Providers({ children }: ProvidersProps) {
     <QueryClientProvider client={queryClient}>
       <SuiClientProvider networks={networks} defaultNetwork="testnet">
         <WalletProvider autoConnect>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            {children}
-          </ThemeProvider>
+          <WalletEcosystemProvider>
+            <ThemeProvider theme={theme}>
+              <CssBaseline />
+              {children}
+            </ThemeProvider>
+          </WalletEcosystemProvider>
         </WalletProvider>
       </SuiClientProvider>
     </QueryClientProvider>

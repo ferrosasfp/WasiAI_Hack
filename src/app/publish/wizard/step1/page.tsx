@@ -34,7 +34,9 @@ import LanguageIcon from '@mui/icons-material/Language'
 import TwitterIcon from '@mui/icons-material/Twitter'
 import LinkedInIcon from '@mui/icons-material/LinkedIn'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
+import NextDynamic from 'next/dynamic'
 
+export const dynamic = 'force-dynamic'
 async function saveDraft(payload: any) {
   let addr: string | null = null
   try {
@@ -57,7 +59,7 @@ async function loadDraft() {
   return res.json()
 }
 
-export default function Step1Basics() {
+function Step1BasicsImpl() {
   const detectedLocale = typeof window !== 'undefined' ? (['en','es'].includes((window.location.pathname.split('/')[1]||'').toLowerCase()) ? window.location.pathname.split('/')[1] : 'en') : 'en'
   if (typeof window !== 'undefined' && !/^\/(en|es)\//.test(window.location.pathname)) {
     window.location.replace(`/${detectedLocale}/publish/wizard/step1`)
@@ -586,6 +588,8 @@ export default function Step1Basics() {
     </Box>
   )
 }
+
+export default NextDynamic(() => Promise.resolve(Step1BasicsImpl), { ssr: false })
 
 function safeIsJson(s: string) {
   try { JSON.parse(s); return true } catch { return false }

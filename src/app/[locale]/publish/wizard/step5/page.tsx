@@ -13,6 +13,8 @@ import { useLocale, useTranslations } from 'next-intl'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
 import { useRouter } from 'next/navigation'
 
+export const dynamic = 'force-dynamic'
+
 const XIcon = (props: any) => (
   <SvgIcon {...props} viewBox="0 0 24 24">
     <path d="M3 2l8 10-8 10h3l6.5-8L19 22h3l-8-10 8-10h-3l-6.5 8L6 2H3z" fill="currentColor" />

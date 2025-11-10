@@ -2,6 +2,9 @@
 import { useMemo, useState, useEffect } from 'react'
 import { keccak256, toUtf8Bytes } from 'ethers'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
+import NextDynamic from 'next/dynamic'
+
+export const dynamic = 'force-dynamic'
 import { Box, Button, Paper, Typography, Stack, Grid, TextField, Checkbox, FormControlLabel, Select, MenuItem, Switch, FormGroup, FormControl, InputLabel, Tooltip, IconButton, Alert } from '@mui/material'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
@@ -21,7 +24,7 @@ async function saveDraft(payload: any) {
   return res.json()
 }
 
-export default function Step4LicensesTerms() {
+function Step4LicensesTermsImpl() {
   const detectedLocale = typeof window !== 'undefined' ? (['en','es'].includes((window.location.pathname.split('/')[1]||'').toLowerCase()) ? window.location.pathname.split('/')[1] : 'en') : 'en'
   if (typeof window !== 'undefined' && !/^\/(en|es)\//.test(window.location.pathname)) {
     window.location.replace(`/${detectedLocale}/publish/wizard/step4`)
@@ -268,3 +271,5 @@ export default function Step4LicensesTerms() {
     </div>
   )
 }
+
+export default NextDynamic(() => Promise.resolve(Step4LicensesTermsImpl), { ssr: false })

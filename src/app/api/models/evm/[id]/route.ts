@@ -1,6 +1,6 @@
 // src/app/api/models/evm/[id]/route.ts
 import { NextRequest } from 'next/server'
-import { getModelsService } from '@/domain/models'
+import { getEvmModelsService } from '@/adapters/evm/models'
 
 export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
   try {
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
       return new Response(JSON.stringify({ error: 'invalid id' }), { status: 400, headers: { 'content-type': 'application/json' } })
     }
     const evmChainId = searchParams.get('chainId') ? Number(searchParams.get('chainId')) : undefined
-    const service = getModelsService('evm', evmChainId)
+    const service = getEvmModelsService(evmChainId)
     const data = await service.getModelInfo(idNum)
 
     let marketAddress: string | undefined

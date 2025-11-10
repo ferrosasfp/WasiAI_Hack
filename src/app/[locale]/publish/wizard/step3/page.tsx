@@ -1,4 +1,5 @@
 "use client";
+import React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Box, Button, Paper, Typography, Stack, Grid, TextField, IconButton, Chip, LinearProgress, Tooltip, Divider, InputAdornment } from '@mui/material'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
@@ -13,6 +14,8 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import DescriptionIcon from '@mui/icons-material/Description'
 import ContentPasteIcon from '@mui/icons-material/ContentPaste'
 import { useLocale, useTranslations } from 'next-intl'
+
+export const dynamic = 'force-dynamic'
 
 async function saveDraft(payload: any) {
   let addr: string | null = null
