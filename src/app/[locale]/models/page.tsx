@@ -106,11 +106,14 @@ export default function ExploreModelsPage() {
       const isFirst = nextStart === 0
       isFirst ? setLoading(true) : setLoadingMore(true)
       try {
-        const params = new URLSearchParams({ start: String(nextStart), limit: String(limit), order: 'featured', listed: '1', chain: ecosystem })
+        // NEW: Use indexed API (FAST!) - already has metadata cached
+        const page = Math.floor(nextStart / limit) + 1
+        const params = new URLSearchParams({ page: String(page), limit: String(limit) })
         if (ecosystem === 'evm' && typeof evmChainId === 'number') params.set('chainId', String(evmChainId))
-        const r = await fetchWithTimeout(`/api/models-page?${params.toString()}`, { cache: 'no-store' }, isFirst ? initialTimeoutMs : 8000)
+        const r = await fetchWithTimeout(`/api/indexed/models?${params.toString()}`, { cache: 'no-store' }, isFirst ? initialTimeoutMs : 8000)
         const j = await r.json().catch(()=>({}))
-        const arr = Array.isArray(j?.data) ? j.data as any[] : []
+        // API indexada devuelve {models: [], total, page, pages}
+        const arr = Array.isArray(j?.models) ? j.models as any[] : []
         // hydrate images similar to non-locale page
         const gateway = (process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://gateway.pinata.cloud')
         const toHttpFromIpfs = (u: string): string => {
@@ -139,34 +142,40 @@ export default function ExploreModelsPage() {
           if (u.startsWith('/ipfs/')) return `/api/ipfs${u}`
           return `/api/ipfs/ipfs/${u}`
         }
-        const concurrency = 6
-        const out: ApiModel[] = new Array(arr.length)
-        const runTask = async (m:any, index:number) => {
-          const imageUrl: string | undefined = typeof m?.imageUrl === 'string' ? m.imageUrl : undefined
-          out[index] = {
-            objectId: String(m?.objectId || ''),
-            modelId: Number(m?.id ?? m?.modelId),
-            name: m?.name,
-            description: m?.description,
+        // Transform indexed API response (already has metadata cached!)
+        const withImages: ApiModel[] = arr.map((m: any) => {
+          const meta = m.metadata || {}
+          return {
+            objectId: String(m?.model_id || ''),
+            modelId: Number(m?.model_id),
+            name: m?.name || meta?.name,
+            description: meta?.shortSummary || meta?.description,
             listed: Boolean(m?.listed),
             uri: m?.uri,
             owner: m?.owner,
-            version: Number(m?.version),
+            version: Number(m?.version || meta?.version),
             price_perpetual: Number(m?.price_perpetual || 0),
             price_subscription: Number(m?.price_subscription || 0),
-            imageUrl,
+            imageUrl: m?.image_url,
+            // Extract from cached metadata
+            categories: m?.categories || meta?.categories || [],
+            tasks: meta?.capabilities?.tasks || [],
+            tags: m?.tags || meta?.tags || [],
+            architectures: meta?.architecture?.architectures || [],
+            frameworks: meta?.architecture?.frameworks || [],
+            precision: meta?.architecture?.precisions || [],
+            rights: meta?.licensePolicy?.rights ? {
+              api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.includes('API') : false,
+              download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.includes('Download') : false,
+              transferable: Boolean(meta.licensePolicy.transferable)
+            } : undefined,
+            deliveryMode: Array.isArray(meta?.licensePolicy?.delivery) ? 
+              (meta.licensePolicy.delivery.includes('API') && meta.licensePolicy.delivery.includes('Download') ? 'both' : 
+               meta.licensePolicy.delivery.includes('API') ? 'api' : 
+               meta.licensePolicy.delivery.includes('Download') ? 'download' : undefined) : undefined,
+            __preMeta: meta
           } as ApiModel
-        }
-        let cursor = 0
-        const worker = async () => {
-          while (true) {
-            const i = cursor++
-            if (i >= arr.length) break
-            await runTask(arr[i], i)
-          }
-        }
-        await Promise.all(Array.from({ length: Math.min(concurrency, arr.length) }, () => worker()))
-        let withImages: ApiModel[] = out.filter(Boolean)
+        }).filter(Boolean)
         if (alive) {
           // Pintar primero
           if (isFirst) {
@@ -194,107 +203,7 @@ export default function ExploreModelsPage() {
         if (alive && isFirst && withImages.length > 0) {
           try { sessionStorage.setItem('models_first_page_cache', JSON.stringify(withImages)) } catch {}
         }
-        // Enriquecer después: primero 3 y luego siguientes 3, en paralelo y sin bloquear
-        if (alive && isFirst) {
-          const strMeta = (v:any): string => {
-            if (v == null) return ''
-            if (typeof v === 'string') return v
-            if (typeof v === 'object') {
-              const n = v.name || v.framework || v.arch || v.type || ''
-              const ver = v.version || v.ver || v.v || ''
-              return [String(n||'').trim(), String(ver||'').trim()].filter(Boolean).join(' ')
-            }
-            return String(v)
-          }
-          const first3 = withImages.slice(0, 3).filter(m=> m?.uri)
-          first3.forEach(async (base) => {
-            try {
-              const metaUrl = toApiFromIpfs(String(base.uri))
-              const r = await fetch(metaUrl, { cache: 'no-store' })
-              if (!r.ok) return
-              const meta: any = await r.json().catch(()=>undefined)
-              if (!meta) return
-              const categories = Array.isArray(meta?.categories) ? meta.categories : []
-              const tasks = Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : [])
-              const tagsA = Array.isArray(meta?.tags) ? meta.tags : []
-              const tagsB = Array.isArray(meta?.capabilities?.tags) ? meta.capabilities.tags : []
-              const mods = Array.isArray(meta?.modalities) ? meta.modalities : (Array.isArray(meta?.capabilities?.modalities) ? meta.capabilities.modalities : [])
-              const tags = Array.from(new Set([...tagsA, ...tagsB, ...mods].filter(Boolean).map(String)))
-              const architectures = Array.isArray(meta?.architectures) ? meta.architectures.map(strMeta)
-                : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures.map(strMeta) : [])
-              const frameworks = Array.isArray(meta?.frameworks) ? meta.frameworks.map(strMeta)
-                : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks.map(strMeta) : [])
-              const precision = Array.isArray(meta?.precision) ? meta.precision.map(strMeta)
-                : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions.map(strMeta) : [])
-              const rights = (base.rights && typeof base.rights === 'object') ? base.rights : (meta?.rights && typeof meta.rights === 'object' ? {
-                api: !!meta.rights.api,
-                download: !!meta.rights.download,
-                transferable: !!meta.rights.transferable,
-              } : (meta?.licensePolicy ? {
-                api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('api') : undefined,
-                download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('download') : undefined,
-                transferable: !!meta.licensePolicy.transferable,
-              } : undefined))
-              const deliveryMode = base.deliveryMode || (typeof meta?.deliveryMode === 'string' && meta.deliveryMode) || (typeof meta?.delivery?.mode === 'string' && meta.delivery.mode) || (Array.isArray(meta?.licensePolicy?.delivery) ? (()=>{
-                const d = meta.licensePolicy.delivery.map((x:any)=> String(x).toLowerCase())
-                return d.includes('api') && d.includes('download') ? 'both' : d.includes('api') ? 'api' : d.includes('download') ? 'download' : undefined
-              })() : undefined)
-              setItems(prev => prev.map(it => {
-                if ((it.modelId ?? it.objectId) === (base.modelId ?? base.objectId)) {
-                  return { ...it, categories, tasks, tags, architectures, frameworks, precision, rights, deliveryMode, __preMeta: meta }
-                }
-                return it
-              }))
-            } catch {}
-          })
-          // Enriquecer los siguientes 3 tras un pequeño retraso
-          const next3 = withImages.slice(3, 6).filter(m=> m?.uri)
-          if (next3.length) {
-            setTimeout(()=>{
-              if (!alive) return
-              next3.forEach(async (base) => {
-                try {
-                  const metaUrl = toApiFromIpfs(String(base.uri))
-                  const r = await fetch(metaUrl, { cache: 'no-store' })
-                  if (!r.ok) return
-                  const meta: any = await r.json().catch(()=>undefined)
-                  if (!meta) return
-                  const categories = Array.isArray(meta?.categories) ? meta.categories : []
-                  const tasks = Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : [])
-                  const tagsA = Array.isArray(meta?.tags) ? meta.tags : []
-                  const tagsB = Array.isArray(meta?.capabilities?.tags) ? meta.capabilities.tags : []
-                  const mods = Array.isArray(meta?.modalities) ? meta.modalities : (Array.isArray(meta?.capabilities?.modalities) ? meta.capabilities.modalities : [])
-                  const tags = Array.from(new Set([...tagsA, ...tagsB, ...mods].filter(Boolean).map(String)))
-                  const architectures = Array.isArray(meta?.architectures) ? meta.architectures.map(strMeta)
-                    : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures.map(strMeta) : [])
-                  const frameworks = Array.isArray(meta?.frameworks) ? meta.frameworks.map(strMeta)
-                    : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks.map(strMeta) : [])
-                  const precision = Array.isArray(meta?.precision) ? meta.precision.map(strMeta)
-                    : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions.map(strMeta) : [])
-                  const rights = (base.rights && typeof base.rights === 'object') ? base.rights : (meta?.rights && typeof meta.rights === 'object' ? {
-                    api: !!meta.rights.api,
-                    download: !!meta.rights.download,
-                    transferable: !!meta.rights.transferable,
-                  } : (meta?.licensePolicy ? {
-                    api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('api') : undefined,
-                    download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('download') : undefined,
-                    transferable: !!meta.licensePolicy.transferable,
-                  } : undefined))
-                  const deliveryMode = base.deliveryMode || (typeof meta?.deliveryMode === 'string' && meta.deliveryMode) || (typeof meta?.delivery?.mode === 'string' && meta.delivery.mode) || (Array.isArray(meta?.licensePolicy?.delivery) ? (()=> {
-                    const d = meta.licensePolicy.delivery.map((x:any)=> String(x).toLowerCase())
-                    return d.includes('api') && d.includes('download') ? 'both' : d.includes('api') ? 'api' : d.includes('download') ? 'download' : undefined
-                  })() : undefined)
-                  setItems(prev => prev.map(it => {
-                    if ((it.modelId ?? it.objectId) === (base.modelId ?? base.objectId)) {
-                      return { ...it, categories, tasks, tags, architectures, frameworks, precision, rights, deliveryMode, __preMeta: meta }
-                    }
-                    return it
-                  }))
-                } catch {}
-              })
-            }, 700)
-          }
-        }
+        // No need to enrich metadata anymore - already cached in DB! ✅
       } catch {
         if (alive && nextStart === 0) {
           setItems([])
@@ -359,8 +268,9 @@ export default function ExploreModelsPage() {
           if (alive) {
             // trigger loadMore by refetching effect body
             (async ()=>{
-              // reuse loader but do not reset
-              const params = new URLSearchParams({ start: String(start), limit: String(limit), order: 'featured', listed: '1', chain: ecosystem })
+              // reuse loader but do not reset - use indexed API
+              const page = Math.floor(start / limit) + 1
+              const params = new URLSearchParams({ page: String(page), limit: String(limit) })
               if (ecosystem === 'evm' && typeof evmChainId === 'number') params.set('chainId', String(evmChainId))
               setLoadingMore(true)
               try {
@@ -368,7 +278,7 @@ export default function ExploreModelsPage() {
                 const t = setTimeout(()=> ac.abort(), 10000)
                 let r: Response
                 try {
-                  r = await fetch(`/api/models-page?${params.toString()}`, { cache: 'no-store', signal: ac.signal })
+                  r = await fetch(`/api/indexed/models?${params.toString()}`, { cache: 'no-store', signal: ac.signal })
                 } catch (e: any) {
                   if (e && (e.name === 'AbortError' || e.code === 'ABORT_ERR')) {
                     clearTimeout(t)
@@ -379,61 +289,40 @@ export default function ExploreModelsPage() {
                 }
                 clearTimeout(t)
                 const j = await r.json().catch(()=>({}))
-                const arr = Array.isArray(j?.data) ? j.data as any[] : []
-                const toHttpFromIpfs = (u: string): string => {
-                  if (!u) return ''
-                  if (u.startsWith('ipfs://')) return `/api/ipfs/ipfs/${u.replace('ipfs://','')}`
-                  if (u.startsWith('/ipfs/')) return `/api/ipfs${u}`
-                  if (u.startsWith('http://') || u.startsWith('https://')) {
-                    try {
-                      const url = new URL(u)
-                      if (url.hostname.includes('pinata.cloud') || url.hostname.includes('ipfs.io')) {
-                        const idx = url.pathname.indexOf('/ipfs/')
-                        if (idx >= 0) {
-                          const rest = url.pathname.substring(idx + '/ipfs/'.length)
-                          return `/api/ipfs/ipfs/${rest}`
-                        }
-                      }
-                    } catch {}
-                    return u
-                  }
-                  return `/api/ipfs/ipfs/${u}`
-                }
-                const toApiFromIpfs = (u: string): string => {
-                  if (!u) return ''
-                  if (u.startsWith('http://') || u.startsWith('https://')) return u
-                  if (u.startsWith('ipfs://')) return `/api/ipfs/ipfs/${u.replace('ipfs://','')}`
-                  if (u.startsWith('/ipfs/')) return `/api/ipfs${u}`
-                  return `/api/ipfs/ipfs/${u}`
-                }
-                const concurrency = 3
-                const out: ApiModel[] = new Array(arr.length)
-                const runTask = async (m:any, index:number) => {
-                  const imageUrl: string | undefined = typeof m?.imageUrl === 'string' ? m.imageUrl : undefined
-                  out[index] = {
-                    objectId: String(m?.objectId || ''),
-                    modelId: Number(m?.id ?? m?.modelId),
-                    name: m?.name,
-                    description: m?.description,
+                // Transform indexed API response (already has metadata cached!)
+                const arr = Array.isArray(j?.models) ? j.models as any[] : []
+                const withImages: ApiModel[] = arr.map((m: any) => {
+                  const meta = m.metadata || {}
+                  return {
+                    objectId: String(m?.model_id || ''),
+                    modelId: Number(m?.model_id),
+                    name: m?.name || meta?.name,
+                    description: meta?.shortSummary || meta?.description,
                     listed: Boolean(m?.listed),
                     uri: m?.uri,
                     owner: m?.owner,
-                    version: Number(m?.version),
+                    version: Number(m?.version || meta?.version),
                     price_perpetual: Number(m?.price_perpetual || 0),
                     price_subscription: Number(m?.price_subscription || 0),
-                    imageUrl,
+                    imageUrl: m?.image_url,
+                    categories: m?.categories || meta?.categories || [],
+                    tasks: meta?.capabilities?.tasks || [],
+                    tags: m?.tags || meta?.tags || [],
+                    architectures: meta?.architecture?.architectures || [],
+                    frameworks: meta?.architecture?.frameworks || [],
+                    precision: meta?.architecture?.precisions || [],
+                    rights: meta?.licensePolicy?.rights ? {
+                      api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.includes('API') : false,
+                      download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.includes('Download') : false,
+                      transferable: Boolean(meta.licensePolicy.transferable)
+                    } : undefined,
+                    deliveryMode: Array.isArray(meta?.licensePolicy?.delivery) ? 
+                      (meta.licensePolicy.delivery.includes('API') && meta.licensePolicy.delivery.includes('Download') ? 'both' : 
+                       meta.licensePolicy.delivery.includes('API') ? 'api' : 
+                       meta.licensePolicy.delivery.includes('Download') ? 'download' : undefined) : undefined,
+                    __preMeta: meta
                   } as ApiModel
-                }
-                let cursor = 0
-                const worker = async () => {
-                  while (true) {
-                    const i = cursor++
-                    if (i >= arr.length) break
-                    await runTask(arr[i], i)
-                  }
-                }
-                await Promise.all(Array.from({ length: Math.min(concurrency, arr.length) }, () => worker()))
-                const withImages: ApiModel[] = out.filter(Boolean)
+                }).filter(Boolean)
                 if (alive) {
                   setItems(prev => [...prev, ...withImages])
                   setHasMore(withImages.length === limit)

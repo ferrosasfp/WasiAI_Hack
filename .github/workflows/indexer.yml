@@ -1,0 +1,57 @@
+name: Blockchain Indexer
+
+on:
+  # Run every 15 minutes
+  schedule:
+    - cron: '*/15 * * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      chainId:
+        description: 'Chain ID to index (empty = all)'
+        required: false
+        type: string
+
+jobs:
+  index:
+    name: Index blockchain data
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        # Index all chains in parallel
+        chainId: [43113, 84532]
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run indexer for chain ${{ matrix.chainId }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXT_PUBLIC_EVM_MARKET_43113: ${{ secrets.NEXT_PUBLIC_EVM_MARKET_43113 }}
+          NEXT_PUBLIC_EVM_MARKET_43114: ${{ secrets.NEXT_PUBLIC_EVM_MARKET_43114 }}
+          NEXT_PUBLIC_EVM_MARKET_84532: ${{ secrets.NEXT_PUBLIC_EVM_MARKET_84532 }}
+          NEXT_PUBLIC_EVM_MARKET_8453: ${{ secrets.NEXT_PUBLIC_EVM_MARKET_8453 }}
+          NEXT_PUBLIC_AVALANCHE_FUJI_RPC: ${{ secrets.NEXT_PUBLIC_AVALANCHE_FUJI_RPC }}
+          NEXT_PUBLIC_AVALANCHE_MAINNET_RPC: ${{ secrets.NEXT_PUBLIC_AVALANCHE_MAINNET_RPC }}
+          NEXT_PUBLIC_BASE_SEPOLIA_RPC: ${{ secrets.NEXT_PUBLIC_BASE_SEPOLIA_RPC }}
+          NEXT_PUBLIC_BASE_MAINNET_RPC: ${{ secrets.NEXT_PUBLIC_BASE_MAINNET_RPC }}
+        run: |
+          npm run indexer -- --chain=${{ matrix.chainId }}
+      
+      - name: Report status
+        if: always()
+        run: |
+          echo "Indexer completed for chain ${{ matrix.chainId }}"

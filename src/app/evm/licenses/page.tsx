@@ -284,177 +284,68 @@ function EvmLicensesPageImpl() {
     }
   }, [publicClient, marketAddress, evmChainId, toHttpFromIpfs, getLogsMemoized, rememberModelId])
 
+  // NEW: Load licenses from indexed API (FAST!)
   const load = React.useCallback(async () => {
     try {
-      if (!publicClient) return
-      if (!marketAddress) { setSnkSev('error'); setSnkMsg('Marketplace address is not configured for this network.'); setSnkOpen(true); return }
+      if (!address) return
       setLoading(true)
-      const abi: any = (MARKET_ARTIFACT as any).abi
-      const lastId: bigint = await publicClient.readContract({ address: marketAddress as `0x${string}`, abi, functionName: 'lastLicenseId', args: [] }) as any
-      const max = Number(lastId)
-      const startFrom = Math.max(1, max - 199) // scan last 200 tokens
-      const tokenIds: number[] = []
-      for (let tokenId = max; tokenId >= startFrom; tokenId--) {
-        tokenIds.push(tokenId)
-      }
-
-      const statuses = new Map<number, any>()
-      const CHUNK_SIZE = 25
-      for (let i = 0; i < tokenIds.length; i += CHUNK_SIZE) {
-        const chunk = tokenIds.slice(i, i + CHUNK_SIZE)
-        const settled = await Promise.allSettled(chunk.map((tokenId) => fetchLicenseStatus(tokenId, abi)))
-        settled.forEach((result, idx) => {
-          const tokenId = chunk[idx]
-          if (result.status === 'fulfilled' && result.value) {
-            statuses.set(tokenId, result.value)
+      
+      // Fetch from indexed API (instant!)
+      const response = await fetch(
+        `/api/indexed/licenses?userAddress=${address}&chainId=${evmChainId}`,
+        { cache: 'no-store' }
+      )
+      
+      if (!response.ok) throw new Error('Failed to fetch licenses')
+      
+      const data = await response.json()
+      
+      // Transform to match existing UI format
+      const items = data.licenses.map((lic: any) => {
+        const metadata = lic.model_metadata || {}
+        
+        // Create viewModel from metadata if available
+        let viewModel = null
+        try {
+          if (metadata && Object.keys(metadata).length > 0) {
+            viewModel = createViewModelFromPublished({
+              ...metadata,
+              artifacts: metadata.artifacts || [],
+            })
           }
-        })
-      }
-
-      const items: any[] = []
-      for (const tokenId of tokenIds) {
-        const st = statuses.get(tokenId)
-        if (!st) continue
-        const owner: string = st?.[5]
-        if (owner && address && owner.toLowerCase() === address.toLowerCase()) {
-          items.push({
-            tokenId,
-            revoked: Boolean(st?.[0]),
-            validApi: Boolean(st?.[1]),
-            validDownload: Boolean(st?.[2]),
-            kind: Number(st?.[3]) as 0|1,
-            expiresAt: Number(st?.[4]) || 0,
-            owner,
-            modelId: undefined,
-            modelName: undefined,
-          })
+        } catch {}
+        
+        return {
+          tokenId: lic.token_id,
+          modelId: lic.model_id,
+          modelName: lic.model_name || `Model #${lic.model_id}`,
+          revoked: lic.revoked,
+          validApi: lic.valid_api,
+          validDownload: lic.valid_download,
+          kind: lic.kind,
+          expiresAt: Number(lic.expires_at),
+          owner: lic.owner,
+          modelData: {
+            name: lic.model_name,
+            uri: lic.model_uri,
+            imageUrl: lic.model_image,
+            ...metadata,
+            artifactsList: metadata.artifacts || [],
+            download_notes: metadata.downloadNotes || '',
+          },
+          viewModel,
         }
-      }
-      // resolve modelId via logs for the collected tokenIds
-      try {
-        const need = new Set<number>(items.map(it=> it.tokenId))
-        const map: Map<number, number> = new Map()
-        const event = (abi as any).find((e:any)=> e.type==='event' && e.name==='LicenseMinted')
-        const latest = await publicClient.getBlockNumber()
-        const STEP = 2000n
-        let to = latest
-        for (let i = 0; i < 2000 && to > 0n && map.size < need.size; i++) {
-          const from = to > STEP ? (to - STEP + 1n) : 0n
-          try {
-            const logs = await getLogsMemoized({ address: marketAddress as `0x${string}`, event, fromBlock: from, toBlock: to })
-            for (const l of logs) {
-              try {
-                const lic = Number((l as any).args?.licenseId)
-                if (need.has(lic) && !map.has(lic)) {
-                  const mid = Number((l as any).args?.modelId || 0)
-                  if (mid) {
-                    map.set(lic, mid)
-                    rememberModelId(lic, mid)
-                  }
-                }
-              } catch {}
-            }
-          } catch {}
-          if (to === 0n) break
-          to = from > 0n ? (from - 1n) : 0n
-        }
-        // fetch full model data + metadata for resolved modelIds
-        const uniqModelIds = Array.from(new Set(Array.from(map.values())))
-        const modelsData = new Map<number, any>()
-        await Promise.all(uniqModelIds.map(async (mid)=>{
-          try {
-            const r = await fetch(`/api/models/evm/${mid}?chainId=${evmChainId}`, { cache: 'no-store' })
-            const j = await r.json().catch(()=>null)
-            const modelData = j?.data
-            if (!modelData) return
-            
-            // Fetch IPFS metadata if URI exists
-            let enrichedData = { ...modelData }
-            const uri = modelData?.uri
-            if (uri && typeof uri === 'string' && !uri.includes('.enc')) {
-              try {
-                const metaUrl = toHttpFromIpfs(uri)
-                const metaRes = await fetch(metaUrl, { cache: 'no-store' })
-                const meta = await metaRes.json().catch(()=>null)
-                if (meta) {
-                  // Extract image
-                  const img = meta.image || meta.image_url || meta.thumbnail || meta?.cover?.thumbCid || meta?.cover?.cid
-                  if (img && typeof img === 'string') {
-                    enrichedData.imageUrl = toHttpFromIpfs(img)
-                  }
-                  // Extract artifacts
-                  const toArray = (v: any) => Array.isArray(v) ? v : (v ? [v] : [])
-                  const rawArtifacts = [
-                    ...toArray(meta?.artifacts),
-                    ...toArray(meta?.files),
-                    ...toArray(meta?.assets),
-                  ]
-                  enrichedData.artifactsList = rawArtifacts.map((a:any) => ({
-                    filename: a?.filename || a?.name || a?.file || 'artifact',
-                    cid: a?.cid || a?.url || a?.uri || '',
-                    uri: a?.uri || a?.url || a?.cid || '',
-                    sizeBytes: a?.sizeBytes || a?.size || 0,
-                    role: a?.role || '',
-                  })).filter((a:any) => a.cid)
-                  
-                  // Extract pricing from metadata
-                  enrichedData.price_perpetual = meta?.pricing?.perpetual?.wei || meta?.price_perpetual || 0
-                  enrichedData.price_subscription = meta?.pricing?.subscription?.weiPerMonth || meta?.price_subscription || 0
-                  
-                  // Extract terms
-                  enrichedData.terms_summary = meta?.licensing?.terms?.summaryBullets || meta?.terms?.summaryBullets || []
-                  enrichedData.terms_text = meta?.licensing?.terms?.textMarkdown || meta?.terms?.textMarkdown || ''
-                  
-                  // Extract rights
-                  enrichedData.rights = {
-                    api: meta?.licensing?.rights?.api ?? meta?.rights?.api ?? false,
-                    download: meta?.licensing?.rights?.download ?? meta?.rights?.download ?? false,
-                    transferable: meta?.licensing?.rights?.transferable ?? meta?.rights?.transferable ?? false,
-                  }
-                  
-                  // Extract delivery mode
-                  enrichedData.delivery_mode = meta?.licensing?.deliveryMode || meta?.deliveryMode || ''
-                  
-                  // Extract fees
-                  enrichedData.royalty_pct = meta?.licensing?.fees?.royaltyPct || meta?.fees?.royaltyPct || 0
-                  enrichedData.marketplace_fee_pct = meta?.licensing?.fees?.marketplaceFeePct || meta?.fees?.marketplaceFeePct || 0
-                  
-                  // Extract download notes
-                  enrichedData.download_notes = meta?.demo?.downloadNotes || meta?.downloadNotes || ''
-                }
-              } catch {}
-            }
-            
-            // Create viewModel
-            try {
-              const viewModel = createViewModelFromPublished({
-                ...enrichedData,
-                artifacts: enrichedData.artifactsList || [],
-              })
-              enrichedData.viewModel = viewModel
-            } catch {}
-            
-            modelsData.set(mid, enrichedData)
-          } catch {}
-        }))
-        items.forEach(it=>{ 
-          const mid = map.get(it.tokenId)
-          if (mid) { 
-            it.modelId = mid
-            const modelData = modelsData.get(mid)
-            it.modelData = modelData
-            it.modelName = modelData?.name || `Model #${mid}`
-            it.viewModel = modelData?.viewModel
-          } 
-        })
-      } catch {}
+      })
+      
       setRows(items)
-    } catch (e:any) {
-      setSnkSev('error'); setSnkMsg(String(e?.message || e || 'Failed to load licenses')) ; setSnkOpen(true)
+    } catch (e: any) {
+      setSnkSev('error')
+      setSnkMsg(String(e?.message || e || 'Failed to load licenses'))
+      setSnkOpen(true)
     } finally {
       setLoading(false)
     }
-  }, [publicClient, marketAddress, address, evmChainId, fetchLicenseStatus, getLogsMemoized, rememberModelId])
+  }, [address, evmChainId])
 
   React.useEffect(() => { if (isConnected) load() }, [isConnected, evmChainId, load])
 

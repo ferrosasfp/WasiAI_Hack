@@ -1,12 +1,10 @@
-// Prisma schema for marketplace AI keys
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
 }
 
 model ModelKey {
@@ -15,7 +13,80 @@ model ModelKey {
   slug      String?  @db.VarChar(120)
   keyB64    String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime
 
   @@index([slug])
+}
+
+model indexer_state {
+  id                  Int      @id @default(autoincrement())
+  chain_id            Int      @unique
+  last_block_models   BigInt   @default(0)
+  last_block_licenses BigInt   @default(0)
+  last_model_id       Int      @default(0)
+  last_license_id     Int      @default(0)
+  last_sync_at        DateTime @default(now())
+  status              String   @default("idle")
+}
+
+model licenses {
+  token_id       Int
+  chain_id       Int
+  model_id       Int
+  owner          String
+  kind           Int
+  revoked        Boolean  @default(false)
+  valid_api      Boolean  @default(false)
+  valid_download Boolean  @default(false)
+  expires_at     BigInt   @default(0)
+  tx_hash        String?
+  block_number   BigInt?
+  created_at     DateTime @default(now())
+  indexed_at     DateTime @default(now())
+
+  @@id([chain_id, token_id])
+  @@index([chain_id, token_id], map: "idx_licenses_chain")
+  @@index([model_id, created_at(sort: Desc)], map: "idx_licenses_model")
+  @@index([owner, created_at(sort: Desc)], map: "idx_licenses_owner")
+}
+
+model model_metadata {
+  model_id      Int      @id
+  metadata      Json
+  image_url     String?
+  categories    String[]
+  tags          String[]
+  industries    String[]
+  use_cases     String[]
+  frameworks    String[]
+  architectures String[]
+  cached_at     DateTime @default(now())
+  cache_ttl     Int      @default(86400)
+
+  @@index([categories], map: "idx_metadata_categories", type: Gin)
+  @@index([tags], map: "idx_metadata_tags", type: Gin)
+}
+
+model models {
+  model_id                Int      @id
+  chain_id                Int
+  owner                   String
+  creator                 String
+  name                    String?
+  uri                     String?
+  price_perpetual         BigInt   @default(0)
+  price_subscription      BigInt   @default(0)
+  default_duration_days   Int      @default(0)
+  listed                  Boolean  @default(true)
+  version                 Int      @default(1)
+  royalty_bps             Int      @default(0)
+  delivery_rights_default Int      @default(0)
+  delivery_mode_hint      Int      @default(0)
+  terms_hash              String?
+  created_at              DateTime @default(now())
+  updated_at              DateTime @default(now())
+  indexed_at              DateTime @default(now())
+
+  @@index([chain_id, listed, created_at(sort: Desc)], map: "idx_models_chain")
+  @@index([owner], map: "idx_models_owner")
 }
