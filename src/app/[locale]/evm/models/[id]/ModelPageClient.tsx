@@ -15,7 +15,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CheckIcon from '@mui/icons-material/Check'
 import Link from 'next/link'
-import { useWriteContract, usePublicClient, useSwitchChain, useAccount } from 'wagmi'
+import { useWriteContract, usePublicClient, useSwitchChain, useAccount, useChainId } from 'wagmi'
 import MARKET_ARTIFACT from '@/abis/Marketplace.json'
 import { useTranslations, useLocale } from 'next-intl'
 import { createViewModelFromPublished } from '@/viewmodels'
@@ -53,13 +53,18 @@ function useEvmModel(options: UseEvmModelOptions) {
   const [data, setData] = React.useState<any | null>(initialModel ?? null)
   const [loading, setLoading] = React.useState(!initialModel)
   const [attempted, setAttempted] = React.useState(Boolean(initialModel))
+  const walletChainId = useChainId() // Detect chain from connected wallet
   const evmChainId = React.useMemo(() => {
+    // Priority: explicit chainId from URL > wallet chainId > env default
     if (typeof chainId === 'number' && Number.isFinite(chainId)) {
       return chainId
     }
+    if (typeof walletChainId === 'number' && Number.isFinite(walletChainId)) {
+      return walletChainId
+    }
     const envValue = Number(process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID || process.env.NEXT_PUBLIC_EVM_CHAIN_ID || 0)
     return Number.isFinite(envValue) && envValue > 0 ? envValue : undefined
-  }, [chainId])
+  }, [chainId, walletChainId])
 
   React.useEffect(() => {
     setData(initialModel ?? null)
