@@ -37,10 +37,14 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import GitHubIcon from '@mui/icons-material/GitHub'
 import LanguageIcon from '@mui/icons-material/Language'
-import TwitterIcon from '@mui/icons-material/Twitter'
 import LinkedInIcon from '@mui/icons-material/LinkedIn'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
+import { BUSINESS_CATEGORIES, MODEL_TYPES as BUSINESS_MODEL_TYPES, MODEL_TYPES_BY_BUSINESS as MT_BY_BUSINESS, MODEL_TYPE_I18N, type BusinessCategoryValue, type ModelTypeValue } from '@/constants/business'
 import { useLocale, useTranslations } from 'next-intl'
+import { TECHNICAL_CATEGORIES, TECH_TAG_OPTIONS as ALL_TECH_TAGS, TECH_TAGS_BY_CATEGORY, TECH_TAG_I18N, type TechnicalCategoryValue } from '@/constants/classification'
+import WizardFooter from '@/components/WizardFooter'
+import SelectField from '@/components/SelectField'
+import WizardThemeProvider from '@/components/WizardThemeProvider'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,10 +120,50 @@ export default function Step1BasicsLocalized() {
   const [imgKey, setImgKey] = useState<string>('')
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
   const openMenu = Boolean(menuAnchor)
-  const CATEGORY_OPTIONS = useMemo(() => ['nlp','vision','audio','video','multimodal','tabular'], [])
-  const TAG_OPTIONS = useMemo(() => ['pytorch','onnx','transformers','diffusion','quantized','int8','fp16','rl','lora'], [])
-  const [categoriesSel, setCategoriesSel] = useState<string[]>([])
+  // Technical classification (centralized constants + i18n labels)
+  // Business profile constants (centralized with i18n)
+  const SELECT_PAPER_SX = useMemo(() => ({
+    borderRadius: 2,
+    border: '2px solid',
+    borderColor: 'oklch(0.30 0 0)',
+    background: 'linear-gradient(180deg, rgba(38,46,64,0.92), rgba(20,26,42,0.92))',
+    boxShadow: '0 0 0 1px rgba(255,255,255,0.05) inset, 0 16px 36px rgba(0,0,0,0.45)',
+    backdropFilter: 'blur(10px)',
+    color:'#fff',
+    '& .MuiAutocomplete-listbox': { background: 'transparent' },
+    '& .MuiAutocomplete-option': { color:'#fff' },
+    '& .MuiAutocomplete-option.Mui-focused': { backgroundColor:'rgba(255,255,255,0.10)' }
+  }), [])
+  const BUSINESS_CATEGORY_OPTIONS = useMemo(() => BUSINESS_CATEGORIES.map(c=>c.value), [])
+  const BUSINESS_CATEGORY_LABELS = useMemo(() => {
+    const map: Record<string,string> = {}
+    for (const c of BUSINESS_CATEGORIES) map[c.value] = t(c.i18nKey)
+    return map
+  }, [t])
+  const MODEL_TYPES = useMemo(() => [...BUSINESS_MODEL_TYPES], [])
+  const MODEL_TYPES_BY_BUSINESS = useMemo(() => MT_BY_BUSINESS, [])
+  const MODEL_TYPE_SUGGESTIONS = useMemo(
+  () =>
+    Object.fromEntries(
+      Object.entries(MODEL_TYPES_BY_BUSINESS).map(([category, types]) => [
+        category,
+        types.slice(0, 4), // por ejemplo, top 4 sugerencias
+      ]),
+    ) as Record<string, string[]>,
+  [MODEL_TYPES_BY_BUSINESS],
+)
+  const TECH_CATEGORY_OPTIONS = useMemo(() => TECHNICAL_CATEGORIES.map(c=>c.value), [])
+  const TECH_CATEGORY_LABELS = useMemo(() => {
+    const map: Record<string,string> = {}
+    for (const c of TECHNICAL_CATEGORIES) map[c.value] = t(c.i18nKey)
+    return map
+  }, [t])
+  const [categoriesSel, setCategoriesSel] = useState<TechnicalCategoryValue[]>([])
   const [tagsSel, setTagsSel] = useState<string[]>([])
+  const [businessCategory, setBusinessCategory] = useState<BusinessCategoryValue | ''>('')
+  const [modelType, setModelType] = useState<string>('')
+  const [modelTypeTouched, setModelTypeTouched] = useState<boolean>(false)
+  const [showAllModelTypes, setShowAllModelTypes] = useState<boolean>(false)
   const [authorDisplay, setAuthorDisplay] = useState('')
   const SOCIALS = useMemo(() => [
     { key:'github', label:'GitHub', placeholder:'https://github.com/usuario', icon:<GitHubIcon fontSize="small" /> },
@@ -130,7 +174,7 @@ export default function Step1BasicsLocalized() {
   const [socialValues, setSocialValues] = useState<Record<string,string>>({})
   const [msg, setMsg] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [errors, setErrors] = useState<{name?:string; slug?:string; categories?:string}>({})
+  const [errors, setErrors] = useState<{name?:string; slug?:string; categories?:string; businessCategory?:string}>({})
   const { walletAddress } = useWalletAddress()
   const didMountRef = useRef(false)
   const loadingFromDraftRef = useRef(false)
@@ -139,6 +183,54 @@ export default function Step1BasicsLocalized() {
   const [loadingDraft, setLoadingDraft] = useState(false)
   const [shouldFade, setShouldFade] = useState(true)
   const [loadedRemote, setLoadedRemote] = useState(false)
+  // Reset the "view all" flag when business category changes, but do not clear user-entered modelType
+  useEffect(() => { setShowAllModelTypes(false) }, [businessCategory])
+
+  // Compute technical tag suggestions (union) based on selected technical categories
+  const suggestedTechTags = useMemo(() => {
+    if (!categoriesSel?.length) return [] as string[]
+    const set = new Set<string>()
+    for (const cat of categoriesSel) {
+      const tags = TECH_TAGS_BY_CATEGORY[cat as TechnicalCategoryValue] || []
+      tags.forEach(x => set.add(x))
+    }
+    return Array.from(set)
+  }, [categoriesSel])
+  const orderedTechTagOptions = useMemo(() => {
+    const all = ALL_TECH_TAGS as readonly string[]
+    if (!suggestedTechTags.length) return [...all]
+    const rest = all.filter(x => !suggestedTechTags.includes(x))
+    return [...suggestedTechTags, ...rest]
+  }, [suggestedTechTags])
+
+  // Auto-select a suggested model type when Business category changes.
+  // Conditions to auto-select:
+  // - user hasn't interacted yet, OR
+  // - current value is empty, OR
+  // - current value is not among the new suggestions
+  useEffect(() => {
+    if (!businessCategory) return
+    const key = businessCategory as (typeof BUSINESS_CATEGORIES)[number]['value']
+    const rawSugg = (MODEL_TYPE_SUGGESTIONS[key] || MODEL_TYPES_BY_BUSINESS[key] || []) as ModelTypeValue[]
+    const sugg = rawSugg.filter(x => (MODEL_TYPES as ReadonlyArray<ModelTypeValue>).includes(x as ModelTypeValue))
+    if (!sugg.length) return
+    const shouldAutoselect = !modelTypeTouched || !modelType || !sugg.includes(modelType as ModelTypeValue)
+    if (shouldAutoselect) setModelType(sugg[0])
+  }, [businessCategory, modelTypeTouched, modelType, MODEL_TYPES_BY_BUSINESS])
+
+  // Compute current suggested list and ordered options for Model type
+  const currentSuggestedModelTypes = useMemo(() => {
+    if (!businessCategory || showAllModelTypes) return [] as string[]
+    const key = businessCategory as (typeof BUSINESS_CATEGORIES)[number]['value']
+    const raw = (MODEL_TYPE_SUGGESTIONS[key] || MODEL_TYPES_BY_BUSINESS[key] || []) as ModelTypeValue[]
+    return raw.filter(x => (MODEL_TYPES as ReadonlyArray<ModelTypeValue>).includes(x as ModelTypeValue))
+  }, [businessCategory, showAllModelTypes, MODEL_TYPES_BY_BUSINESS, MODEL_TYPE_SUGGESTIONS, MODEL_TYPES])
+  const modelTypeOptions = useMemo(() => {
+    const baseAll = MODEL_TYPES
+    if (!currentSuggestedModelTypes.length) return baseAll
+    const rest = baseAll.filter(x => !currentSuggestedModelTypes.includes(x))
+    return [...currentSuggestedModelTypes, ...rest]
+  }, [MODEL_TYPES, currentSuggestedModelTypes])
 
   // Autoload draft on mount and when wallet changes, with cache hydration (skips if resetting)
   useEffect(() => {
@@ -153,8 +245,10 @@ export default function Step1BasicsLocalized() {
           setShortSummary(s1?.shortSummary || '')
           setSlug(s1?.slug || '')
           setIsUpgrade(Boolean(s1?.upgrade))
-          setCategoriesSel(Array.isArray(s1?.categories)? s1.categories : [])
-          setTagsSel(Array.isArray(s1?.tags)? s1.tags : [])
+          setCategoriesSel(Array.isArray(s1?.technicalCategories) ? (s1.technicalCategories as TechnicalCategoryValue[]) : (Array.isArray(s1?.categories) ? (s1.categories as TechnicalCategoryValue[]) : []))
+          setTagsSel(Array.isArray(s1?.technicalTags) ? s1.technicalTags : (Array.isArray(s1?.tags)? s1.tags : []))
+          setBusinessCategory(typeof s1?.businessCategory === 'string' ? s1.businessCategory : '')
+          setModelType(typeof s1?.modelType === 'string' ? s1.modelType : '')
           const disp = s1?.author?.displayName || ''
           setAuthorDisplay(disp)
           const links = (s1?.author?.links && typeof s1.author.links === 'object') ? s1.author.links : {}
@@ -188,8 +282,10 @@ export default function Step1BasicsLocalized() {
       setShortSummary(s1.shortSummary || '')
       setSlug(s1.slug || '')
       setIsUpgrade(Boolean(s1?.upgrade))
-      setCategoriesSel(Array.isArray(s1.categories)? s1.categories : [])
-      setTagsSel(Array.isArray(s1.tags)? s1.tags : [])
+      setCategoriesSel(Array.isArray(s1.technicalCategories) ? (s1.technicalCategories as TechnicalCategoryValue[]) : (Array.isArray(s1.categories)? (s1.categories as TechnicalCategoryValue[]) : []))
+      setTagsSel(Array.isArray(s1.technicalTags) ? s1.technicalTags : (Array.isArray(s1.tags)? s1.tags : []))
+      setBusinessCategory(typeof s1?.businessCategory === 'string' ? s1.businessCategory : '')
+      setModelType(typeof s1?.modelType === 'string' ? s1.modelType : '')
       const disp = s1?.author?.displayName || ''
       setAuthorDisplay(disp)
       const links = (s1?.author?.links && typeof s1.author.links === 'object') ? s1.author.links : {}
@@ -420,7 +516,8 @@ export default function Step1BasicsLocalized() {
     const tags = Array.isArray(d?.tags) ? d.tags : []
     const author = (d?.author?.displayName||'').trim()
     const cov = d?.cover
-    return Boolean(nameOk || sumOk || cats.length>0 || tags.length>0 || author || (cov && (cov.cid || cov.thumbCid)))
+    const businessOk = (d?.businessCategory||'').trim()
+    return Boolean(nameOk || sumOk || businessOk || cats.length>0 || tags.length>0 || author || (cov && (cov.cid || cov.thumbCid)))
   }
 
   const shallowEqualJSON = (a:any,b:any) => { try { return JSON.stringify(a)===JSON.stringify(b) } catch { return false } }
@@ -428,6 +525,7 @@ export default function Step1BasicsLocalized() {
   const onSave = async (reason?: 'autosave'|'manual') => {
     const nextErrors: typeof errors = {}
     if (!name.trim()) nextErrors.name = t('wizard.step1.errors.required')
+    if (!businessCategory) nextErrors.businessCategory = t('wizard.step1.errors.required')
     if (categoriesSel.length === 0) nextErrors.categories = t('wizard.step1.errors.categoriesRequired')
     setErrors(nextErrors)
     if (reason!== 'autosave' && Object.keys(nextErrors).length) { setMsg(t('wizard.step1.errors.fixMarked')); return }
@@ -442,8 +540,14 @@ export default function Step1BasicsLocalized() {
         name, shortSummary,
         slug,
         upgrade: isUpgrade,
+        businessCategory,
+        modelType,
+        // legacy fields for backward compatibility
         categories: categoriesSel,
         tags: tagsSel,
+        // new technical fields
+        technicalCategories: categoriesSel,
+        technicalTags: tagsSel,
         author: { displayName: authorDisplay, links: linksObj },
         cover: coverCid ? { cid: coverCid, thumbCid: coverThumbCid, mime: coverMime, size: coverSize } : undefined
       }
@@ -487,9 +591,10 @@ export default function Step1BasicsLocalized() {
       if (!saving && !loadingFromDraftRef.current) onSave('autosave')
     }, 700)
     return () => { if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current) }
-  }, [name, slug, isUpgrade, shortSummary, categoriesSel, tagsSel, authorDisplay, socialValues, coverCid, coverThumbCid, coverMime, coverSize, saving])
+  }, [name, slug, isUpgrade, shortSummary, businessCategory, modelType, categoriesSel, tagsSel, authorDisplay, socialValues, coverCid, coverThumbCid, coverMime, coverSize, saving])
 
   return (
+    <WizardThemeProvider>
     <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0f2740 0%, #0b1626 30%, #0a111c 100%)' }}>
       <Box sx={{
         p: { xs: 2, md: 4 },
@@ -544,7 +649,7 @@ export default function Step1BasicsLocalized() {
               label={t('wizard.step1.fields.name.label')}
               value={name}
               onChange={(e)=>onNameChange(e.target.value)}
-              placeholder={t('wizard.step1.fields.name.placeholder')}
+              placeholder={isES ? 'Asistente de churn para retail' : 'Retail churn prediction assistant'}
               fullWidth
               error={!!errors.name}
               helperText={errors.name || t('wizard.step1.fields.name.helper')}
@@ -553,6 +658,10 @@ export default function Step1BasicsLocalized() {
             <FormControlLabel
               control={<Switch checked={isUpgrade} onChange={(e)=>setIsUpgrade(e.target.checked)} disabled={slugIsAvailable} />}
               label={isUpgrade ? TXT.upgradeOn : TXT.upgradeOff}
+              sx={{
+                '&.Mui-disabled .MuiFormControlLabel-label': { color: 'common.white' },
+                '& .MuiFormControlLabel-label': { color: '#E0E0E0' }
+              }}
             />
 
             <TextField
@@ -599,7 +708,7 @@ export default function Step1BasicsLocalized() {
               label={t('wizard.step1.fields.summary.label')}
               value={shortSummary}
               onChange={(e)=>setShortSummary(e.target.value)}
-              placeholder={t('wizard.step1.fields.summary.placeholder')}
+              placeholder={isES ? 'Descripción breve para que compradores no técnicos entiendan el valor al instante.' : 'Short description so non-technical buyers instantly get the value.'}
               multiline rows={3}
               fullWidth
             />
@@ -741,8 +850,86 @@ export default function Step1BasicsLocalized() {
 
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: '16px', border:'2px solid', borderColor:'oklch(0.30 0 0)', background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter:'blur(10px)' }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600, color:'#fff' }}>{t('wizard.step1.sections.classification.title')}</Typography>
-          <Tooltip title={t('wizard.step1.sections.classification.help')}><InfoOutlinedIcon fontSize="small" color="action" /></Tooltip>
+          <Typography variant="h6" sx={{ fontWeight: 600, color:'#fff' }}>{isES ? 'Perfil de negocio' : 'Business profile'}</Typography>
+          <Tooltip title={isES ? 'Dónde en el negocio aporta valor este modelo (para compradores no técnicos).' : 'Where in the business this model creates value (for non-technical buyers).'}><InfoOutlinedIcon fontSize="small" color="action" /></Tooltip>
+        </Stack>
+        {loadingDraft ? (
+          <Stack spacing={2}>
+            <Skeleton animation="wave" variant="rounded" height={56} />
+            <Skeleton animation="wave" variant="rounded" height={56} />
+          </Stack>
+        ) : (
+          <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1, minHeight: 120 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <SelectField
+                  options={BUSINESS_CATEGORY_OPTIONS}
+                  isOptionEqualToValue={(opt, val)=>opt===val}
+                  value={businessCategory || null}
+                  onChange={(_, v)=>{
+                    const next = v || ''
+                    setBusinessCategory(next)
+                    // proactively align model type suggestions on category change
+                    const key = next as (typeof BUSINESS_CATEGORIES)[number]['value']
+                    const rawSugg = next ? ((MODEL_TYPE_SUGGESTIONS[key] || MODEL_TYPES_BY_BUSINESS[key] || []) as ModelTypeValue[]) : []
+                    const sugg = rawSugg.filter(x => (MODEL_TYPES as ReadonlyArray<ModelTypeValue>).includes(x as ModelTypeValue))
+                    if (sugg.length) {
+                      const keep = modelType && sugg.includes(modelType as ModelTypeValue)
+                      if (!keep) {
+                        setModelTypeTouched(false)
+                        setModelType(sugg[0])
+                      }
+                    }
+                  }}
+                  label={isES ? 'Categoría de negocio' : 'Business category'}
+                  placeholder={isES ? 'Selecciona una' : 'Select one'}
+                  helperText={errors.businessCategory || (isES ? 'Dónde en el negocio crea valor (para compradores no técnicos).' : 'Where in the business this creates value (for non-technical buyers).')}
+                  getOptionLabel={(opt)=> BUSINESS_CATEGORY_LABELS[opt] || opt}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Stack spacing={0.5}>
+                  <SelectField
+                    freeSolo
+                    isOptionEqualToValue={(opt, val)=>opt===val}
+                    options={modelTypeOptions}
+                    value={modelType || null}
+                    onChange={(_, v)=>{ setModelTypeTouched(true); setModelType((v as string) || '') }}
+                    onInputChange={(_, input)=>{ setModelTypeTouched(true); setModelType(input || '') }}
+                    getOptionLabel={(opt)=> MODEL_TYPE_I18N[opt as keyof typeof MODEL_TYPE_I18N] ? t(MODEL_TYPE_I18N[opt as keyof typeof MODEL_TYPE_I18N]) : (opt as string)}
+                    {...(currentSuggestedModelTypes.length ? {
+                      groupBy: (opt: string) => currentSuggestedModelTypes.includes(opt)
+                        ? (isES ? 'Sugeridos' : 'Suggested')
+                        : (isES ? 'Otros tipos' : 'Other types')
+                    } : {})}
+                    label={isES ? 'Tipo de modelo (negocio)' : 'Model type (business)'}
+                    placeholder={isES ? 'p. ej. "Segmentación de clientes", "Pronóstico de demanda"' : 'e.g. "Customer segmentation", "Demand forecasting"'}
+                    helperText={isES ? 'Describe el modelo en términos de negocio.' : 'Describe the model in business terms.'}
+                  />
+                  <Typography variant="caption" sx={{ color: '#ffffff99' }}>
+                    {businessCategory ? (
+                      <>
+                        {isES ? 'Mostrando tipos para' : 'Showing types for'} {businessCategory}
+                        {' — '}
+                        <Button size="small" variant="text" onClick={()=>setShowAllModelTypes(v=>!v)} sx={{ textTransform:'none', ml: 0, minWidth: 0, p: 0, color:'#fff' }}>
+                          {showAllModelTypes ? (isES ? 'Ver sugeridos' : 'View suggested') : (isES ? 'Ver todos' : 'View all types')}
+                        </Button>
+                      </>
+                    ) : (
+                      isES ? 'Mostrando lista global de tipos' : 'Showing global list of types'
+                    )}
+                  </Typography>
+                </Stack>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+      </Paper>
+
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mb: 3, borderRadius: '16px', border:'2px solid', borderColor:'oklch(0.30 0 0)', background:'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow:'0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter:'blur(10px)' }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color:'#fff' }}>{t('wizard.step1.sections.technical.title')}</Typography>
+          <Tooltip title={t('wizard.step1.sections.technical.help')}><InfoOutlinedIcon fontSize="small" color="action" /></Tooltip>
         </Stack>
         {loadingDraft ? (
           <Stack spacing={2}>
@@ -751,37 +938,47 @@ export default function Step1BasicsLocalized() {
           </Stack>
         ) : (
           <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1, minHeight: 160 }}>
-            <Autocomplete
+            <SelectField
               multiple
-              options={CATEGORY_OPTIONS}
+              options={TECH_CATEGORY_OPTIONS}
+              isOptionEqualToValue={(opt, val)=>opt===val}
               value={categoriesSel}
-              onChange={(_, v)=>setCategoriesSel(v)}
-              slotProps={{
-                paper: { sx: { borderRadius: 2, border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.92), rgba(20,26,42,0.92))', boxShadow: '0 0 0 1px rgba(255,255,255,0.05) inset, 0 16px 36px rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)', color:'#fff', '& .MuiAutocomplete-listbox': { background: 'transparent' }, '& .MuiAutocomplete-option': { color:'#fff' }, '& .MuiAutocomplete-option.Mui-focused': { backgroundColor:'rgba(255,255,255,0.10)' } } }
-              }}
+              onChange={(_, v)=>setCategoriesSel(v as TechnicalCategoryValue[])}
+              getOptionLabel={(opt)=>TECH_CATEGORY_LABELS[opt] || String(opt)}
               renderTags={(value, getTagProps) => value.map((option, index) => (
-                <Chip variant="outlined" label={option} {...getTagProps({ index })} key={option} />
+                <Chip variant="outlined" label={TECH_CATEGORY_LABELS[option] || String(option)} {...getTagProps({ index })} key={option} />
               ))}
-              renderInput={(params) => (
-                <TextField {...params} label={t('wizard.step1.fields.categories.label')} placeholder={t('wizard.step1.fields.categories.placeholder')} error={!!errors.categories} helperText={errors.categories || t('wizard.step1.fields.categories.helper')} />
-              )}
+              label={t('wizard.step1.fields.technicalCategories.label')}
+              placeholder={t('wizard.step1.fields.technicalCategories.placeholder')}
+              helperText={errors.categories || t('wizard.step1.fields.technicalCategories.helper')}
             />
 
-            <Autocomplete
-              multiple
-              options={TAG_OPTIONS}
-              value={tagsSel}
-              onChange={(_, v)=>setTagsSel(v)}
-              slotProps={{
-                paper: { sx: { borderRadius: 2, border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.92), rgba(20,26,42,0.92))', boxShadow: '0 0 0 1px rgba(255,255,255,0.05) inset, 0 16px 36px rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)', color:'#fff', '& .MuiAutocomplete-listbox': { background: 'transparent' }, '& .MuiAutocomplete-option': { color:'#fff' }, '& .MuiAutocomplete-option.Mui-focused': { backgroundColor:'rgba(255,255,255,0.10)' } } }
-              }}
-              renderTags={(value, getTagProps) => value.map((option, index) => (
-                <Chip variant="outlined" label={option} {...getTagProps({ index })} key={option} />
-              ))}
-              renderInput={(params) => (
-                <TextField {...params} label={t('wizard.step1.fields.tags.label')} placeholder={t('wizard.step1.fields.tags.placeholder')} helperText={t('wizard.step1.fields.tags.helper')} />
-              )}
-            />
+
+      <SelectField
+        multiple
+        freeSolo
+        isOptionEqualToValue={(opt, val)=>opt===val}
+        options={orderedTechTagOptions}
+        getOptionLabel={(opt)=> TECH_TAG_I18N[opt] ? t(TECH_TAG_I18N[opt]) : opt}
+        value={tagsSel}
+        onChange={(_, v)=>setTagsSel(v as string[])}
+        renderTags={(value, getTagProps) => value.map((option, index) => (
+          <Chip variant="outlined" label={TECH_TAG_I18N[option] ? t(TECH_TAG_I18N[option]) : option} {...getTagProps({ index })} key={option} />
+        ))}
+        label={t('wizard.step1.fields.technicalTags.label')}
+        placeholder={t('wizard.step1.fields.technicalTags.placeholder')}
+        helperText={categoriesSel.length ? (
+          t('wizard.step1.fields.technicalTags.helperWithCatPrefix') + categoriesSel.map(c=>TECH_CATEGORY_LABELS[c] || String(c)).join(', ') + t('wizard.step1.fields.technicalTags.helperWithCatSuffix')
+        ) : (
+          t('wizard.step1.fields.technicalTags.helperNoCat')
+        )}
+        {...(suggestedTechTags.length ? {
+          groupBy: (opt: string) => suggestedTechTags.includes(opt)
+            ? t('wizard.step1.fields.technicalTags.groupSuggested')
+            : t('wizard.step1.fields.technicalTags.groupOther')
+        } : {})}
+      />
+          
           </Box>
         )}
       </Paper>
@@ -842,46 +1039,33 @@ export default function Step1BasicsLocalized() {
 
       <Divider sx={{ my: 2 }} />
 
-      <Box sx={{ height: { xs: 76, md: 72 } }} />
+      <Box sx={{ height: { xs: 76, md: 76 } }} />
 
-      <Box sx={{ position:'fixed', bottom: 0, left: 0, right: 0, zIndex: (t)=>t.zIndex.appBar + 1 }}>
-        <Paper elevation={3} sx={{ borderRadius: 0, px: { xs:1.5, md:2 }, py: 1 }}>
-          <Box sx={{ maxWidth: 1000, mx: 'auto', width:'100%' }}>
-            <Box sx={{ display:{ xs:'flex', md:'none' }, alignItems:'center', justifyContent:'space-between', width:'100%' }}>
-              <Button size="small" href={base} onClick={(e)=>navigateAfterSave(e, base)} disabled={coverUploading} variant="text" color="inherit" startIcon={<ArrowBackIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 0.75, whiteSpace:'nowrap', fontSize:{ xs:12, md:14 }, '& .MuiButton-startIcon': { mr: 0.5, '& svg': { fontSize: 18 } } }}>
-                {t('wizard.common.back')}
-              </Button>
-              <Button size="small" onClick={()=>onSave('manual')} disabled={saving} variant="text" color="primary" startIcon={<SaveOutlinedIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 0.75, whiteSpace:'nowrap', fontSize:{ xs:12, md:14 }, '& .MuiButton-startIcon': { mr: 0.5, '& svg': { fontSize: 18 } } }}>
-                {saving? t('wizard.common.saving') : t('wizard.common.saveDraft')}
-              </Button>
-              <Button size="small" href={`${base}/step2`} onClick={(e)=>navigateAfterSave(e, `${base}/step2`)} disabled={!isStepValid() || coverUploading} variant="text" color="inherit" endIcon={<ArrowForwardIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 0.75, whiteSpace:'nowrap', fontSize:{ xs:12, md:14 }, '& .MuiButton-endIcon': { ml: 0.5, '& svg': { fontSize: 18 } } }}>
-                {t('wizard.common.next')}
-              </Button>
-            </Box>
-            <Box sx={{ display:{ xs:'none', md:'flex' }, alignItems:'center', justifyContent:'space-between', gap: 1.25 }}>
-              <Button href={base} onClick={(e)=>navigateAfterSave(e, base)} disabled={coverUploading} variant="text" color="inherit" startIcon={<ArrowBackIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 1 }}>
-                {t('wizard.common.back')}
-              </Button>
-              <Box sx={{ display:'flex', gap: 1.25 }}>
-                <Button onClick={()=>onSave('manual')} disabled={saving} variant="text" color="primary" startIcon={<SaveOutlinedIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 1 }}>
-                  {saving? t('wizard.common.saving') : t('wizard.common.saveDraft')}
-                </Button>
-                <Button href={`${base}/step2`} onClick={(e)=>navigateAfterSave(e, `${base}/step2`)} disabled={!isStepValid() || coverUploading} variant="text" color="inherit" endIcon={<ArrowForwardIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 1 }}>
-                  {t('wizard.common.next')}
-                </Button>
-              </Box>
-              {(loadingDraft || coverUploading) && (
-                <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-                  {loadingDraft ? COMMON.loadingDraft : COMMON.uploadInProgress}
-                </Typography>
-              )}
-            </Box>
-          </Box>
-        </Paper>
-      </Box>
+      <WizardFooter
+        currentStep={1}
+        totalSteps={5}
+        stepTitle={t('wizard.step1.title')}
+        onBack={() => { if (!coverUploading) window.location.href = base }}
+        onSaveDraft={() => onSave('manual')}
+        onNext={() => { if (!isStepValid() || coverUploading) return; window.location.href = `${base}/step2` }}
+        isNextDisabled={!isStepValid() || coverUploading}
+        isSaving={saving}
+        isLastStep={false}
+        backLabel={t('wizard.common.back')}
+        saveDraftLabel={t('wizard.common.saveDraft')}
+        savingLabel={t('wizard.common.saving')}
+        nextLabel={t('wizard.common.next')}
+        publishLabel={t('wizard.index.publish')}
+        leftStatusExtra={(loadingDraft || coverUploading) ? (
+          <Typography variant="caption" sx={{ ml: 1, color: 'oklch(0.92 0 0)' }}>
+            {loadingDraft ? COMMON.loadingDraft : COMMON.uploadInProgress}
+          </Typography>
+        ) : null}
+      />
 
       {msg && <p>{msg}</p>}
       </Box>
     </Box>
+    </WizardThemeProvider>
   )
 }

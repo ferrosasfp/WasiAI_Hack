@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { Roboto } from 'next/font/google';
 import { Providers } from './providers';
 import { ProvidersEvm } from './providers-evm';
+import { TopProgressBar } from '@/components/TopProgressBar';
+import { WebVitals } from '@/components/WebVitals';
 import '@/styles/globals.css';
 import '@mysten/dapp-kit/dist/index.css';
 
@@ -10,6 +12,7 @@ const roboto = Roboto({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-roboto',
+  preload: true,
 });
 
 export const metadata: Metadata = {
@@ -51,6 +54,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={roboto.variable}>
       <body>
+        <TopProgressBar />
+        <WebVitals />
         {enableSui ? (
           <Providers>
             {children}

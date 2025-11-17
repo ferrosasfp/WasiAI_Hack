@@ -66,6 +66,7 @@ const nextConfig = {
           net: false,
           tls: false,
           crypto: false,
+          ws: false,
         };
       }
 
@@ -138,6 +139,42 @@ const nextConfig = {
           ],
         },
       ];
+    },
+
+    // Redirects para forzar uso de rutas con locale
+    async redirects() {
+      return [
+        {
+          source: '/publish/wizard/:path*',
+          destination: '/en/publish/wizard/:path*',
+          permanent: false,
+          locale: false,
+        },
+        {
+          source: '/models/:path*',
+          destination: '/en/models/:path*',
+          permanent: false,
+          locale: false,
+        },
+        {
+          source: '/evm/:path*',
+          destination: '/en/evm/:path*',
+          permanent: false,
+          locale: false,
+        },
+        {
+          source: '/licenses',
+          destination: '/en/licenses',
+          permanent: false,
+          locale: false,
+        },
+        {
+          source: '/',
+          destination: '/en',
+          permanent: false,
+          locale: false,
+        },
+      ]
     },
   };
   

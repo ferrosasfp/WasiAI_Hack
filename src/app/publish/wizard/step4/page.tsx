@@ -1,10 +1,6 @@
 "use client";
 import { useMemo, useState, useEffect } from 'react'
-import { keccak256, toUtf8Bytes } from 'ethers'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
-import NextDynamic from 'next/dynamic'
-
-export const dynamic = 'force-dynamic'
 import { Box, Button, Paper, Typography, Stack, Grid, TextField, Checkbox, FormControlLabel, Select, MenuItem, Switch, FormGroup, FormControl, InputLabel, Tooltip, IconButton, Alert } from '@mui/material'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
@@ -14,17 +10,11 @@ import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
  
 
 async function saveDraft(payload: any) {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(addr ? { 'X-Wallet-Address': addr } : {}) },
-    body: JSON.stringify(addr ? { ...payload, address: addr } : payload)
-  })
+  const res = await fetch('/api/models/draft', { method: 'POST', body: JSON.stringify(payload) })
   return res.json()
 }
 
-function Step4LicensesTermsImpl() {
+export default function Step4LicensesTerms() {
   const detectedLocale = typeof window !== 'undefined' ? (['en','es'].includes((window.location.pathname.split('/')[1]||'').toLowerCase()) ? window.location.pathname.split('/')[1] : 'en') : 'en'
   if (typeof window !== 'undefined' && !/^\/(en|es)\//.test(window.location.pathname)) {
     window.location.replace(`/${detectedLocale}/publish/wizard/step4`)
@@ -93,9 +83,10 @@ function Step4LicensesTermsImpl() {
 
   const onHashTerms = async () => {
     try {
-      const bytes = toUtf8Bytes(termsText || '')
-      const hash = keccak256(bytes)
-      setTermsHash(hash)
+      const enc = new TextEncoder().encode(termsText || '')
+      const buf = await crypto.subtle.digest('SHA-256', enc)
+      const hex = Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')
+      setTermsHash('0x'+hex)
     } catch {
       setTermsHash('')
     }
@@ -271,5 +262,3 @@ function Step4LicensesTermsImpl() {
     </div>
   )
 }
-
-export default NextDynamic(() => Promise.resolve(Step4LicensesTermsImpl), { ssr: false })

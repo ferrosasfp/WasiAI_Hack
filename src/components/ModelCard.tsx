@@ -5,13 +5,17 @@ import { useTranslations } from 'next-intl'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Card, CardActionArea, CardContent, CardMedia, Stack, Typography, Chip, Box, Button, Tooltip } from '@mui/material'
+import { Card, CardActionArea, CardContent, CardMedia, Stack, Typography, Chip, Box, Button, Tooltip, IconButton, Snackbar } from '@mui/material'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import ScienceIcon from '@mui/icons-material/Science'
 import CloudDoneIcon from '@mui/icons-material/CloudDone'
 import DownloadDoneIcon from '@mui/icons-material/DownloadDone'
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import SettingsIcon from '@mui/icons-material/Settings'
+import ShareIcon from '@mui/icons-material/Share'
+import StarIcon from '@mui/icons-material/Star'
+import FavoriteB from '@mui/icons-material/FavoriteBorder'
+import { usePrefetch } from '@/lib/prefetch'
 
 // Global controls to avoid bursts across many cards
 const __g: any = globalThis as any
@@ -59,6 +63,9 @@ export type ModelCardData = {
   deliveryMode?: string
   artifacts?: boolean
   demoPreset?: boolean
+  supportedLanguages?: string[]
+  rating?: number
+  numRuns?: number
 }
 
 function ConnectWalletInline({ }: { locale: string }) {
@@ -75,6 +82,9 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
   const defaultHref = data.slug ? `/${locale}/models/${data.slug}` : undefined
   const href = hrefProp || defaultHref
   const t = useTranslations('modelCard')
+  
+  // Add hover prefetch for instant navigation
+  const { prefetch, cancel } = usePrefetch(href || '', { enabled: !!href })
   const [coverSrc, setCoverSrc] = React.useState<string | undefined>(undefined)
   const rootRef = React.useRef<HTMLDivElement | null>(null)
   const [author, setAuthor] = React.useState<string | undefined>(data.author)
@@ -90,6 +100,10 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
   const [description, setDescription] = React.useState<string | undefined>(data.description)
   const [demoPreset, setDemoPreset] = React.useState<boolean | undefined>(data.demoPreset)
   const [artifacts, setArtifacts] = React.useState<boolean | undefined>(data.artifacts)
+  const [supportedLanguages, setSupportedLanguages] = React.useState<string[]>(Array.isArray(data.supportedLanguages) ? data.supportedLanguages : [])
+  const [rating, setRating] = React.useState<number | undefined>(data.rating)
+  const [numRuns, setNumRuns] = React.useState<number | undefined>(data.numRuns)
+  const [showCopied, setShowCopied] = React.useState(false)
   const strMeta = React.useCallback((v: any): string => {
     if (v == null) return ''
     if (typeof v === 'string') return v
@@ -200,7 +214,21 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
     setDescription(data.description)
     setDemoPreset(data.demoPreset)
     setArtifacts(data.artifacts)
-  }, [data.author, data.categories, data.tasks, data.architectures, data.frameworks, data.precision, data.rights, data.deliveryMode, data.valueProposition, data.description, data.demoPreset, data.artifacts])
+    setSupportedLanguages(Array.isArray(data.supportedLanguages) ? data.supportedLanguages : [])
+    setRating(data.rating)
+    setNumRuns(data.numRuns)
+  }, [data.author, data.categories, data.tasks, data.architectures, data.frameworks, data.precision, data.rights, data.deliveryMode, data.valueProposition, data.description, data.demoPreset, data.artifacts, data.supportedLanguages, data.rating, data.numRuns])
+  
+  // Share link handler
+  const handleShareLink = React.useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (typeof window === 'undefined' || !href) return
+    const url = `${window.location.origin}${href}`
+    navigator.clipboard?.writeText(url).then(() => {
+      setShowCopied(true)
+    }).catch(() => {})
+  }, [href])
 
   React.useEffect(() => {
     if (coverSrc) return
@@ -314,12 +342,20 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
     io.observe(el)
     return () => { alive = false; io.disconnect() }
   }, [coverSrc, data?.uri, toHttpFromIpfs])
-  const techLine = React.useMemo(()=>{
+  // Business chips (categories, useCases, tasks)
+  const businessChips = React.useMemo(() => {
+    const all = [...(categories || []), ...(tasks || [])]
+    return all.slice(0, 4)
+  }, [categories, tasks])
+  
+  // Tech stack line (architectures · frameworks · precision)
+  const techStackLine = React.useMemo(()=>{
     const a = architectures && architectures[0]
     const f = frameworks && frameworks[0]
     const p = Array.isArray(precision) && precision.length ? precision.join('/') : undefined
     return [a, f, p].filter(Boolean).join(' · ')
   }, [architectures, frameworks, precision])
+  
   const deliveryFlags = React.useMemo(()=>{
     const mode = String(deliveryMode || '').toLowerCase()
     let api = mode === 'api' || mode === 'both'
@@ -330,6 +366,27 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
     }
     return { api, download }
   }, [deliveryMode, rights])
+  
+  // Check if summary is long enough to show "View details" link
+  const summaryText = description || data.summary || valueProposition || ''
+  const isSummaryLong = summaryText.length > 100
+
+  // Price formatting: if value has decimals, show two decimals rounded up. If integer, keep as integer.
+  const formatPriceDisplay = React.useCallback((raw: string): string => {
+    try {
+      if (!raw) return raw
+      const m = raw.match(/^\s*([0-9]+(?:\.[0-9]+)?)\s*(.*)$/)
+      if (!m) return raw
+      const numPart = m[1]
+      const rest = m[2] || ''
+      const num = parseFloat(numPart)
+      if (!isFinite(num)) return raw
+      const hasDecimals = numPart.includes('.')
+      const rounded = hasDecimals ? Math.ceil(num * 100) / 100 : num
+      const formatted = hasDecimals ? rounded.toFixed(2) : String(rounded)
+      return `${formatted}${rest ? ` ${rest}` : ''}`
+    } catch { return raw }
+  }, [])
 
   return (
     <Card
@@ -345,8 +402,15 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
         overflow:'hidden'
       }}
       ref={rootRef}
+      onMouseEnter={prefetch}
+      onMouseLeave={cancel}
+      onTouchStart={prefetch}
     >
-      <CardActionArea component={href ? Link : 'div'} href={href as any} sx={{ alignItems:'stretch', display:'flex', flexDirection:'column', height:'100%', position:'relative' }}>
+      <CardActionArea 
+        component={'div'} 
+        onClick={()=>{ try { if (href) window.location.href = href } catch {} }}
+        sx={{ alignItems:'stretch', display:'flex', flexDirection:'column', height:'100%', position:'relative' }}
+      >
         {coverSrc ? (
           <Box sx={{ position:'relative', width:'100%', height: { xs: 160, sm: 180 }, overflow:'hidden', bgcolor:'#0a111c', p: 1 }}>
             <Image src={(coverSrc && (coverSrc.startsWith('http') || coverSrc.startsWith('/'))) ? coverSrc : toHttpFromIpfs(String(coverSrc||''))} alt={data.name} fill sizes="(max-width: 600px) 100vw, (max-width: 1200px) 50vw, 33vw" style={{ objectFit:'contain', objectPosition: 'center' }} loading={priority ? undefined : 'lazy'} priority={!!priority} unoptimized />
@@ -359,65 +423,245 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
         <Box sx={{ position:'absolute', right: 12, top: 12, opacity: 0, transition:'opacity .2s', '.MuiCardActionArea-root:hover &': { opacity: 1 } }}>
           <Button size="small" variant="contained" sx={{ backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color: '#fff', textTransform: 'none', fontWeight: 600, boxShadow: '0 6px 18px rgba(46,160,255,0.25)', '&:hover': { filter: 'brightness(1.05)', backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}>{t('details')}</Button>
         </Box>
-        <CardContent sx={{ flex:1, p: { xs: 3, sm: 3.25 } }}>
-          <Stack spacing={1}>
-            <Typography variant="h6" fontWeight={800} noWrap title={data.name} sx={{ color: '#fff' }}>{data.name}</Typography>
-            <Typography variant="body2" sx={{ color: '#ffffffd6', display:'-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
-              {description || data.summary || valueProposition}
-            </Typography>
-            {/* author/rating line intentionally removed per spec */}
-            <Stack direction="row" spacing={0.5} sx={{ flexWrap:'wrap' }}>
-              {(categories||[]).slice(0,2).map((c)=> <Chip key={`cat-${c}`} size="small" label={c} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
-              {(tasks||[]).slice(0,2).map((t)=> <Chip key={`task-${t}`} size="small" label={t} sx={{ bgcolor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
-              {(tags||[]).slice(0,3).map((g)=> <Chip key={`tag-${g}`} size="small" label={g} sx={{ bgcolor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
-            </Stack>
-            {techLine && (
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <SettingsIcon fontSize="small" sx={{ color:'text.secondary' }} />
-                <Typography variant="caption" sx={{ color: '#e2eeff' }} noWrap title={techLine}>{techLine}</Typography>
-              </Stack>
-            )}
-            <Stack spacing={0.25}>
-              {showConnect ? null : data.pricePerpetual && (
-                <Typography variant="subtitle1" fontWeight={800} sx={{ color: '#4fe1ff' }}>
-                  {data.pricePerpetual} · {t('oneTime')}
+        <CardContent sx={{ flex:1, p: { xs: 2.5, sm: 3 }, display: 'flex', flexDirection: 'column' }}>
+          <Stack spacing={1.5} sx={{ flex: 1 }}>
+            {/* Header: Name + Short Summary */}
+            <Box>
+              <Typography variant="h6" fontWeight={800} sx={{ color: '#fff', mb: 0.75, lineHeight: 1.3 }} title={data.name}>
+                {data.name}
+              </Typography>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: '#ffffffd6', 
+                  display: '-webkit-box', 
+                  WebkitLineClamp: 3, 
+                  WebkitBoxOrient: 'vertical', 
+                  overflow: 'hidden',
+                  lineHeight: 1.5,
+                  mb: isSummaryLong ? 0.5 : 0
+                }}
+              >
+                {summaryText}
+              </Typography>
+              {isSummaryLong && href && (
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: '#4fe1ff', 
+                    cursor: 'pointer',
+                    '&:hover': { textDecoration: 'underline' },
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  {t('viewDetailsLink')} →
                 </Typography>
               )}
-              {showConnect ? null : data.priceSubscription && (
-                <Typography variant="subtitle2" sx={{ color: '#ffffffcc' }}>
-                  {data.priceSubscription} {t('subscription')}
+            </Box>
+
+            {/* Business chips (Línea 1) */}
+            {businessChips.length > 0 && (
+              <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                {businessChips.map((c, i) => (
+                  <Chip 
+                    key={`bus-${c}-${i}`} 
+                    size="small" 
+                    label={c} 
+                    sx={{ 
+                      bgcolor: 'rgba(124, 92, 255, 0.15)', 
+                      color: '#fff', 
+                      border: '1px solid rgba(124, 92, 255, 0.3)',
+                      fontSize: '0.7rem',
+                      height: 22
+                    }} 
+                  />
+                ))}
+              </Stack>
+            )}
+
+            {/* Tech stack line (Línea 2) */}
+            {techStackLine && (
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <SettingsIcon fontSize="small" sx={{ color: 'text.secondary', fontSize: '1rem' }} />
+                <Typography 
+                  variant="caption" 
+                  sx={{ color: '#e2eeff', fontSize: '0.75rem' }} 
+                  noWrap 
+                  title={techStackLine}
+                >
+                  {techStackLine}
                 </Typography>
+              </Stack>
+            )}
+
+            {/* Supported languages */}
+            {supportedLanguages && supportedLanguages.length > 0 && (
+              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                <Typography variant="caption" sx={{ color: '#ffffffb3', fontSize: '0.7rem', mr: 0.5 }}>
+                  {t('supportedLanguages')}:
+                </Typography>
+                {supportedLanguages.slice(0, 4).map((lang, i) => (
+                  <Chip 
+                    key={`lang-${lang}-${i}`} 
+                    size="small" 
+                    label={lang.toUpperCase()} 
+                    sx={{ 
+                      bgcolor: 'rgba(255,255,255,0.08)', 
+                      color: '#fff', 
+                      fontSize: '0.65rem',
+                      height: 20,
+                      '& .MuiChip-label': { px: 0.75 }
+                    }} 
+                  />
+                ))}
+              </Stack>
+            )}
+
+            {/* Rating / uso */}
+            {(rating || numRuns) && (
+              <Stack direction="row" spacing={1} alignItems="center">
+                {rating && (
+                  <Stack direction="row" spacing={0.25} alignItems="center">
+                    <StarIcon sx={{ color: '#ffc107', fontSize: '1rem' }} />
+                    <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600, fontSize: '0.75rem' }}>
+                      {rating.toFixed(1)}
+                    </Typography>
+                  </Stack>
+                )}
+                {numRuns && numRuns > 0 && (
+                  <Typography variant="caption" sx={{ color: '#ffffffb3', fontSize: '0.75rem' }}>
+                    · {numRuns} {t('runs')}
+                  </Typography>
+                )}
+              </Stack>
+            )}
+
+            <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.08)', pt: 1.5, mt: 'auto' }}>
+              {/* Precios */}
+              {!showConnect && (data.pricePerpetual || data.priceSubscription) && (
+                <Stack spacing={0.5} sx={{ mb: 1.5 }}>
+                  {data.pricePerpetual && (
+                    <Typography variant="body2" fontWeight={700} sx={{ color: '#4fe1ff', fontSize: '0.95rem' }}>
+                      {formatPriceDisplay(data.pricePerpetual)} · {t('oneTime')}
+                    </Typography>
+                  )}
+                  {data.priceSubscription && (
+                    <Typography variant="body2" sx={{ color: '#ffffffcc', fontSize: '0.85rem' }}>
+                      {formatPriceDisplay(data.priceSubscription)}{t('perMonth')}
+                    </Typography>
+                  )}
+                </Stack>
               )}
               {showConnect && (
-                <ConnectWalletInline locale={locale} />
+                <Box sx={{ mb: 1.5 }}>
+                  <ConnectWalletInline locale={locale} />
+                </Box>
               )}
-            </Stack>
-            <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexWrap:'wrap' }}>
-              {deliveryFlags.api && (
-                <Chip size="small" icon={<CloudDoneIcon sx={{ color: '#fff' }} />} label={t('chips.apiUsage')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', '& .MuiChip-icon': { color: '#fff' } }} />
-              )}
-              {deliveryFlags.download && (
-                <Chip size="small" icon={<DownloadDoneIcon sx={{ color: '#fff' }} />} label={t('chips.modelDownload')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', '& .MuiChip-icon': { color: '#fff' } }} />
-              )}
-            </Stack>
-            {rights?.transferable && (
-              <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexWrap:'wrap' }}>
-                <Chip size="small" icon={<SwapHorizIcon sx={{ color: '#fff' }} />} label={t('chips.transferable')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', '& .MuiChip-icon': { color: '#fff' } }} />
+
+              {/* License capability badges */}
+              <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>
+                {deliveryFlags.api && (
+                  <Chip 
+                    size="small" 
+                    icon={<CloudDoneIcon />} 
+                    label={t('chips.apiUsage')} 
+                    sx={{ 
+                      bgcolor: 'rgba(46, 160, 255, 0.12)', 
+                      color: '#fff', 
+                      border: '1px solid rgba(46, 160, 255, 0.25)',
+                      fontSize: '0.7rem',
+                      height: 24,
+                      '& .MuiChip-icon': { color: '#4fe1ff', fontSize: '1rem' }
+                    }} 
+                  />
+                )}
+                {deliveryFlags.download && (
+                  <Chip 
+                    size="small" 
+                    icon={<DownloadDoneIcon />} 
+                    label={t('chips.modelDownload')} 
+                    sx={{ 
+                      bgcolor: 'rgba(76, 175, 80, 0.12)', 
+                      color: '#fff', 
+                      border: '1px solid rgba(76, 175, 80, 0.25)',
+                      fontSize: '0.7rem',
+                      height: 24,
+                      '& .MuiChip-icon': { color: '#81c784', fontSize: '1rem' }
+                    }} 
+                  />
+                )}
+                {rights?.transferable && (
+                  <Chip 
+                    size="small" 
+                    icon={<SwapHorizIcon />} 
+                    label={t('chips.transferable')} 
+                    sx={{ 
+                      bgcolor: 'rgba(255, 152, 0, 0.12)', 
+                      color: '#fff', 
+                      border: '1px solid rgba(255, 152, 0, 0.25)',
+                      fontSize: '0.7rem',
+                      height: 24,
+                      '& .MuiChip-icon': { color: '#ffb74d', fontSize: '1rem' }
+                    }} 
+                  />
+                )}
               </Stack>
-            )}
-            {data.knownLimitations && (
-              <Tooltip title={data.knownLimitations} placement="bottom-start">
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <WarningAmberIcon fontSize="small" sx={{ color: 'warning.main' }} />
-                  <Typography variant="caption" color="text.secondary" sx={{ maxWidth: '100%' }} noWrap>
-                    {data.knownLimitations}
-                  </Typography>
+
+              {/* Action buttons */}
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                <Button 
+                  variant="contained" 
+                  size="small"
+                  fullWidth
+                  onClick={(e)=>{ e.stopPropagation(); try { if (href) window.location.href = href } catch {} }}
+                  sx={{ 
+                    backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', 
+                    color: '#fff', 
+                    textTransform: 'none', 
+                    fontWeight: 600, 
+                    fontSize: '0.85rem',
+                    boxShadow: '0 4px 12px rgba(46,160,255,0.2)', 
+                    '&:hover': { 
+                      filter: 'brightness(1.1)', 
+                      backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)' 
+                    }
+                  }}
+                >
+                  {t('viewModel')}
+                </Button>
+                <Stack direction="row" spacing={0.5}>
+                  {/* TODO: Favorito (cuando exista endpoint) */}
+                  {/* <Tooltip title="Save">
+                    <IconButton size="small" sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } }}>
+                      <FavoriteB fontSize="small" />
+                    </IconButton>
+                  </Tooltip> */}
+                  <Tooltip title={t('shareLink')}>
+                    <IconButton 
+                      size="small" 
+                      onClick={handleShareLink}
+                      sx={{ 
+                        color: '#fff', 
+                        bgcolor: 'rgba(255,255,255,0.08)', 
+                        '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } 
+                      }}
+                    >
+                      <ShareIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </Stack>
-              </Tooltip>
-            )}
+              </Stack>
+            </Box>
           </Stack>
         </CardContent>
       </CardActionArea>
+      <Snackbar 
+        open={showCopied} 
+        autoHideDuration={2000} 
+        onClose={() => setShowCopied(false)}
+        message={t('linkCopied')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Card>
   )
 }

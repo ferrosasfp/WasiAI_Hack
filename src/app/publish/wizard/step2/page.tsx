@@ -2,7 +2,6 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
 import { Box, Stack, Typography, Paper, Tooltip, TextField, Autocomplete, Chip, Grid, Divider, Button, FormHelperText, Switch, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, IconButton, Card, CardActionArea } from '@mui/material'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
-import NextDynamic from 'next/dynamic'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
@@ -24,28 +23,12 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 
-export const dynamic = 'force-dynamic'
-
 async function saveDraft(payload: any) {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-
-  const res = await fetch('/api/models/draft', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(addr ? { 'X-Wallet-Address': addr } : {}) },
-    body: JSON.stringify(addr ? { ...payload, address: addr } : payload)
-  })
+  const res = await fetch('/api/models/draft', { method: 'POST', body: JSON.stringify(payload) })
   return res.json()
 }
 
-async function loadDraft() {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft' + (addr ? `?address=${addr}` : ''), { method: 'GET', headers: addr ? { 'X-Wallet-Address': addr } : {} })
-  return res.json()
-}
-
-function Step2CompatibilityImpl() {
+export default function Step2Compatibility() {
   const detectedLocale = typeof window !== 'undefined' ? (['en','es'].includes((window.location.pathname.split('/')[1]||'').toLowerCase()) ? window.location.pathname.split('/')[1] : 'en') : 'en'
   // Redirige esta ruta sin prefijo a la localización equivalente
   if (typeof window !== 'undefined' && !/^\/(en|es)\//.test(window.location.pathname)) {
@@ -148,65 +131,6 @@ function Step2CompatibilityImpl() {
   const [support, setSupport] = useState('')
   const [activePreset, setActivePreset] = useState<string>('')
   const slugify = (s:string)=> s.toLowerCase().replace(/[^a-z0-9]+/g,'-')
-
-  // Autoload draft on mount and populate fields
-  useEffect(() => {
-    let alive = true
-    loadDraft().then((r)=>{
-      if (!alive) return
-      const s2 = r?.data?.step2
-      if (!s2) return
-      try {
-        const cap = s2.capabilities || {}
-        setTasks(Array.isArray(cap.tasks)? cap.tasks : [])
-        setModalities(Array.isArray(cap.modalities)? cap.modalities : [])
-        const arch = s2.architecture || {}
-        setFrameworks(Array.isArray(arch.frameworks)? arch.frameworks : [])
-        setArchitectures(Array.isArray(arch.architectures)? arch.architectures : [])
-        setPrecisions(Array.isArray(arch.precisions)? arch.precisions : [])
-        if (typeof arch.quantization === 'string') setQuantization(arch.quantization)
-        if (arch.modelSizeParams != null) setModelSizeParams(String(arch.modelSizeParams))
-        setModelFiles(Array.isArray(arch.modelFiles)? arch.modelFiles : [])
-        const rt = s2.runtime || {}
-        if (typeof rt.python === 'string') setPython(rt.python)
-        if (typeof rt.cuda === 'string') setCuda(rt.cuda)
-        if (typeof rt.torch === 'string') setTorch(rt.torch)
-        if (typeof rt.cudnn === 'string') setCudnn(rt.cudnn)
-        setOses(Array.isArray(rt.os)? rt.os : [])
-        setAccelerators(Array.isArray(rt.accelerators)? rt.accelerators : [])
-        if (typeof rt.computeCapability === 'string') setComputeCapability(rt.computeCapability)
-        const deps = s2.dependencies || {}
-        const pip = Array.isArray(deps.pip)? deps.pip : []
-        setPipDeps(pip.join('\n'))
-        const resrc = s2.resources || {}
-        if (resrc.vramGB!=null) setVramGB(String(resrc.vramGB))
-        if (resrc.cpuCores!=null) setCpuCores(String(resrc.cpuCores))
-        if (resrc.ramGB!=null) setRamGB(String(resrc.ramGB))
-        const inf = s2.inference || {}
-        if (inf.maxBatchSize!=null) setMaxBatch(String(inf.maxBatchSize))
-        if (inf.contextLength!=null) setContextLen(String(inf.contextLength))
-        if (inf.maxTokens!=null) setMaxTokens(String(inf.maxTokens))
-        if (typeof inf.imageResolution === 'string') setImgResolution(inf.imageResolution)
-        if (inf.sampleRate!=null) setSampleRate(String(inf.sampleRate))
-        if (typeof inf.triton === 'boolean') setUseTriton(inf.triton)
-        const cust = s2.customer || {}
-        if (typeof cust.valueProp === 'string') setValueProp(cust.valueProp)
-        if (typeof cust.description === 'string') setCustomerDesc(cust.description)
-        setIndustries(Array.isArray(cust.industries)? cust.industries : [])
-        setUseCases(Array.isArray(cust.useCases)? cust.useCases : [])
-        if (typeof cust.expectedOutcomes === 'string') setExpectedOutcomes(cust.expectedOutcomes)
-        if (typeof cust.inputs === 'string') setInputsDesc(cust.inputs)
-        if (typeof cust.outputs === 'string') setOutputsDesc(cust.outputs)
-        if (Array.isArray(cust.examples)) setIoExamplesList(cust.examples)
-        if (typeof cust.limitations === 'string') setLimitations(cust.limitations)
-        if (typeof cust.privacy === 'string') setPrivacy(cust.privacy)
-        setDeployOptions(Array.isArray(cust.deploy)? cust.deploy : [])
-        if (typeof cust.support === 'string') setSupport(cust.support)
-        setDirty(false)
-      } catch {}
-    }).catch(()=>{})
-    return () => { alive = false }
-  }, [])
 
   // Presets orientados a compradores
   type Preset = {
@@ -635,40 +559,22 @@ function Step2CompatibilityImpl() {
       limitations.trim()
     )
   }
-
-  const getClientValidationErrors = (): string[] => {
-    const errs: string[] = []
-    if (!valueProp.trim()) errs.push('Propuesta de valor (pitch)')
-    if (!customerDesc.trim()) errs.push('Descripción para clientes')
-    if (!(industries.length>0 || useCases.length>0)) errs.push('Industrias o Casos de uso (al menos uno)')
-    if (!inputsDesc.trim()) errs.push('Entradas (inputs)')
-    if (!outputsDesc.trim()) errs.push('Salidas (outputs)')
-    if (!limitations.trim()) errs.push('Limitaciones')
-    return errs
-  }
-  const onNext = async (e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
+  const onNext = (e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
     // Validación suave: si falta, no navegamos y avisamos
     if (!isClientSheetValid()) {
       e.preventDefault()
-      const errs = getClientValidationErrors()
       setMsg('Completa la ficha para clientes (título, descripción y al menos una industria o caso de uso)')
-      try { if (errs.length) alert('Faltan campos en la ficha para clientes:\n\n- ' + errs.join('\n- ')) } catch {}
       const top = document.getElementById('client-sheet-top')
       top?.scrollIntoView({ behavior:'smooth', block:'start' })
       return
     }
-    // Autoguardar y navegar solo si guarda ok
+    // Autoguardar y navegar
     e.preventDefault()
     navigatingRef.current = true
-    const ok = await onSave()
-    if (ok) {
-      window.location.href = '/publish/wizard/step3'
-    } else {
-      navigatingRef.current = false
-    }
+    onSave().finally(()=>{ window.location.href = '/publish/wizard/step3' })
   }
 
-  const onSave = async (): Promise<boolean> => {
+  const onSave = async () => {
     setSaving(true)
     setMsg('')
     const payload = {
@@ -718,31 +624,12 @@ function Step2CompatibilityImpl() {
         }
       }
     }
-    try { console.debug?.('[step2] payload to save:', payload) } catch {}
     try {
-      const resp = await saveDraft(payload)
-      // Debug en consola para inspección rápida
-      try { console.debug?.('[step2] saveDraft resp:', resp) } catch {}
-      if (resp?.ok) {
-        setMsg('Guardado')
-        setDirty(false)
-        // Verificación: leer desde el backend lo que quedó guardado
-        try {
-          const addr = walletAddress
-          if (addr) {
-            const check = await fetch(`/api/models/draft?address=${addr}`, { headers: { 'X-Wallet-Address': addr } })
-            const json = await check.json()
-            try { console.debug?.('[step2] server stored step2:', json?.data?.step2) } catch {}
-          }
-        } catch {}
-        return true
-      } else {
-        setMsg(`Error al guardar${resp?.error ? `: ${resp.error}` : ''}`)
-        return false
-      }
-    } catch (e: any) {
-      setMsg(`Error al guardar: ${String(e?.message||e)}`)
-      return false
+      await saveDraft(payload)
+      setMsg('Guardado')
+      setDirty(false)
+    } catch (e) {
+      setMsg('Error al guardar')
     } finally {
       setSaving(false)
     }
@@ -751,12 +638,8 @@ function Step2CompatibilityImpl() {
   const navigateAfterSave = async (e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>, url: string) => {
     e.preventDefault()
     navigatingRef.current = true
-    const ok = await onSave()
-    if (ok) {
-      window.location.href = url
-    } else {
-      navigatingRef.current = false
-    }
+    await onSave()
+    window.location.href = url
   }
 
   return (
@@ -853,10 +736,10 @@ function Step2CompatibilityImpl() {
           <Grid item xs={12} md={6}><TextField label="Propuesta de valor (pitch)" value={valueProp} onChange={e=>setValueProp(e.target.value)} placeholder="¿Qué resuelve y por qué es mejor?" fullWidth /></Grid>
           <Grid item xs={12} md={6}><TextField label="Descripción para clientes" value={customerDesc} onChange={e=>setCustomerDesc(e.target.value)} placeholder="Explica en lenguaje simple cómo ayuda" fullWidth /></Grid>
           <Grid item xs={12} md={6}>
-            <Autocomplete multiple freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={INDUSTRIES} value={industries} onChange={(_,v)=>setIndustries(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Industrias" placeholder="Selecciona o escribe y Enter"/>)} />
+            <Autocomplete multiple options={INDUSTRIES} value={industries} onChange={(_,v)=>setIndustries(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Industrias" placeholder="Selecciona"/>)} />
           </Grid>
           <Grid item xs={12} md={6}>
-            <Autocomplete multiple freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={USECASES} value={useCases} onChange={(_,v)=>setUseCases(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Casos de uso" placeholder="Selecciona o escribe y Enter"/>)} />
+            <Autocomplete multiple options={USECASES} value={useCases} onChange={(_,v)=>setUseCases(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Casos de uso" placeholder="Selecciona"/>)} />
           </Grid>
           <Grid item xs={12}><TextField label="Resultados esperados / KPIs" value={expectedOutcomes} onChange={e=>setExpectedOutcomes(e.target.value)} placeholder="Ej. +10% retención, -15% tiempo de respuesta" fullWidth /></Grid>
           <Grid item xs={12} md={6}><TextField label="Entradas (datos necesarios)" value={inputsDesc} onChange={e=>setInputsDesc(e.target.value)} placeholder="CSV ventas, PDFs facturas, imágenes, etc." fullWidth /></Grid>
@@ -896,7 +779,7 @@ function Step2CompatibilityImpl() {
           <Grid item xs={12}><TextField multiline rows={2} label="Limitaciones / Consideraciones éticas" value={limitations} onChange={e=>setLimitations(e.target.value)} placeholder="Dónde no usar, sesgos conocidos" fullWidth /></Grid>
           <Grid item xs={12} md={6}><TextField label="Privacidad y manejo de datos" value={privacy} onChange={e=>setPrivacy(e.target.value)} placeholder="PII, encriptación, retención" fullWidth /></Grid>
           <Grid item xs={12} md={6}>
-            <Autocomplete multiple freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={DEPLOY} value={deployOptions} onChange={(_,v)=>setDeployOptions(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Despliegue disponible" placeholder="Selecciona o escribe y Enter"/>)} />
+            <Autocomplete multiple options={DEPLOY} value={deployOptions} onChange={(_,v)=>setDeployOptions(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Despliegue disponible" placeholder="Selecciona"/>)} />
           </Grid>
           <Grid item xs={12}><TextField label="Soporte y contacto" value={support} onChange={e=>setSupport(e.target.value)} placeholder="SLA, correo, horario" fullWidth /></Grid>
         </Grid>
@@ -967,8 +850,8 @@ function Step2CompatibilityImpl() {
                 <Tooltip title="Tareas y modalidades que cubre el modelo"><InfoOutlinedIcon fontSize="small" color="action"/></Tooltip>
               </Stack>
               <Stack spacing={2}>
-                <Autocomplete multiple freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={TASKS} value={tasks} onChange={(_,v)=>setTasks(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Tareas" placeholder="Selecciona o escribe y Enter"/>)} />
-                <Autocomplete multiple freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={MODALITIES} value={modalities} onChange={(_,v)=>setModalities(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Modalidades" placeholder="Selecciona o escribe y Enter"/>)} />
+                <Autocomplete multiple options={TASKS} value={tasks} onChange={(_,v)=>setTasks(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Tareas" placeholder="Selecciona"/>)} />
+                <Autocomplete multiple options={MODALITIES} value={modalities} onChange={(_,v)=>setModalities(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Modalidades" placeholder="Selecciona"/>)} />
               </Stack>
             </Paper>
 
@@ -979,20 +862,20 @@ function Step2CompatibilityImpl() {
               </Stack>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={6}>
-                  <Autocomplete multiple freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={FRAMEWORKS} value={frameworks} onChange={(_,v)=>setFrameworks(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Frameworks" placeholder="Selecciona o escribe y Enter"/>)} />
+                  <Autocomplete multiple options={FRAMEWORKS} value={frameworks} onChange={(_,v)=>setFrameworks(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Frameworks" placeholder="Selecciona"/>)} />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Autocomplete multiple freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={ARCHS} value={architectures} onChange={(_,v)=>setArchitectures(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Arquitecturas" placeholder="Selecciona o escribe y Enter"/>)} />
+                  <Autocomplete multiple options={ARCHS} value={architectures} onChange={(_,v)=>setArchitectures(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Arquitecturas" placeholder="Selecciona"/>)} />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Autocomplete multiple freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={PRECISIONS} value={precisions} onChange={(_,v)=>setPrecisions(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Precisión" placeholder="fp16, int8, etc."/>)} />
+                  <Autocomplete multiple options={PRECISIONS} value={precisions} onChange={(_,v)=>setPrecisions(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Precisión" placeholder="fp16, int8, etc."/>)} />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Autocomplete freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={QUANT} value={quantization} onChange={(_,v)=>setQuantization(v||'none')} renderInput={(p)=>(<TextField {...p} label="Cuantización" placeholder="Selecciona o escribe"/>)} />
+                  <Autocomplete options={QUANT} value={quantization} onChange={(_,v)=>setQuantization(v||'none')} renderInput={(p)=>(<TextField {...p} label="Cuantización" placeholder="Selecciona"/>)} />
                 </Grid>
                 <Grid item xs={12} md={6}><TextField label="Parámetros (M)" value={modelSizeParams} onChange={e=>setModelSizeParams(e.target.value)} placeholder="Ej. 7, 13, 70" fullWidth /></Grid>
                 <Grid item xs={12} md={6}>
-                  <Autocomplete multiple freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={FILES} value={modelFiles} onChange={(_,v)=>setModelFiles(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Formatos de archivos" placeholder="safetensors, gguf, onnx"/>)} />
+                  <Autocomplete multiple options={FILES} value={modelFiles} onChange={(_,v)=>setModelFiles(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Formatos de archivos" placeholder="safetensors, gguf, onnx"/>)} />
                 </Grid>
               </Grid>
             </Paper>
@@ -1008,10 +891,10 @@ function Step2CompatibilityImpl() {
                 <Grid item xs={12} md={3}><TextField label="PyTorch" value={torch} onChange={e=>setTorch(e.target.value)} placeholder="2.2" fullWidth /></Grid>
                 <Grid item xs={12} md={3}><TextField label="cuDNN" value={cudnn} onChange={e=>setCudnn(e.target.value)} fullWidth /></Grid>
                 <Grid item xs={12} md={6}>
-                  <Autocomplete multiple freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={OS} value={oses} onChange={(_,v)=>setOses(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Sistemas" placeholder="linux, windows, macos"/>)} />
+                  <Autocomplete multiple options={OS} value={oses} onChange={(_,v)=>setOses(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Sistemas" placeholder="linux, windows, macos"/>)} />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Autocomplete multiple freeSolo selectOnFocus clearOnBlur handleHomeEndKeys options={ACCELS} value={accelerators} onChange={(_,v)=>setAccelerators(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Aceleradores" placeholder="nvidia-cuda, amd-rocm, apple-metal"/>)} />
+                  <Autocomplete multiple options={ACCELS} value={accelerators} onChange={(_,v)=>setAccelerators(v)} renderTags={(value,getTagProps)=>value.map((o,i)=>(<Chip label={o} {...getTagProps({index:i})} key={o}/>))} renderInput={(p)=>(<TextField {...p} label="Aceleradores" placeholder="nvidia-cuda, amd-rocm, apple-metal"/>)} />
                 </Grid>
                 <Grid item xs={12} md={6}><TextField label="Compute Capability / Nota GPU" value={computeCapability} onChange={e=>setComputeCapability(e.target.value)} placeholder="Ej. SM 8.0, ROCm 5.x, M-series" fullWidth /></Grid>
               </Grid>
@@ -1098,5 +981,3 @@ function Step2CompatibilityImpl() {
     </Box>
   )
 }
-
-export default NextDynamic(() => Promise.resolve(Step2CompatibilityImpl), { ssr: false })

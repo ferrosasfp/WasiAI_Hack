@@ -13,20 +13,12 @@ async function publishModel(payload: any) {
 }
 
 async function saveDraft(payload: any) {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(addr ? { 'X-Wallet-Address': addr } : {}) },
-    body: JSON.stringify(addr ? { ...payload, address: addr } : payload)
-  })
+  const res = await fetch('/api/models/draft', { method: 'POST', body: JSON.stringify(payload) })
   return res.json()
 }
 
 async function loadDraft() {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft' + (addr ? `?address=${addr}` : ''), { method: 'GET', headers: addr ? { 'X-Wallet-Address': addr } : {} })
+  const res = await fetch('/api/models/draft', { method: 'GET' })
   return res.json()
 }
 
@@ -61,9 +53,6 @@ export default function Step5ReviewPublish() {
       downloadNotes: s3?.downloadNotes || undefined,
       version: 1,
     }
-    // Normalize fields expected by summary
-    if (!merged.slug && s1?.slug) merged.slug = s1.slug
-    if (!merged.authorDisplay && s1?.author?.displayName) merged.authorDisplay = s1.author.displayName
     return merged
   }, [draft])
 
@@ -180,7 +169,7 @@ export default function Step5ReviewPublish() {
             <List dense>
               <ListItem><ListItemText primary={`Nombre: ${metadata?.name || '-'}`} /></ListItem>
               <ListItem><ListItemText primary={`Slug: ${metadata?.slug || '-'}`} /></ListItem>
-              <ListItem><ListItemText primary={`Autor: ${metadata?.authorDisplay || metadata?.author?.displayName || '-'}`} /></ListItem>
+              <ListItem><ListItemText primary={`Autor: ${metadata?.authorDisplay || '-'}`} /></ListItem>
             </List>
           </Grid>
           <Grid item xs={12} md={6}>

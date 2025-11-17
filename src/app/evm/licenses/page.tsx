@@ -1,17 +1,33 @@
 "use client";
 import React from 'react'
-import { useAccount, useChainId as useEvmChainId, usePublicClient, useSwitchChain } from 'wagmi'
+import { useAccount, useChainId as useEvmChainId, usePublicClient, useSwitchChain, useConfig } from 'wagmi'
 import {
-  Container, Box, Stack, Typography, Button, Divider, Alert, Table, TableHead, TableRow, TableCell, TableBody, Chip, CircularProgress, Snackbar, Dialog, DialogTitle, DialogContent, IconButton
+  Container, Box, Stack, Typography, Button, Divider, Alert, Table, TableHead, TableRow, TableCell, TableBody, Chip, CircularProgress, Snackbar, Dialog, DialogTitle, DialogContent, IconButton,
+  TableContainer, Paper, Tooltip, Drawer
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import DownloadIcon from '@mui/icons-material/Download'
+import ApiIcon from '@mui/icons-material/Api'
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload'
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
+import ArticleIcon from '@mui/icons-material/Article'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import LanguageIcon from '@mui/icons-material/Language'
+import VisibilityIcon from '@mui/icons-material/Visibility'
 import MARKET_ARTIFACT from '@/abis/Marketplace.json'
-import NextDynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useLocale } from 'next-intl'
+import { createViewModelFromPublished } from '@/viewmodels'
 
-export const dynamic = 'force-dynamic'
+const globalCache = globalThis as any
+globalCache.__LICENSE_STATUS_CACHE = globalCache.__LICENSE_STATUS_CACHE || new Map<string, { data: any; ts: number }>()
+globalCache.__LICENSE_LOGS_CACHE = globalCache.__LICENSE_LOGS_CACHE || new Map<string, { logs: any[]; ts: number }>()
+const LICENSE_STATUS_CACHE = globalCache.__LICENSE_STATUS_CACHE as Map<string, { data: any; ts: number }>
+const LICENSE_LOGS_CACHE = globalCache.__LICENSE_LOGS_CACHE as Map<string, { logs: any[]; ts: number }>
+
+const STATUS_CACHE_TTL = 5 * 60 * 1000
+const LOG_CACHE_TTL = 10 * 60 * 1000
+const MODEL_CACHE_STORAGE_KEY = 'licenseModelCache'
 
 function useMarketAddress(chainId: number | undefined) {
   return React.useMemo(() => {
@@ -35,6 +51,7 @@ function EvmLicensesPageImpl() {
   const marketAddress = useMarketAddress(evmChainId)
   const publicClient = usePublicClient()
   const { switchChainAsync } = useSwitchChain()
+  const { chains } = useConfig() as any
 
   const [loading, setLoading] = React.useState(false)
   const [rows, setRows] = React.useState<any[]>([])
@@ -42,12 +59,100 @@ function EvmLicensesPageImpl() {
   const [snkMsg, setSnkMsg] = React.useState('')
   const [snkSev, setSnkSev] = React.useState<'success'|'error'|'info'|'warning'>('info')
 
+  const [artifactsDrawerOpen, setArtifactsDrawerOpen] = React.useState(false)
+  const [selectedLicense, setSelectedLicense] = React.useState<any>(null)
+
   const [dlgOpen, setDlgOpen] = React.useState(false)
   const [dlgTitle, setDlgTitle] = React.useState<string>('Artifacts')
   const [dlgItems, setDlgItems] = React.useState<Array<{ name: string; url: string; type: string; size?: number }>>([])
   const [dlgLoading, setDlgLoading] = React.useState(false)
   const [dlgNotes, setDlgNotes] = React.useState<string>('')
+  const [viewDrawerOpen, setViewDrawerOpen] = React.useState(false)
+  const [viewLicense, setViewLicense] = React.useState<any>(null)
   const licenseModelCache = React.useRef<Map<number, number>>(new Map())
+
+  const persistLicenseModelCache = React.useCallback(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const entries = Array.from(licenseModelCache.current.entries())
+      window.localStorage.setItem(MODEL_CACHE_STORAGE_KEY, JSON.stringify(entries))
+    } catch {}
+  }, [])
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(MODEL_CACHE_STORAGE_KEY)
+      if (raw) {
+        const entries = JSON.parse(raw)
+        if (Array.isArray(entries)) {
+          licenseModelCache.current = new Map(entries)
+        }
+      }
+    } catch {}
+  }, [])
+
+  const rememberModelId = React.useCallback((tokenId: number, modelId: number) => {
+    if (!modelId) return
+    if (licenseModelCache.current.get(tokenId) === modelId) return
+    licenseModelCache.current.set(tokenId, modelId)
+    persistLicenseModelCache()
+  }, [persistLicenseModelCache])
+
+  const getLogsMemoized = React.useCallback(async (args: any) => {
+    if (!publicClient || !args) return []
+    const from = args.fromBlock ? args.fromBlock.toString() : '0'
+    const to = args.toBlock ? args.toBlock.toString() : '0'
+    const eventName = (args.event as any)?.name || 'event'
+    const cacheKey = `${evmChainId || 'unknown'}:${marketAddress || 'unknown'}:${eventName}:${from}-${to}`
+    const cached = LICENSE_LOGS_CACHE.get(cacheKey)
+    if (cached && Date.now() - cached.ts < LOG_CACHE_TTL) {
+      return cached.logs
+    }
+    const logs = await publicClient.getLogs(args)
+    LICENSE_LOGS_CACHE.set(cacheKey, { logs, ts: Date.now() })
+    return logs
+  }, [publicClient, evmChainId, marketAddress])
+
+  const fetchLicenseStatus = React.useCallback(async (tokenId: number, abi: any) => {
+    if (!publicClient || !marketAddress) return null
+    const cacheKey = `${evmChainId || 'unknown'}:${marketAddress}:${tokenId}`
+    const cached = LICENSE_STATUS_CACHE.get(cacheKey)
+    const now = Date.now()
+    if (cached && now - cached.ts < STATUS_CACHE_TTL) {
+      return cached.data
+    }
+    const result = await publicClient.readContract({
+      address: marketAddress as `0x${string}`,
+      abi,
+      functionName: 'licenseStatus',
+      args: [BigInt(tokenId)]
+    })
+    LICENSE_STATUS_CACHE.set(cacheKey, { data: result, ts: now })
+    return result
+  }, [publicClient, marketAddress, evmChainId])
+
+  const isES = locale === 'es'
+  const evmSymbol = React.useMemo(()=>{
+    try {
+      if (typeof evmChainId !== 'number') return 'ETH'
+      const ch = Array.isArray(chains) ? chains.find((c:any)=> c?.id === evmChainId) : undefined
+      const sym = ch?.nativeCurrency?.symbol
+      return typeof sym === 'string' && sym ? sym : 'ETH'
+    } catch {
+      return 'ETH'
+    }
+  }, [evmChainId, chains])
+  
+  const chainName = React.useMemo(()=>{
+    try {
+      if (typeof evmChainId !== 'number') return 'EVM'
+      const ch = Array.isArray(chains) ? chains.find((c:any)=> c?.id === evmChainId) : undefined
+      return ch?.name || 'EVM'
+    } catch {
+      return 'EVM'
+    }
+  }, [evmChainId, chains])
 
   const toHttpFromIpfs = React.useCallback((u: string): string => {
     if (!u) return ''
@@ -113,7 +218,7 @@ function EvmLicensesPageImpl() {
         for (let i = 0; i < 10000 && to > 0n; i++) {
           const from = to > STEP ? (to - STEP + 1n) : 0n
           try {
-            const chunk = await publicClient.getLogs({ address: marketAddress as `0x${string}`, event, fromBlock: from, toBlock: to })
+            const chunk = await getLogsMemoized({ address: marketAddress as `0x${string}`, event, fromBlock: from, toBlock: to })
             for (const l of chunk) {
               try { if (Number((l as any).args?.licenseId) === tokenId) { found = l; break } } catch {}
             }
@@ -123,7 +228,7 @@ function EvmLicensesPageImpl() {
           to = from > 0n ? (from - 1n) : 0n
         }
         modelId = found ? Number((found as any).args?.modelId || 0) : 0
-        if (modelId) licenseModelCache.current.set(tokenId, modelId)
+        if (modelId) rememberModelId(tokenId, modelId)
       }
       if (!modelId) { setDlgLoading(false); setDlgItems([]); setSnkSev('warning'); setSnkMsg('Could not resolve model for this license.'); setSnkOpen(true); return }
       // 2) Fetch model info (to get URI)
@@ -177,7 +282,7 @@ function EvmLicensesPageImpl() {
     } finally {
       setDlgLoading(false)
     }
-  }, [publicClient, marketAddress, evmChainId, toHttpFromIpfs])
+  }, [publicClient, marketAddress, evmChainId, toHttpFromIpfs, getLogsMemoized, rememberModelId])
 
   const load = React.useCallback(async () => {
     try {
@@ -188,25 +293,42 @@ function EvmLicensesPageImpl() {
       const lastId: bigint = await publicClient.readContract({ address: marketAddress as `0x${string}`, abi, functionName: 'lastLicenseId', args: [] }) as any
       const max = Number(lastId)
       const startFrom = Math.max(1, max - 199) // scan last 200 tokens
-      const items: any[] = []
+      const tokenIds: number[] = []
       for (let tokenId = max; tokenId >= startFrom; tokenId--) {
-        try {
-          const st: any = await publicClient.readContract({ address: marketAddress as `0x${string}`, abi, functionName: 'licenseStatus', args: [BigInt(tokenId)] })
-          const owner: string = st?.[5]
-          if (owner && address && owner.toLowerCase() === address.toLowerCase()) {
-            items.push({
-              tokenId,
-              revoked: Boolean(st?.[0]),
-              validApi: Boolean(st?.[1]),
-              validDownload: Boolean(st?.[2]),
-              kind: Number(st?.[3]) as 0|1,
-              expiresAt: Number(st?.[4]) || 0,
-              owner,
-              modelId: undefined,
-              modelName: undefined,
-            })
+        tokenIds.push(tokenId)
+      }
+
+      const statuses = new Map<number, any>()
+      const CHUNK_SIZE = 25
+      for (let i = 0; i < tokenIds.length; i += CHUNK_SIZE) {
+        const chunk = tokenIds.slice(i, i + CHUNK_SIZE)
+        const settled = await Promise.allSettled(chunk.map((tokenId) => fetchLicenseStatus(tokenId, abi)))
+        settled.forEach((result, idx) => {
+          const tokenId = chunk[idx]
+          if (result.status === 'fulfilled' && result.value) {
+            statuses.set(tokenId, result.value)
           }
-        } catch {}
+        })
+      }
+
+      const items: any[] = []
+      for (const tokenId of tokenIds) {
+        const st = statuses.get(tokenId)
+        if (!st) continue
+        const owner: string = st?.[5]
+        if (owner && address && owner.toLowerCase() === address.toLowerCase()) {
+          items.push({
+            tokenId,
+            revoked: Boolean(st?.[0]),
+            validApi: Boolean(st?.[1]),
+            validDownload: Boolean(st?.[2]),
+            kind: Number(st?.[3]) as 0|1,
+            expiresAt: Number(st?.[4]) || 0,
+            owner,
+            modelId: undefined,
+            modelName: undefined,
+          })
+        }
       }
       // resolve modelId via logs for the collected tokenIds
       try {
@@ -219,13 +341,16 @@ function EvmLicensesPageImpl() {
         for (let i = 0; i < 2000 && to > 0n && map.size < need.size; i++) {
           const from = to > STEP ? (to - STEP + 1n) : 0n
           try {
-            const logs = await publicClient.getLogs({ address: marketAddress as `0x${string}`, event, fromBlock: from, toBlock: to })
+            const logs = await getLogsMemoized({ address: marketAddress as `0x${string}`, event, fromBlock: from, toBlock: to })
             for (const l of logs) {
               try {
                 const lic = Number((l as any).args?.licenseId)
                 if (need.has(lic) && !map.has(lic)) {
                   const mid = Number((l as any).args?.modelId || 0)
-                  if (mid) map.set(lic, mid)
+                  if (mid) {
+                    map.set(lic, mid)
+                    rememberModelId(lic, mid)
+                  }
                 }
               } catch {}
             }
@@ -233,18 +358,95 @@ function EvmLicensesPageImpl() {
           if (to === 0n) break
           to = from > 0n ? (from - 1n) : 0n
         }
-        // fetch names for resolved modelIds
+        // fetch full model data + metadata for resolved modelIds
         const uniqModelIds = Array.from(new Set(Array.from(map.values())))
-        const names = new Map<number, string>()
+        const modelsData = new Map<number, any>()
         await Promise.all(uniqModelIds.map(async (mid)=>{
           try {
             const r = await fetch(`/api/models/evm/${mid}?chainId=${evmChainId}`, { cache: 'no-store' })
             const j = await r.json().catch(()=>null)
-            const nm: string | undefined = j?.data?.name || j?.data?.data?.name || j?.data?.model?.name || j?.data?.name
-            if (nm) names.set(mid, nm)
+            const modelData = j?.data
+            if (!modelData) return
+            
+            // Fetch IPFS metadata if URI exists
+            let enrichedData = { ...modelData }
+            const uri = modelData?.uri
+            if (uri && typeof uri === 'string' && !uri.includes('.enc')) {
+              try {
+                const metaUrl = toHttpFromIpfs(uri)
+                const metaRes = await fetch(metaUrl, { cache: 'no-store' })
+                const meta = await metaRes.json().catch(()=>null)
+                if (meta) {
+                  // Extract image
+                  const img = meta.image || meta.image_url || meta.thumbnail || meta?.cover?.thumbCid || meta?.cover?.cid
+                  if (img && typeof img === 'string') {
+                    enrichedData.imageUrl = toHttpFromIpfs(img)
+                  }
+                  // Extract artifacts
+                  const toArray = (v: any) => Array.isArray(v) ? v : (v ? [v] : [])
+                  const rawArtifacts = [
+                    ...toArray(meta?.artifacts),
+                    ...toArray(meta?.files),
+                    ...toArray(meta?.assets),
+                  ]
+                  enrichedData.artifactsList = rawArtifacts.map((a:any) => ({
+                    filename: a?.filename || a?.name || a?.file || 'artifact',
+                    cid: a?.cid || a?.url || a?.uri || '',
+                    uri: a?.uri || a?.url || a?.cid || '',
+                    sizeBytes: a?.sizeBytes || a?.size || 0,
+                    role: a?.role || '',
+                  })).filter((a:any) => a.cid)
+                  
+                  // Extract pricing from metadata
+                  enrichedData.price_perpetual = meta?.pricing?.perpetual?.wei || meta?.price_perpetual || 0
+                  enrichedData.price_subscription = meta?.pricing?.subscription?.weiPerMonth || meta?.price_subscription || 0
+                  
+                  // Extract terms
+                  enrichedData.terms_summary = meta?.licensing?.terms?.summaryBullets || meta?.terms?.summaryBullets || []
+                  enrichedData.terms_text = meta?.licensing?.terms?.textMarkdown || meta?.terms?.textMarkdown || ''
+                  
+                  // Extract rights
+                  enrichedData.rights = {
+                    api: meta?.licensing?.rights?.api ?? meta?.rights?.api ?? false,
+                    download: meta?.licensing?.rights?.download ?? meta?.rights?.download ?? false,
+                    transferable: meta?.licensing?.rights?.transferable ?? meta?.rights?.transferable ?? false,
+                  }
+                  
+                  // Extract delivery mode
+                  enrichedData.delivery_mode = meta?.licensing?.deliveryMode || meta?.deliveryMode || ''
+                  
+                  // Extract fees
+                  enrichedData.royalty_pct = meta?.licensing?.fees?.royaltyPct || meta?.fees?.royaltyPct || 0
+                  enrichedData.marketplace_fee_pct = meta?.licensing?.fees?.marketplaceFeePct || meta?.fees?.marketplaceFeePct || 0
+                  
+                  // Extract download notes
+                  enrichedData.download_notes = meta?.demo?.downloadNotes || meta?.downloadNotes || ''
+                }
+              } catch {}
+            }
+            
+            // Create viewModel
+            try {
+              const viewModel = createViewModelFromPublished({
+                ...enrichedData,
+                artifacts: enrichedData.artifactsList || [],
+              })
+              enrichedData.viewModel = viewModel
+            } catch {}
+            
+            modelsData.set(mid, enrichedData)
           } catch {}
         }))
-        items.forEach(it=>{ const mid = map.get(it.tokenId); if (mid) { it.modelId = mid; it.modelName = names.get(mid) || `Model #${mid}` } })
+        items.forEach(it=>{ 
+          const mid = map.get(it.tokenId)
+          if (mid) { 
+            it.modelId = mid
+            const modelData = modelsData.get(mid)
+            it.modelData = modelData
+            it.modelName = modelData?.name || `Model #${mid}`
+            it.viewModel = modelData?.viewModel
+          } 
+        })
       } catch {}
       setRows(items)
     } catch (e:any) {
@@ -252,7 +454,7 @@ function EvmLicensesPageImpl() {
     } finally {
       setLoading(false)
     }
-  }, [publicClient, marketAddress, address])
+  }, [publicClient, marketAddress, address, evmChainId, fetchLicenseStatus, getLogsMemoized, rememberModelId])
 
   React.useEffect(() => { if (isConnected) load() }, [isConnected, evmChainId, load])
 
@@ -289,71 +491,145 @@ function EvmLicensesPageImpl() {
               backdropFilter:'blur(8px)',
               p: { xs:2, md:3 }
             }}>
-              <Divider sx={{ mb: 2, borderColor:'oklch(0.22 0 0)' }} />
               {loading ? (
                 <Stack alignItems="center" sx={{ py: 4 }}>
                   <CircularProgress />
                 </Stack>
               ) : rows.length === 0 ? (
-                <Typography variant="body2" sx={{ color:'oklch(0.78 0 0)' }}>No licenses found for this wallet in the last 200 issued licenses.</Typography>
+                <Typography variant="body2" sx={{ color:'oklch(0.78 0 0)', py: 4, textAlign:'center' }}>
+                  {isES ? 'No se encontraron licencias para esta wallet en las últimas 200 licencias emitidas.' : 'No licenses found for this wallet in the last 200 issued licenses.'}
+                </Typography>
               ) : (
-                <Table size="small" sx={{
-                  '& th, & td': { borderColor:'oklch(0.22 0 0)', color:'oklch(0.98 0 0)' },
-                  '& thead th': { color:'oklch(0.90 0 0)' }
-                }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Token ID</TableCell>
-                      <TableCell>Model</TableCell>
-                      <TableCell>Kind</TableCell>
-                      <TableCell>Validity</TableCell>
-                      <TableCell>Expires</TableCell>
-                      <TableCell>Delivery</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {rows.map((r)=>{
-                      const exp = r.expiresAt ? new Date(r.expiresAt * 1000) : null
-                      return (
-                        <TableRow key={r.tokenId}>
-                          <TableCell>{r.tokenId}</TableCell>
-                          <TableCell>
-                            {r.modelId ? (
-                              <Link href={`/${locale}/evm/models/${r.modelId}`} style={{ color:'#7cc8ff', textDecoration:'none' }}>
-                                {r.modelName || `Model #${r.modelId}`}
-                              </Link>
-                            ) : (
-                              <Typography variant="body2" sx={{ color:'oklch(0.78 0 0)' }}>—</Typography>
-                            )}
-                          </TableCell>
-                          <TableCell>{r.kind === 0 ? 'Perpetual' : 'Subscription'}</TableCell>
-                          <TableCell>
-                            {r.revoked ? (
-                              <Chip size="small" label="Revoked" color="error" />
-                            ) : r.kind === 0 ? (
-                              // Perpetual license: outlined green (text+border only)
-                              <Chip size="small" label="Active" variant="outlined" sx={{ color:'success.main', borderColor:'success.main' }} />
-                            ) : (
-                              // Subscription: green filled if active, default if expired
-                              <Chip size="small" label={exp && exp.getTime() > Date.now() ? 'Active' : 'Expired'} color={exp && exp.getTime() > Date.now() ? 'success' : 'default'} />
-                            )}
-                          </TableCell>
-                          <TableCell>{exp ? exp.toLocaleString() : '-'}</TableCell>
-                          <TableCell>
-                            <Stack direction="row" spacing={1}>
-                              {r.validApi && (
-                                <Chip size="small" label="API" variant="outlined" onClick={()=> openArtifactsDialog(r.tokenId, 'api')} sx={{ cursor:'pointer', color:'#fff', borderColor:'rgba(255,255,255,0.28)' }} />
+                <TableContainer component={Paper} sx={{ background:'transparent', boxShadow:'none', borderRadius:2, border:'1px solid rgba(255,255,255,0.08)' }}>
+                  <Table size="small" sx={{ minWidth: 650, '& th, & td': { borderColor:'rgba(255,255,255,0.08)', color:'#ffffffd6' } }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>{isES ? 'NFT' : 'NFT'}</TableCell>
+                        <TableCell>{isES ? 'Modelo' : 'Model'}</TableCell>
+                        <TableCell>{isES ? 'Tipo' : 'Type'}</TableCell>
+                        <TableCell>{isES ? 'Estado' : 'Status'}</TableCell>
+                        <TableCell>{isES ? 'Artifacts' : 'Artifacts'}</TableCell>
+                        <TableCell align="right">{isES ? 'Acciones' : 'Actions'}</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {rows.map((license) => {
+                        const modelData = license.modelData
+                        const modelNameFromVm = license.viewModel?.step1?.name
+                        const modelDisplayName = modelNameFromVm || license.modelName || (license.modelId ? `Model #${license.modelId}` : isES ? 'Modelo desconocido' : 'Unknown model')
+                        const subType = license.kind === 0 ? (isES ? 'Perpetua' : 'Perpetual') : (isES ? 'Suscripción' : 'Subscription')
+                        const expiresAt = license.expiresAt ? new Date(license.expiresAt * 1000) : null
+                        const isActive = !license.revoked && (license.kind === 0 || (expiresAt && expiresAt.getTime() > Date.now()))
+                        const artifactsCount = modelData?.artifactsList?.length || 0
+
+                        return (
+                          <TableRow key={license.tokenId} hover>
+                            <TableCell>
+                              <Stack spacing={0.5}>
+                                <Typography variant="body2" sx={{ fontWeight:700, color:'#fff' }}>#{license.tokenId}</Typography>
+                                {license.modelId && (
+                                  <Typography variant="caption" sx={{ color:'#ffffff99' }}>
+                                    ID: {license.modelId}
+                                  </Typography>
+                                )}
+                              </Stack>
+                            </TableCell>
+                            <TableCell>
+                              <Stack spacing={0.25}>
+                                <Typography variant="body2" sx={{ fontWeight:600, color:'#fff' }}>{modelDisplayName}</Typography>
+                                {license.viewModel?.step1?.tagline && (
+                                  <Typography variant="caption" sx={{ color:'#ffffff99' }}>{license.viewModel.step1.tagline}</Typography>
+                                )}
+                                {license.modelId && (
+                                  <Button
+                                    variant="text"
+                                    size="small"
+                                    component={Link}
+                                    href={`/${locale}/evm/models/${license.modelId}`}
+                                    sx={{ color:'#7ec8ff', textTransform:'none', fontSize:'0.7rem', p:0, alignSelf:'flex-start' }}
+                                  >
+                                    {isES ? 'Ver modelo' : 'View model'}
+                                  </Button>
+                                )}
+                              </Stack>
+                            </TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={subType}
+                                size="small"
+                                sx={{
+                                  bgcolor: license.kind === 0 ? 'rgba(76,175,80,0.18)' : 'rgba(33,150,243,0.18)',
+                                  color: license.kind === 0 ? '#7feb9c' : '#7ec8ff',
+                                  fontWeight:600,
+                                  fontSize:'0.7rem'
+                                }}
+                              />
+                              {license.kind === 1 && expiresAt && (
+                                <Typography variant="caption" sx={{ display:'block', color:'#ffffff99', mt:0.25 }}>
+                                  {isES ? 'Expira:' : 'Expires:'} {expiresAt.toLocaleDateString()}
+                                </Typography>
                               )}
-                              {r.validDownload && (
-                                <Chip size="small" label="Download" variant="outlined" onClick={()=> openArtifactsDialog(r.tokenId, 'download')} sx={{ cursor:'pointer', color:'#fff', borderColor:'rgba(255,255,255,0.28)' }} />
+                            </TableCell>
+                            <TableCell>
+                              {license.revoked ? (
+                                <Chip size="small" label={isES ? 'Revocada' : 'Revoked'} color="error" sx={{ fontSize:'0.7rem' }} />
+                              ) : isActive ? (
+                                <Chip size="small" label={isES ? 'Activa' : 'Active'} sx={{ fontSize:'0.7rem', bgcolor:'rgba(76,175,80,0.2)', color:'#7feb9c' }} />
+                              ) : (
+                                <Chip size="small" label={isES ? 'Expirada' : 'Expired'} sx={{ fontSize:'0.7rem', bgcolor:'rgba(255,255,255,0.08)', color:'#ffffffb3' }} />
                               )}
-                            </Stack>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                            </TableCell>
+                            <TableCell>
+                              {license.validDownload ? (
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                  <Chip label={`${artifactsCount || 0}`} size="small" sx={{ bgcolor:'rgba(255,255,255,0.08)', color:'#ffffffcc', fontSize:'0.7rem' }} />
+                                  <Button
+                                    variant="text"
+                                    size="small"
+                                    startIcon={<DownloadIcon fontSize="small" />}
+                                    onClick={() => {
+                                      setSelectedLicense(license)
+                                      setArtifactsDrawerOpen(true)
+                                    }}
+                                    sx={{ color:'#7ec8ff', textTransform:'none', fontSize:'0.8rem' }}
+                                  >
+                                    {isES ? 'Descargar' : 'Download'}
+                                  </Button>
+                                </Stack>
+                              ) : (
+                                <Typography variant="caption" sx={{ color:'#ffffff66' }}>
+                                  {isES ? 'Sin acceso' : 'No access'}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell align="right">
+                              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  startIcon={<VisibilityIcon fontSize="small" />}
+                                  sx={{
+                                    borderColor:'rgba(255,255,255,0.18)',
+                                    color:'#ffffffcc',
+                                    textTransform:'none',
+                                    fontSize:'0.75rem',
+                                    px:1.5
+                                  }}
+                                  onClick={() => {
+                                    setViewLicense(license)
+                                    setViewDrawerOpen(true)
+                                  }}
+                                >
+                                  {isES ? 'Ver NFT' : 'View NFT'}
+                                </Button>
+                              </Stack>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
             </Box>
           )}
@@ -364,13 +640,196 @@ function EvmLicensesPageImpl() {
           </Alert>
         </Snackbar>
       </Container>
+      
+      {/* Drawer: Artifacts list */}
+      <Drawer
+        anchor="right"
+        open={artifactsDrawerOpen}
+        onClose={() => setArtifactsDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            width: { xs: '100%', sm: 600, md: 700 },
+            bgcolor: 'rgba(20,26,42,0.98)',
+            backgroundImage: 'linear-gradient(180deg, rgba(38,46,64,0.95), rgba(20,26,42,0.95))',
+            borderLeft: '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(10px)'
+          }
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+          {/* Header */}
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+            <Box>
+              <Typography variant="h6" sx={{ color: '#fff', fontWeight: 700, mb: 0.5 }}>
+                {selectedLicense?.modelName || (isES ? 'Artifacts del modelo' : 'Model artifacts')}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#ffffffb3' }}>
+                {isES ? 'Licencia NFT' : 'License NFT'} #{selectedLicense?.tokenId} • {selectedLicense?.kind === 0 ? (isES ? 'Perpetua' : 'Perpetual') : (isES ? 'Suscripción' : 'Subscription')}
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setArtifactsDrawerOpen(false)} sx={{ color: '#ffffffb3' }}>
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+
+          {/* Artifacts table */}
+          {selectedLicense?.modelData?.artifactsList && selectedLicense.modelData.artifactsList.length > 0 ? (
+            <Box sx={{ bgcolor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'rgba(255,255,255,0.03)' }}>
+                    <TableCell sx={{ color: '#ffffffb3', fontWeight: 600, fontSize: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      {isES ? 'Archivo' : 'File'}
+                    </TableCell>
+                    <TableCell sx={{ color: '#ffffffb3', fontWeight: 600, fontSize: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      CID
+                    </TableCell>
+                    <TableCell sx={{ color: '#ffffffb3', fontWeight: 600, fontSize: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      {isES ? 'Tamaño' : 'Size'}
+                    </TableCell>
+                    <TableCell sx={{ color: '#ffffffb3', fontWeight: 600, fontSize: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      {isES ? 'Acciones' : 'Actions'}
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {selectedLicense.modelData.artifactsList.map((artifact: any, idx: number) => (
+                    <TableRow key={idx} sx={{ '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' } }}>
+                      <TableCell sx={{ color: '#ffffffcc', fontSize: '0.85rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <Typography variant="body2" sx={{ color: '#fff', fontWeight: 500, fontSize: '0.85rem' }}>
+                          {artifact.filename || (isES ? 'Sin nombre' : 'Unnamed')}
+                        </Typography>
+                        {artifact.role && (
+                          <Typography variant="caption" sx={{ color: '#ffffffb3', fontSize: '0.7rem' }}>
+                            {artifact.role}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell sx={{ color: '#ffffffcc', fontSize: '0.75rem', fontFamily: 'monospace', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <Tooltip title={artifact.cid || ''}>
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', color: '#ffffffb3' }}>
+                            {artifact.cid ? `${artifact.cid.slice(0, 8)}...${artifact.cid.slice(-6)}` : '—'}
+                          </Typography>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell sx={{ color: '#ffffffcc', fontSize: '0.85rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        {artifact.sizeBytes ? (
+                          <Typography variant="caption" sx={{ color: '#ffffffb3', fontSize: '0.75rem' }}>
+                            {(artifact.sizeBytes / 1024 / 1024).toFixed(2)} MB
+                          </Typography>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell sx={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <Stack direction="row" spacing={0.5}>
+                          {artifact.cid && (
+                            <Tooltip title={isES ? 'Copiar CID' : 'Copy CID'}>
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(artifact.cid)
+                                  setSnkSev('success')
+                                  setSnkMsg(isES ? 'CID copiado' : 'CID copied')
+                                  setSnkOpen(true)
+                                }}
+                                sx={{ color: '#ffffffb3', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)' } }}
+                              >
+                                <ContentCopyIcon sx={{ fontSize: '1rem' }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {artifact.uri && (
+                            <Tooltip title={isES ? 'Copiar URI' : 'Copy URI'}>
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(artifact.uri)
+                                  setSnkSev('success')
+                                  setSnkMsg(isES ? 'URI copiado' : 'URI copied')
+                                  setSnkOpen(true)
+                                }}
+                                sx={{ color: '#ffffffb3', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)' } }}
+                              >
+                                <LanguageIcon sx={{ fontSize: '1rem' }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {artifact.cid && (
+                            <Tooltip title={isES ? 'Descargar' : 'Download'}>
+                              <IconButton
+                                size="small"
+                                component="a"
+                                href={`/api/ipfs/ipfs/${artifact.cid}`}
+                                download={artifact.filename || 'artifact'}
+                                target="_blank"
+                                sx={{ color: '#ffffffb3', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)' } }}
+                              >
+                                <DownloadIcon sx={{ fontSize: '1rem' }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          ) : (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="body2" sx={{ color: '#ffffffb3', mb: 1 }}>
+                {isES ? 'No hay artifacts disponibles' : 'No artifacts available'}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#ffffff99' }}>
+                {isES ? 'Este modelo no tiene archivos para descargar' : 'This model has no files to download'}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Instructions to download and run */}
+          {selectedLicense?.modelData?.download_notes && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle2" sx={{ color: '#fff', fontWeight: 700, mb: 1.5, fontSize: '0.95rem' }}>
+                {isES ? 'Instrucciones para descargar y ejecutar el modelo' : 'Instructions to download and run the model'}
+              </Typography>
+              <Box 
+                sx={{ 
+                  p: 2, 
+                  bgcolor: 'rgba(255,255,255,0.02)', 
+                  border: '1px solid rgba(255,255,255,0.08)', 
+                  borderRadius: 2,
+                  '& pre': {
+                    margin: 0,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    fontFamily: 'monospace',
+                    fontSize: '0.8rem',
+                    color: '#ffffffcc'
+                  }
+                }}
+              >
+                <pre>{selectedLicense.modelData.download_notes}</pre>
+              </Box>
+            </Box>
+          )}
+
+          {/* Download notice */}
+          {selectedLicense && !selectedLicense.validDownload && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(255,152,0,0.1)', border: '1px solid rgba(255,152,0,0.3)', borderRadius: 2 }}>
+              <Typography variant="caption" sx={{ color: '#ffa726', fontSize: '0.8rem' }}>
+                ⚠️ {isES ? 'Descarga no permitida por esta licencia' : 'Download not allowed by this license'}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      </Drawer>
+
       <Dialog open={dlgOpen} onClose={()=> setDlgOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{
           m: 0,
           py: 1.5,
           px: 2,
           color: '#fff',
-          background: 'linear-gradient(180deg, rgba(20,26,42,0.85) 0%, rgba(12,15,24,0.85) 100%)',
+          background: 'linear-gradient(180deg, rgba(20,26,42,0.85), rgba(12,15,24,0.85))',
           borderBottom: '1px solid rgba(255,255,255,0.12)',
           position: 'relative'
         }}>
@@ -381,8 +840,8 @@ function EvmLicensesPageImpl() {
         </DialogTitle>
         <DialogContent dividers sx={{ bgcolor:'rgba(12,15,24,0.9)' }}>
           {dlgLoading ? (
-            <Stack alignItems="center" sx={{ py: 4 }}>
-              <CircularProgress />
+            <Stack sx={{ alignItems:'center', justifyContent:'center', py:4 }}>
+              <CircularProgress size={28} />
             </Stack>
           ) : dlgItems.length === 0 ? (
             <Typography variant="body2" sx={{ color:'oklch(0.78 0 0)' }}>No artifacts were found for this license.</Typography>
@@ -422,8 +881,94 @@ function EvmLicensesPageImpl() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Drawer: View NFT Card */}
+      <Drawer
+        anchor="right"
+        open={viewDrawerOpen}
+        onClose={() => setViewDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            width: { xs: '100%', sm: 480 },
+            bgcolor: 'rgba(10,16,28,0.98)',
+            backgroundImage: 'linear-gradient(180deg, rgba(22,26,36,0.95), rgba(10,16,28,0.95))',
+            borderLeft: '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(10px)'
+          }
+        }}
+      >
+        {viewLicense && (
+          <Box sx={{ p: 3, height:'100%', display:'flex', flexDirection:'column' }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb:2 }}>
+              <Box>
+                <Typography variant="h6" sx={{ color:'#fff', fontWeight:700 }}>
+                  {viewLicense.modelName || (viewLicense.modelId ? `Model #${viewLicense.modelId}` : isES ? 'Modelo' : 'Model')}
+                </Typography>
+                <Typography variant="caption" sx={{ color:'#ffffff99' }}>
+                  {isES ? 'Licencia NFT' : 'License NFT'} #{viewLicense.tokenId}
+                </Typography>
+              </Box>
+              <IconButton onClick={() => setViewDrawerOpen(false)} sx={{ color:'#ffffffb3' }}>
+                <CloseIcon />
+              </IconButton>
+            </Stack>
+
+            <Box sx={{
+              borderRadius:2,
+              border:'1px solid rgba(255,255,255,0.08)',
+              overflow:'hidden',
+              boxShadow:'0 12px 32px rgba(0,0,0,0.45)'
+            }}>
+              {viewLicense.modelData?.imageUrl ? (
+                <Box component="img"
+                  src={viewLicense.modelData.imageUrl}
+                  alt={viewLicense.modelName || 'Model'}
+                  sx={{ width:'100%', height:220, objectFit:'cover' }}
+                />
+              ) : (
+                <Box sx={{ height:220, bgcolor:'rgba(255,255,255,0.04)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Typography variant="caption" sx={{ color:'#ffffff80' }}>
+                    {isES ? 'Sin imagen' : 'No image'}
+                  </Typography>
+                </Box>
+              )}
+
+              <Box sx={{ p:2.5, bgcolor:'rgba(255,255,255,0.01)' }}>
+                <Stack spacing={1.5}>
+                  <Typography variant="body2" sx={{ color:'#fff', fontWeight:700 }}>
+                    {viewLicense.viewModel?.step1?.name || viewLicense.modelName}
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    <Chip 
+                      label={viewLicense.kind === 0 ? (isES ? 'Perpetua' : 'Perpetual') : (isES ? 'Suscripción' : 'Subscription')}
+                      size="small"
+                      sx={{
+                        bgcolor: viewLicense.kind === 0 ? 'rgba(76,175,80,0.18)' : 'rgba(33,150,243,0.18)',
+                        color: viewLicense.kind === 0 ? '#7feb9c' : '#7ec8ff',
+                        fontWeight:600,
+                        fontSize:'0.7rem'
+                      }}
+                    />
+                    {viewLicense.validApi && (
+                      <Chip size="small" label="API" icon={<ApiIcon sx={{ fontSize:'0.8rem' }} />} variant="outlined" sx={{ color:'#ffffffcc', borderColor:'rgba(255,255,255,0.2)', fontSize:'0.65rem' }} />
+                    )}
+                    {viewLicense.validDownload && (
+                      <Chip size="small" label={isES ? 'Descarga' : 'Download'} icon={<DownloadIcon sx={{ fontSize:'0.8rem' }} />} variant="outlined" sx={{ color:'#ffffffcc', borderColor:'rgba(255,255,255,0.2)', fontSize:'0.65rem' }} />
+                    )}
+                  </Stack>
+                  {viewLicense.viewModel?.step1?.summary && (
+                    <Typography variant="body2" sx={{ color:'#ffffffcc', lineHeight:1.5 }}>
+                      {viewLicense.viewModel.step1.summary}
+                    </Typography>
+                  )}
+                </Stack>
+              </Box>
+            </Box>
+          </Box>
+        )}
+      </Drawer>
     </Box>
   )
 }
 
-export default NextDynamic(() => Promise.resolve(EvmLicensesPageImpl), { ssr: false })
+export default EvmLicensesPageImpl

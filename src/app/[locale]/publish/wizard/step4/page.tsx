@@ -2,7 +2,7 @@
 import React from 'react'
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
-import { Box, Stack, Typography, Paper, Tooltip, TextField, Grid, InputAdornment, IconButton, Alert, FormGroup, FormControlLabel, Checkbox, FormControl, InputLabel, Select, MenuItem, Button, List, ListItem, ListItemText, SvgIcon, Switch } from '@mui/material'
+import { Box, Stack, Typography, Paper, Tooltip, TextField, Grid, InputAdornment, IconButton, Alert, FormGroup, FormControlLabel, Checkbox, FormControl, InputLabel, Select, MenuItem, Button, List, ListItem, ListItemText, SvgIcon, Switch, ToggleButtonGroup, ToggleButton, FormHelperText, Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete } from '@mui/material'
 import FormatBoldIcon from '@mui/icons-material/FormatBold'
 import FormatItalicIcon from '@mui/icons-material/FormatItalic'
 import TitleIcon from '@mui/icons-material/Title'
@@ -18,10 +18,12 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
+import WizardFooter from '@/components/WizardFooter'
 
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import EditIcon from '@mui/icons-material/Edit'
 import { useLocale, useTranslations } from 'next-intl'
+import WizardThemeProvider from '@/components/WizardThemeProvider'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +60,11 @@ export default function Step4LicensesTermsLocalized() {
   const [deliveryModeHint, setDeliveryModeHint] = useState<'API'|'Download'|'Both'|'none'>('API')
   const [termsText, setTermsText] = useState('')
   const [termsHash, setTermsHash] = useState('')
+  const [termsSummary, setTermsSummary] = useState('')
+  const [pricingMode, setPricingMode] = useState<'perpetual'|'subscription'|'both'>('both')
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('')
+  const [confirmTemplateDialog, setConfirmTemplateDialog] = useState(false)
+  const [pendingTemplate, setPendingTemplate] = useState<string | null>(null)
   const termsRef = useRef<HTMLTextAreaElement | null>(null)
   const termsSectionRef = useRef<HTMLDivElement | null>(null)
   const [showPreview, setShowPreview] = useState(false)
@@ -97,14 +104,20 @@ export default function Step4LicensesTermsLocalized() {
   const feeBpsEnv = parseInt(process.env.NEXT_PUBLIC_MARKETPLACE_FEE_BPS || process.env.NEXT_PUBLIC_MARKET_FEE_BPS || '1000') || 1000
   const feeBpsEff = feeBpsOnChain ?? feeBpsEnv
   const royaltyBps = Math.max(0, Math.min(10000, Math.round(Number(royaltyPercent || '0') * 100)))
-  const atLeastOnePrice = pPerp > 0 || pSub > 0
+  
+  // Validation based on pricing mode
+  const atLeastOnePrice = (
+    pricingMode === 'perpetual' ? pPerp > 0 :
+    pricingMode === 'subscription' ? pSub > 0 :
+    /* both */ (pPerp > 0 || pSub > 0)
+  )
   const subNeedsDuration = pSub > 0 && dMonths <= 0
   const invalidPerp = !Number.isFinite(pPerp) || pPerp < 0
   const invalidSub = !Number.isFinite(pSub) || pSub < 0
   const invalidDur = !Number.isFinite(dMonths) || dMonths < 0 || !Number.isInteger(dMonths) || dMonths > 12 || subNeedsDuration
   const noRights = !(rightsAPI || rightsDownload)
   const isValid = atLeastOnePrice && !invalidPerp && !invalidSub && !invalidDur && !noRights
-  const subDisabled = pSub <= 0
+  const subDisabled = pSub <= 0 || pricingMode === 'perpetual'
 
   const splitFor = (amount: number) => {
     const fee = (amount * feeBpsEff) / 10000
@@ -188,6 +201,26 @@ export default function Step4LicensesTermsLocalized() {
     const ne = ns + changed.length
     return { next, selStart: ns, selEnd: ne }
   })
+
+  const onApplyTemplate = (template: string) => {
+    const templateKey = template as 'standard' | 'eval' | 'opensource'
+    const content = t(`wizard.step4.templatesContent.${templateKey}`)
+    if (termsText.trim().length > 0) {
+      setPendingTemplate(content)
+      setConfirmTemplateDialog(true)
+    } else {
+      setTermsText(content)
+      setSelectedTemplate(template)
+    }
+  }
+
+  const confirmApplyTemplate = () => {
+    if (pendingTemplate) {
+      setTermsText(pendingTemplate)
+      setPendingTemplate(null)
+    }
+    setConfirmTemplateDialog(false)
+  }
 
   const makeLink = () => withSelection((v, s, e) => {
     const before = v.slice(0, s)
@@ -286,6 +319,8 @@ export default function Step4LicensesTermsLocalized() {
       address: walletAddress,
       step: 'step4',
       data: {
+        pricingMode,
+        termsSummary,
         licensePolicy: {
           rights: rightsMask,
           subscription: { perMonthPriceRef: priceSubscription },
@@ -337,7 +372,7 @@ export default function Step4LicensesTermsLocalized() {
       onSave('autosave')
     }, 700)
     return () => { if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current) }
-  }, [pricePerpetual, priceSubscription, defaultDurationDays, transferable, rightsAPI, rightsDownload, deliveryModeHint, termsText, termsHash])
+  }, [pricePerpetual, priceSubscription, defaultDurationDays, transferable, rightsAPI, rightsDownload, deliveryModeHint, termsText, termsHash, pricingMode, termsSummary])
 
   useEffect(() => {
     const text = (termsText || '').trim()
@@ -368,6 +403,9 @@ export default function Step4LicensesTermsLocalized() {
           setTransferable(Boolean(lp.transferable))
           setTermsHash(String(lp.termsHash || ''))
           setTermsText(String(lp.termsText || ''))
+          // New fields with backward compatibility
+          setPricingMode(((c.pricingMode as any) === 'free' ? 'both' : (c.pricingMode as any)) || 'both')
+          setTermsSummary(String(c.termsSummary || ''))
           if (rights.includes('API') && rights.includes('Download')) setDeliveryModeHint('Both')
           else if (rights.includes('API')) setDeliveryModeHint('API')
           else if (rights.includes('Download')) setDeliveryModeHint('Download')
@@ -401,6 +439,9 @@ export default function Step4LicensesTermsLocalized() {
         setTransferable(Boolean(lp.transferable))
         setTermsHash(String(lp.termsHash || ''))
         setTermsText(String(lp.termsText || ''))
+        // New fields with backward compatibility
+        setPricingMode(((s4.pricingMode as any) === 'free' ? 'both' : (s4.pricingMode as any)) || 'both')
+        setTermsSummary(String(s4.termsSummary || ''))
         if (rights.includes('API') && rights.includes('Download')) setDeliveryModeHint('Both')
         else if (rights.includes('API')) setDeliveryModeHint('API')
         else if (rights.includes('Download')) setDeliveryModeHint('Download')
@@ -502,6 +543,7 @@ export default function Step4LicensesTermsLocalized() {
   }, [chainId])
 
   return (
+    <WizardThemeProvider>
     <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0f2740 0%, #0b1626 30%, #0a111c 100%)' }}>
       <Box sx={{
       p: 3,
@@ -550,6 +592,66 @@ export default function Step4LicensesTermsLocalized() {
           </Alert>
         )}
         <Box sx={{ transition:'opacity 150ms ease 60ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1, minHeight: 220 }}>
+        
+        {/* Pricing Mode Selector */}
+        <FormControl component="fieldset" sx={{ mb: 3 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('wizard.step4.pricingMode.label')}</Typography>
+          <ToggleButtonGroup
+            value={pricingMode}
+            exclusive
+            onChange={(_, value) => {
+              if (!value) return
+              setPricingMode(value)
+              if (value === 'perpetual') {
+                setPriceSubscription('0')
+                setDefaultDurationDays('0')
+              } else if (value === 'subscription') {
+                setPricePerpetual('0')
+              }
+            }}
+            aria-label={t('wizard.step4.pricingMode.label')}
+            sx={{
+              flexWrap: 'wrap',
+              '& .MuiToggleButton-root': {
+                color: '#fff',
+                borderColor: 'rgba(255,255,255,0.6)',
+              },
+              // Selected default (no hover): black text on white background
+              '& .MuiToggleButton-root.Mui-selected': {
+                color: '#000',
+                backgroundColor: '#fff',
+                borderColor: '#fff',
+              },
+              // While pointer is interacting (hover/active/focus), keep white text and transparent bg
+              '& .MuiToggleButton-root.Mui-selected:hover': {
+                color: '#e6e6e3',
+                backgroundColor: 'transparent',
+                borderColor: '#fff',
+              },
+              '& .MuiToggleButton-root.Mui-selected.Mui-focusVisible': {
+                color: '#e6e6e6',
+                backgroundColor: 'transparent',
+                borderColor: '#fff',
+              },
+              '& .MuiToggleButton-root.Mui-selected.Mui-active': {
+                color: '#e6e6e6',
+                backgroundColor: 'transparent',
+                borderColor: '#fff',
+              }
+            }}
+          >
+            <ToggleButton value="perpetual" aria-label={t('wizard.step4.pricingMode.perpetual')}>
+              {t('wizard.step4.pricingMode.perpetual')}
+            </ToggleButton>
+            <ToggleButton value="subscription" aria-label={t('wizard.step4.pricingMode.subscription')}>
+              {t('wizard.step4.pricingMode.subscription')}
+            </ToggleButton>
+            <ToggleButton value="both" aria-label={t('wizard.step4.pricingMode.both')}>
+              {t('wizard.step4.pricingMode.both')}
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </FormControl>
+
         <Grid container spacing={2}>
           <Grid item xs={12} md={4}>
             <TextField
@@ -559,6 +661,7 @@ export default function Step4LicensesTermsLocalized() {
               value={pricePerpetual}
               onChange={(e)=>setPricePerpetual(e.target.value)}
               error={invalidPerp}
+              disabled={pricingMode === 'subscription'}
               helperText={invalidPerp ? t('wizard.step4.validation.intNonNegative') : ' '}
               inputProps={{ step: '0.0001' }}
               InputProps={{ endAdornment: <InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>{unit}</InputAdornment> }}
@@ -572,6 +675,7 @@ export default function Step4LicensesTermsLocalized() {
               value={priceSubscription}
               onChange={(e)=>setPriceSubscription(e.target.value)}
               error={invalidSub}
+              disabled={pricingMode === 'perpetual'}
               helperText={invalidSub ? t('wizard.step4.validation.intNonNegative') : ' '}
               inputProps={{ step: '0.0001' }}
               InputProps={{ endAdornment: <InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>{unit}</InputAdornment> }}
@@ -622,11 +726,19 @@ export default function Step4LicensesTermsLocalized() {
                 <Paper variant="outlined" sx={{ p:1.5, borderRadius:2 }}>
                   <Typography variant="caption" color="text.secondary">{t('wizard.step4.labels.perpetual')} ({unit})</Typography>
                   {(() => { const s = splitFor(pPerp); return (
-                    <List dense>
-                      <ListItem><ListItemText primary={`${t('wizard.step4.revenue.marketplace')}: ${fmt2Up(s.fee)} ${unit} (${(feeBpsEff/100).toFixed(2)}%)`} /></ListItem>
-                      <ListItem><ListItemText primary={`${t('wizard.step4.revenue.creator')}: ${fmt2Up(s.royalty)} ${unit} (${(royaltyBps/100).toFixed(2)}%)`} /></ListItem>
-                      <ListItem><ListItemText primary={`${t('wizard.step4.revenue.seller')}: ${fmt2Up(s.seller)} ${unit}`} /></ListItem>
-                    </List>
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#4caf50', mb: 1 }}>
+                        {t('wizard.step4.revenue.seller')}: {fmt2Up(s.seller)} {unit} ({((s.seller/pPerp)*100).toFixed(1)}%)
+                      </Typography>
+                      <Stack spacing={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          {t('wizard.step4.revenue.marketplace')}: {fmt2Up(s.fee)} {unit} ({(feeBpsEff/100).toFixed(2)}%)
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {t('wizard.step4.revenue.creator')}: {fmt2Up(s.royalty)} {unit} ({(royaltyBps/100).toFixed(2)}%)
+                        </Typography>
+                      </Stack>
+                    </Box>
                   ) })()}
                 </Paper>
               </Grid>
@@ -636,11 +748,19 @@ export default function Step4LicensesTermsLocalized() {
                 <Paper variant="outlined" sx={{ p:1.5, borderRadius:2 }}>
                   <Typography variant="caption" color="text.secondary">{t('wizard.step4.labels.subscriptionPerMonth')} ({unit})</Typography>
                   {(() => { const s = splitFor(pSub); return (
-                    <List dense>
-                      <ListItem><ListItemText primary={`${t('wizard.step4.revenue.marketplace')}: ${fmt2Up(s.fee)} ${unit} (${(feeBpsEnv/100).toFixed(2)}%)`} /></ListItem>
-                      <ListItem><ListItemText primary={`${t('wizard.step4.revenue.creator')}: ${fmt2Up(s.royalty)} ${unit} (${(royaltyBps/100).toFixed(2)}%)`} /></ListItem>
-                      <ListItem><ListItemText primary={`${t('wizard.step4.revenue.seller')}: ${fmt2Up(s.seller)} ${unit}`} /></ListItem>
-                    </List>
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#4caf50', mb: 1 }}>
+                        {t('wizard.step4.revenue.seller')}: {fmt2Up(s.seller)} {unit} ({((s.seller/pSub)*100).toFixed(1)}%)
+                      </Typography>
+                      <Stack spacing={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          {t('wizard.step4.revenue.marketplace')}: {fmt2Up(s.fee)} {unit} ({(feeBpsEnv/100).toFixed(2)}%)
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {t('wizard.step4.revenue.creator')}: {fmt2Up(s.royalty)} {unit} ({(royaltyBps/100).toFixed(2)}%)
+                        </Typography>
+                      </Stack>
+                    </Box>
                   ) })()}
                 </Paper>
               </Grid>
@@ -656,11 +776,40 @@ export default function Step4LicensesTermsLocalized() {
           <Tooltip title={t('wizard.step4.legends.rightsDelivery')}><InfoOutlinedIcon fontSize="small" color="action" /></Tooltip>
         </Stack>
         <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1 }}>
-        <FormGroup row sx={{ mb: 2 }}>
-          <FormControlLabel control={<Checkbox checked={rightsAPI} onChange={(e)=>setRightsAPI(e.target.checked)} />} label="API" />
-          <FormControlLabel control={<Checkbox checked={rightsDownload} onChange={(e)=>setRightsDownload(e.target.checked)} />} label="Download" />
-          <FormControlLabel control={<Switch checked={transferable} onChange={(e)=>setTransferable(e.target.checked)} />} label={t('wizard.step4.fields.transferable')} />
-        </FormGroup>
+        <Stack spacing={1} sx={{ mb: 2 }}>
+          <FormControlLabel 
+            control={<Checkbox checked={rightsAPI} onChange={(e)=>setRightsAPI(e.target.checked)} />} 
+            label={
+              <Box>
+                <Typography variant="body2">API</Typography>
+                <Typography variant="caption" color="text.secondary">{t('wizard.step4.rightsHelpers.api')}</Typography>
+              </Box>
+            } 
+          />
+          <FormControlLabel 
+            control={<Checkbox checked={rightsDownload} onChange={(e)=>setRightsDownload(e.target.checked)} />} 
+            label={
+              <Box>
+                <Typography variant="body2">Download</Typography>
+                <Typography variant="caption" color="text.secondary">{t('wizard.step4.rightsHelpers.download')}</Typography>
+              </Box>
+            } 
+          />
+          <FormControlLabel 
+            control={<Switch checked={transferable} onChange={(e)=>setTransferable(e.target.checked)} />} 
+            label={
+              <Box>
+                <Typography variant="body2">{t('wizard.step4.fields.transferable')}</Typography>
+                <Typography variant="caption" color="text.secondary">{t('wizard.step4.rightsHelpers.transferable')}</Typography>
+              </Box>
+            } 
+          />
+        </Stack>
+        {rightsDownload && transferable && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            {t('wizard.step4.alerts.downloadTransferable')}
+          </Alert>
+        )}
         
         <FormControl fullWidth>
           <InputLabel id="delivery-mode-label">{t('wizard.step4.fields.deliveryMode')}</InputLabel>
@@ -690,6 +839,40 @@ export default function Step4LicensesTermsLocalized() {
         </Stack>
         <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: loadingFromDraftRef.current ? 0 : 1 }}>
         <Stack spacing={2}>
+          
+          {/* Terms Summary Field */}
+          <TextField
+            label={t('wizard.step4.fields.termsSummary')}
+            value={termsSummary}
+            onChange={(e)=>setTermsSummary(e.target.value)}
+            multiline
+            rows={3}
+            fullWidth
+            helperText={t('wizard.step4.helpers.termsSummary')}
+            placeholder={locale === 'es' ? 'Ej:\n- Sin uso en producción\n- Atribución requerida\n- 30 días de soporte' : 'E.g.:\n- No production use\n- Attribution required\n- 30 days support'}
+          />
+
+          {/* Terms Template Selector */}
+          <FormControl fullWidth>
+            <InputLabel>{t('wizard.step4.templates.label')}</InputLabel>
+            <Select
+              value={selectedTemplate}
+              onChange={(e) => {
+                const val = e.target.value
+                setSelectedTemplate(val)
+                if (val) onApplyTemplate(val)
+              }}
+              label={t('wizard.step4.templates.label')}
+            >
+              <MenuItem value="">{t('wizard.step4.templates.placeholder')}</MenuItem>
+              <MenuItem value="standard">{t('wizard.step4.templates.standard')}</MenuItem>
+              <MenuItem value="eval">{t('wizard.step4.templates.eval')}</MenuItem>
+              <MenuItem value="opensource">{t('wizard.step4.templates.opensource')}</MenuItem>
+            </Select>
+            <FormHelperText>{locale === 'es' ? 'Opcional. Selecciona una plantilla para llenar el editor de términos.' : 'Optional. Select a template to fill the terms editor.'}</FormHelperText>
+          </FormControl>
+        
+        
           <Stack direction="row" spacing={0.5} sx={{ alignItems:'center' }}>
             <Tooltip title={t('wizard.step4.termsEditor.bold')}><IconButton size="small" onClick={()=>wrap('**')}><FormatBoldIcon fontSize="small" /></IconButton></Tooltip>
             <Tooltip title={t('wizard.step4.termsEditor.italic')}><IconButton size="small" onClick={()=>wrap('*')}><FormatItalicIcon fontSize="small" /></IconButton></Tooltip>
@@ -713,52 +896,71 @@ export default function Step4LicensesTermsLocalized() {
           ) : (
             <TextField inputRef={termsRef} label={t('wizard.step4.fields.termsText')} value={termsText} onChange={(e)=>setTermsText(e.target.value)} multiline rows={4} fullWidth helperText={t('wizard.step4.helpers.termsText')} />
           )}
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Button variant="outlined" onClick={onHashTerms}>{t('wizard.step4.actions.computeHash')}</Button>
-            <TextField label={t('wizard.step4.fields.termsHash')} value={termsHash} InputProps={{ readOnly: true, endAdornment: (
-              <IconButton size="small" onClick={()=>{ if(termsHash) navigator.clipboard.writeText(termsHash) }}><ContentCopyIcon fontSize="small" /></IconButton>
-            ) }} placeholder="0x..." fullWidth />
-          </Stack>
+          <Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+              {t('wizard.step4.helpers.signExplanation')}
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Button variant="outlined" onClick={onHashTerms}>{t('wizard.step4.actions.computeHash')}</Button>
+              <TextField label={t('wizard.step4.fields.termsHash')} value={termsHash} InputProps={{ readOnly: true, endAdornment: (
+                <IconButton size="small" onClick={()=>{ if(termsHash) navigator.clipboard.writeText(termsHash) }}><ContentCopyIcon fontSize="small" /></IconButton>
+              ) }} placeholder="0x..." fullWidth />
+            </Stack>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              {t('wizard.step4.helpers.hashExplanation')}
+            </Typography>
+          </Box>
         </Stack>
         </Box>
       </Paper>
 
-      <Box sx={{ height: { xs: 76, md: 72 }, mt: 2 }} />
+      {/* Template Confirmation Dialog */}
+      <Dialog open={confirmTemplateDialog} onClose={() => setConfirmTemplateDialog(false)}>
+        <DialogTitle>{locale === 'es' ? '¿Reemplazar términos?' : 'Replace terms?'}</DialogTitle>
+        <DialogContent>
+          <Typography>
+            {locale === 'es' 
+              ? 'Ya tienes texto en el editor. ¿Quieres reemplazarlo con la plantilla seleccionada?' 
+              : 'You already have text in the editor. Do you want to replace it with the selected template?'}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setConfirmTemplateDialog(false); setPendingTemplate(null); setSelectedTemplate('') }}>
+            {locale === 'es' ? 'Cancelar' : 'Cancel'}
+          </Button>
+          <Button onClick={confirmApplyTemplate} variant="contained">
+            {locale === 'es' ? 'Reemplazar' : 'Replace'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      <Box sx={{ position:'fixed', bottom: 0, left: 0, right: 0, zIndex: (t)=>t.zIndex.appBar + 1 }}>
-        <Paper elevation={3} sx={{ borderRadius: 0, px: { xs:1.5, md:2 }, py: 1 }}>
-          <Box sx={{ maxWidth: 1000, mx: 'auto', width:'100%' }}>
-            <Box sx={{ display:{ xs:'flex', md:'none' }, alignItems:'center', justifyContent:'space-between', width:'100%' }}>
-              <Button size="small" href={`${base}/step3`} onClick={(e)=>navigateAfterSave(e, `${base}/step3`)} variant="text" color="inherit" startIcon={<ArrowBackIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 0.75, whiteSpace:'nowrap', fontSize:{ xs:12, md:14 }, '& .MuiButton-startIcon': { mr: 0.5, '& svg': { fontSize: 18 } }, transition:'opacity 120ms ease' }}>
-                {t('wizard.common.back')}
-              </Button>
-              <Button size="small" onClick={()=>onSave('manual')} disabled={saving} variant="text" color="primary" startIcon={<SaveOutlinedIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 0.75, whiteSpace:'nowrap', fontSize:{ xs:12, md:14 }, '& .MuiButton-startIcon': { mr: 0.5, '& svg': { fontSize: 18 } }, transition:'opacity 120ms ease', opacity: saving ? 0.85 : 1 }}>
-                {saving? t('wizard.common.saving') : t('wizard.common.saveDraft')}
-              </Button>
-              <Button size="small" href={`${base}/step5`} onClick={(e)=>navigateAfterSave(e, `${base}/step5`)} disabled={!isValid} variant="text" color="inherit" endIcon={<ArrowForwardIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 0.75, whiteSpace:'nowrap', fontSize:{ xs:12, md:14 }, '& .MuiButton-endIcon': { ml: 0.5, '& svg': { fontSize: 18 } }, transition:'opacity 120ms ease', opacity: !isValid ? 0.85 : 1 }}>
-                {t('wizard.common.next')}
-              </Button>
-            </Box>
+      {/* Final Reminder */}
+      <Alert severity="info" icon={<InfoOutlinedIcon />} sx={{ mb: 2 }}>
+        {t('wizard.step4.finalReminder')}
+      </Alert>
 
-            <Box sx={{ display:{ xs:'none', md:'flex' }, alignItems:'center', justifyContent:'space-between', gap: 1.25 }}>
-              <Button href={`${base}/step3`} onClick={(e)=>navigateAfterSave(e, `${base}/step3`)} variant="text" color="inherit" startIcon={<ArrowBackIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 1, transition:'opacity 120ms ease' }}>
-                {t('wizard.common.back')}
-              </Button>
-              <Box sx={{ display:'flex', gap: 1.25 }}>
-                <Button onClick={()=>onSave('manual')} disabled={saving} variant="text" color="primary" startIcon={<SaveOutlinedIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 1, transition:'opacity 120ms ease', opacity: saving ? 0.85 : 1 }}>
-                  {saving? t('wizard.common.saving') : t('wizard.common.saveDraft')}
-                </Button>
-                <Button href={`${base}/step5`} onClick={(e)=>navigateAfterSave(e, `${base}/step5`)} disabled={!isValid} variant="text" color="inherit" endIcon={<ArrowForwardIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 1, transition:'opacity 120ms ease', opacity: !isValid ? 0.85 : 1 }}>
-                  {t('wizard.common.next')}
-                </Button>
-              </Box>
-            </Box>
-          </Box>
-        </Paper>
-      </Box>
+      <Box sx={{ height: { xs: 76, md: 76 }, mt: 2 }} />
+
+      <WizardFooter
+        currentStep={4}
+        totalSteps={5}
+        stepTitle={t('wizard.step4.title')}
+        onBack={( )=>{ /* keep save before back */ navigateAfterSave({ preventDefault:()=>{} } as any, `${base}/step3`) }}
+        onSaveDraft={()=> onSave('manual')}
+        onNext={( )=>{ navigateAfterSave({ preventDefault:()=>{} } as any, `${base}/step5`) }}
+        isNextDisabled={!isValid}
+        isSaving={saving}
+        isLastStep={false}
+        backLabel={t('wizard.common.back')}
+        saveDraftLabel={t('wizard.common.saveDraft')}
+        savingLabel={t('wizard.common.saving')}
+        nextLabel={t('wizard.common.next')}
+        publishLabel={t('wizard.index.publish')}
+      />
 
       {msg && <p>{msg}</p>}
     </Box>
     </Box>
+    </WizardThemeProvider>
   )
 }

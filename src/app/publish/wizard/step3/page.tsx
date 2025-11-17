@@ -1,10 +1,7 @@
 "use client";
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Box, Button, Paper, Typography, Stack, Grid, TextField, IconButton, Chip, LinearProgress, Tooltip, Divider, InputAdornment } from '@mui/material'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
-import NextDynamic from 'next/dynamic'
-
-export const dynamic = 'force-dynamic'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
@@ -17,37 +14,18 @@ import DescriptionIcon from '@mui/icons-material/Description'
 import ContentPasteIcon from '@mui/icons-material/ContentPaste'
 
 async function saveDraft(payload: any) {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(addr ? { 'X-Wallet-Address': addr } : {}) },
-    body: JSON.stringify(addr ? { ...payload, address: addr } : payload)
-  })
+  const res = await fetch('/api/models/draft', { method: 'POST', body: JSON.stringify(payload) })
   return res.json()
 }
 
 async function validateDemo(payload: any) {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/validate-demo', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(addr ? { 'X-Wallet-Address': addr } : {}) },
-    body: JSON.stringify(addr ? { ...payload, address: addr } : payload)
-  })
-  return res.json()
-}
-
-async function loadDraft() {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft' + (addr ? `?address=${addr}` : ''), { method: 'GET', headers: addr ? { 'X-Wallet-Address': addr } : {} })
+  const res = await fetch('/api/models/validate-demo', { method: 'POST', body: JSON.stringify(payload) })
   return res.json()
 }
 
 interface Artifact { cid: string; filename: string; sizeBytes?: number; sha256?: string; status?: 'idle'|'uploading'|'ready'|'error'; error?: string; progress?: number }
 
-function Step3ArtifactsDemoImpl() {
+export default function Step3ArtifactsDemo() {
   const detectedLocale = typeof window !== 'undefined' ? (['en','es'].includes((window.location.pathname.split('/')[1]||'').toLowerCase()) ? window.location.pathname.split('/')[1] : 'en') : 'en'
   if (typeof window !== 'undefined' && !/^\/(en|es)\//.test(window.location.pathname)) {
     window.location.replace(`/${detectedLocale}/publish/wizard/step3`)
@@ -63,22 +41,6 @@ function Step3ArtifactsDemoImpl() {
   const [preview, setPreview] = useState<any>(null)
   const [msg, setMsg] = useState('')
   const { walletAddress } = useWalletAddress()
-
-  // Autoload draft on mount and populate fields
-  useEffect(() => {
-    let alive = true
-    loadDraft().then((r)=>{
-      if (!alive) return
-      const s3 = r?.data?.step3
-      if (!s3) return
-      try {
-        if (Array.isArray(s3.artifacts)) setArtifacts(s3.artifacts)
-        if (typeof s3.downloadNotes === 'string') setDownloadNotes(s3.downloadNotes)
-        if (s3.demoPreset) setPresetInput(JSON.stringify(s3.demoPreset, null, 2))
-      } catch {}
-    }).catch(()=>{})
-    return () => { alive = false }
-  }, [])
 
   const isStepValid = () => artifacts.some(a => Boolean(a.cid && a.filename))
 
@@ -412,5 +374,3 @@ function Step3ArtifactsDemoImpl() {
     </div>
   )
 }
-
-export default NextDynamic(() => Promise.resolve(Step3ArtifactsDemoImpl), { ssr: false })

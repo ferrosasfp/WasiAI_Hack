@@ -1,12 +1,13 @@
 "use client";
 import React from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { Box, Button, Paper, Typography, Stack, Grid, TextField, IconButton, Chip, LinearProgress, Tooltip, Divider, InputAdornment } from '@mui/material'
+import { Box, Button, Paper, Typography, Stack, Grid, TextField, IconButton, Chip, LinearProgress, Tooltip, Divider, InputAdornment, Select, MenuItem, FormControl, InputLabel, Alert } from '@mui/material'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
+import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
@@ -14,6 +15,8 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import DescriptionIcon from '@mui/icons-material/Description'
 import ContentPasteIcon from '@mui/icons-material/ContentPaste'
 import { useLocale, useTranslations } from 'next-intl'
+import WizardFooter from '@/components/WizardFooter'
+import WizardThemeProvider from '@/components/WizardThemeProvider'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +38,47 @@ async function loadDraft() {
   return res.json()
 }
 
-interface Artifact { cid: string; filename: string; sizeBytes?: number; sha256?: string; status?: 'idle'|'uploading'|'ready'|'error'; error?: string; progress?: number }
+type FileType = 'zip' | 'gguf' | 'onnx' | 'safetensors' | 'other'
+type ArtifactRole = 'primary-weights' | 'adapter' | 'inference-code' | 'training-code' | 'tokenizer' | 'assets' | 'other'
+type ArtifactStatus = 'idle' | 'uploading' | 'pinning' | 'ready' | 'error'
+
+interface Artifact {
+  cid: string
+  filename: string
+  sizeBytes?: number
+  sha256?: string
+  fileType?: FileType
+  role?: ArtifactRole
+  notes?: string
+  status?: ArtifactStatus
+  error?: string
+  progress?: number
+}
+
+const FILE_TYPE_EXTENSIONS: Record<FileType, string[]> = {
+  zip: ['zip', 'tar', 'gz', 'bz2', 'xz', '7z'],
+  gguf: ['gguf'],
+  onnx: ['onnx'],
+  safetensors: ['safetensors', 'st'],
+  other: ['bin', 'pt', 'pth', 'json', 'txt', 'md']
+}
+
+const ARTIFACT_ROLES: ArtifactRole[] = ['primary-weights', 'adapter', 'inference-code', 'training-code', 'tokenizer', 'assets', 'other']
+
+const inferFileType = (filename: string): FileType => {
+  const ext = filename.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1]
+  if (!ext) return 'other'
+  for (const [type, exts] of Object.entries(FILE_TYPE_EXTENSIONS)) {
+    if (exts.includes(ext)) return type as FileType
+  }
+  return 'other'
+}
+
+const truncate = (str: string, maxLen: number = 20): string => {
+  if (!str || str.length <= maxLen) return str
+  const half = Math.floor((maxLen - 3) / 2)
+  return str.slice(0, half) + '...' + str.slice(-half)
+}
 
 export default function Step3ArtifactsDemoLocalized() {
   const t = useTranslations()
@@ -50,12 +93,14 @@ export default function Step3ArtifactsDemoLocalized() {
   const isResetting = () => { try { return localStorage.getItem('wizard_resetting')==='1' || sessionStorage.getItem('wizard_resetting')==='1' } catch { return false } }
   const [saving, setSaving] = useState(false)
   const [validating, setValidating] = useState(false)
-  const [artifacts, setArtifacts] = useState<Artifact[]>([{ cid: '', filename: '' }])
+  const [artifacts, setArtifacts] = useState<Artifact[]>([{ cid: '', filename: '', role: 'other' }])
   const [downloadNotes, setDownloadNotes] = useState('')
   const [presetInput, setPresetInput] = useState('{}')
   const [preview, setPreview] = useState<any>(null)
   const [msg, setMsg] = useState('')
+  const [validationError, setValidationError] = useState('')
   const [shouldFade, setShouldFade] = useState(true)
+  const [isDragging, setIsDragging] = useState(false)
   const { walletAddress } = useWalletAddress()
   const navigatingRef = useRef(false)
   const didMountRef = useRef(false)
@@ -83,7 +128,27 @@ export default function Step3ArtifactsDemoLocalized() {
     }
   }, [])
 
-  const isStepValid = () => artifacts.some(a => Boolean(a.cid && a.filename))
+  const isStep3Complete = (): { valid: boolean; error?: string } => {
+    // Check if there's at least one artifact with CID and filename
+    const validArtifacts = artifacts.filter(a => Boolean(a.cid && a.filename && a.status === 'ready'))
+    if (validArtifacts.length === 0) {
+      return { valid: false, error: t('wizard.step3.validation.noArtifacts') }
+    }
+    // Check if there's a primary artifact
+    const hasPrimary = validArtifacts.some(a => a.role === 'primary-weights')
+    if (!hasPrimary) {
+      return { valid: false, error: t('wizard.step3.validation.noPrimaryArtifact') }
+    }
+    // Check if download notes are provided
+    if (!downloadNotes.trim()) {
+      return { valid: false, error: t('wizard.step3.validation.noInstructions') }
+    }
+    // Check if there are uploads in progress
+    if (anyUploading) {
+      return { valid: false, error: t('wizard.step3.validation.uploadInProgress') }
+    }
+    return { valid: true }
+  }
 
   const ACCEPTED_EXT = '.safetensors,.bin,.pt,.onnx,.gguf,.json,.zip,.tar,.gz,.bz2,.xz,application/octet-stream'
   const MAX_SIZE_BYTES = 200 * 1024 * 1024 // 200 MB
@@ -120,7 +185,16 @@ export default function Step3ArtifactsDemoLocalized() {
     try {
       const c = readCache()
       if (c) {
-        if (Array.isArray(c.artifacts)) setArtifacts(c.artifacts)
+        if (Array.isArray(c.artifacts)) {
+          // Normalize artifacts: add missing fields for legacy drafts
+          const normalized = c.artifacts.map((a: any) => ({
+            ...a,
+            fileType: a.fileType || (a.filename ? inferFileType(a.filename) : 'other'),
+            role: a.role || 'other',
+            notes: a.notes || ''
+          }))
+          setArtifacts(normalized)
+        }
         if (typeof c.downloadNotes === 'string') setDownloadNotes(c.downloadNotes)
         if (c.demoPreset) { try { setPresetInput(JSON.stringify(c.demoPreset, null, 2)) } catch {} }
         lastSavedRef.current = c
@@ -135,7 +209,16 @@ export default function Step3ArtifactsDemoLocalized() {
       const s3 = r?.data?.step3
       if (!s3) return
       try {
-        if (Array.isArray(s3.artifacts)) setArtifacts(s3.artifacts)
+        if (Array.isArray(s3.artifacts)) {
+          // Normalize artifacts: add missing fields for legacy drafts
+          const normalized = s3.artifacts.map((a: any) => ({
+            ...a,
+            fileType: a.fileType || (a.filename ? inferFileType(a.filename) : 'other'),
+            role: a.role || 'other',
+            notes: a.notes || ''
+          }))
+          setArtifacts(normalized)
+        }
         if (typeof s3.downloadNotes === 'string') setDownloadNotes(s3.downloadNotes)
         if (s3.demoPreset) { try { setPresetInput(JSON.stringify(s3.demoPreset, null, 2)) } catch { /* ignore */ } }
         lastSavedRef.current = s3
@@ -281,7 +364,17 @@ export default function Step3ArtifactsDemoLocalized() {
         }
       }
       const sha = preSha
-      const next: Artifact = { cid: out.cid, filename: file.name, sizeBytes: file.size, sha256: sha, status: 'ready' }
+      const fileType = inferFileType(file.name)
+      const next: Artifact = { 
+        cid: out.cid, 
+        filename: file.name, 
+        sizeBytes: file.size, 
+        sha256: sha, 
+        fileType,
+        role: artifactsRef.current[i]?.role || 'other',
+        notes: artifactsRef.current[i]?.notes || '',
+        status: 'ready' 
+      }
       setArtifacts(arr => arr.map((a, idx) => idx===i ? next : a))
       const dlt = deadlineTimersRef.current.get(i); if (dlt) { clearTimeout(dlt); deadlineTimersRef.current.delete(i) }
       try { console.log('[step3] upload:success', i, file?.name, out?.cid) } catch {}
@@ -310,8 +403,18 @@ export default function Step3ArtifactsDemoLocalized() {
 
   const onSelectLocalFile = async (i: number, file: File) => {
     try { console.log('[step3] upload:start', i, file?.name, file?.size) } catch {}
+    const fileType = inferFileType(file.name)
     // Seteamos metadata visible desde el inicio para chequeos y UI
-    setArtifacts(arr => arr.map((a, idx) => idx===i ? { ...a, status: 'uploading', error: undefined, progress: 0, filename: file.name, sizeBytes: file.size } : a))
+    setArtifacts(arr => arr.map((a, idx) => idx===i ? { 
+      ...a, 
+      status: 'uploading', 
+      error: undefined, 
+      progress: 0, 
+      filename: file.name, 
+      sizeBytes: file.size,
+      fileType,
+      role: a.role || 'other'
+    } : a))
     uploadQueueRef.current.push({ index: i, file })
     processUploadQueue()
   }
@@ -337,16 +440,33 @@ export default function Step3ArtifactsDemoLocalized() {
     setArtifacts(baseArr)
     for (let idx=0; idx<arr.length; idx++) {
       const file = arr[idx]
+      const fileType = inferFileType(file.name)
       const targetIndex = baseArr.length-1 + idx
       setArtifacts(prev => {
         const copy = prev.slice()
-        while (copy.length<=targetIndex) copy.push({ cid:'', filename:'' })
-        copy[targetIndex] = { cid:'', filename:'', status:'uploading', progress:0 }
+        while (copy.length<=targetIndex) copy.push({ cid:'', filename:'', role:'other' })
+        copy[targetIndex] = { cid:'', filename:'', fileType, role:'other', status:'uploading', progress:0 }
         return copy
       })
       uploadQueueRef.current.push({ index: targetIndex, file })
     }
     processUploadQueue()
+  }
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const onDragLeave = () => setIsDragging(false)
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      onSelectMultiple(files)
+    }
   }
 
   const onPasteCID = async (i:number) => {
@@ -356,10 +476,16 @@ export default function Step3ArtifactsDemoLocalized() {
       setArtifacts(arr=>arr.map((a, idx)=> idx===i ? { ...a, status:'error', error:t('wizard.step3.errors.duplicateCID') } : a))
       return
     }
-    setArtifacts(arr=>arr.map((a, idx)=> idx===i ? { ...a, cid: promptCid, status:'ready', error: undefined } : a))
+    setArtifacts(arr=>arr.map((a, idx)=> idx===i ? { 
+      ...a, 
+      cid: promptCid, 
+      status:'ready', 
+      error: undefined,
+      role: a.role || 'other'
+    } : a))
   }
 
-  const onAddArtifact = () => setArtifacts(a => [...a, { cid: '', filename: '' }])
+  const onAddArtifact = () => setArtifacts(a => [...a, { cid: '', filename: '', role: 'other' }])
   const onChangeArtifact = (i: number, key: keyof Artifact, val: any) => {
     setArtifacts(a => a.map((it, idx) => idx===i ? { ...it, [key]: val } : it))
   }
@@ -386,11 +512,24 @@ export default function Step3ArtifactsDemoLocalized() {
 
   const onSave = async (reason?: 'autosave'|'manual') => {
     setMsg('')
+    // Clean artifacts: only save those with CID and filename, and include all new fields
+    const cleanArtifacts = artifacts
+      .filter(a => a.cid && a.filename)
+      .map(a => ({
+        cid: a.cid,
+        filename: a.filename,
+        sizeBytes: a.sizeBytes,
+        sha256: a.sha256,
+        fileType: a.fileType || inferFileType(a.filename),
+        role: a.role || 'other',
+        notes: a.notes || '',
+        status: a.status
+      }))
     const payload = {
       address: walletAddress,
       step: 'step3',
       data: {
-        artifacts,
+        artifacts: cleanArtifacts,
         delivery: { kind: 'hosted' },
         downloadNotes,
         demoPreset: (()=>{ try { return JSON.parse(presetInput||'{}') } catch { return {} } })()
@@ -441,6 +580,7 @@ export default function Step3ArtifactsDemoLocalized() {
   }
 
   return (
+    <WizardThemeProvider>
     <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0f2740 0%, #0b1626 30%, #0a111c 100%)' }}>
       <Box sx={{
         p: 3,
@@ -479,87 +619,186 @@ export default function Step3ArtifactsDemoLocalized() {
         {t('wizard.step3.subtitle')}
       </Typography>
 
+      {validationError && (
+        <Alert severity="error" onClose={() => setValidationError('')} sx={{ mt: 2 }}>
+          {validationError}
+        </Alert>
+      )}
+
       <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mt:2, borderRadius:2 }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
           <Typography variant="h6" sx={{ fontWeight:600 }}>{t('wizard.step3.sections.artifacts.title')}</Typography>
           <Tooltip title={t('wizard.step3.sections.artifacts.help')}><InfoOutlinedIcon fontSize="small" color="action" /></Tooltip>
         </Stack>
         <Box sx={{ transition:'opacity 150ms ease 60ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1, minHeight: 200 }}>
+        {/* Drag & Drop Zone */}
+        <Paper
+          variant="outlined"
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+          sx={{
+            p: 3,
+            mb: 2,
+            borderRadius: 2,
+            border: '2px dashed',
+            borderColor: isDragging ? 'primary.main' : 'rgba(255,255,255,0.28)',
+            bgcolor: isDragging ? 'rgba(25,118,210,0.08)' : 'transparent',
+            cursor: 'pointer',
+            transition: 'all 150ms ease',
+            position: 'relative',
+            overflow: 'hidden',
+            boxShadow: 'none',
+            '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(25,118,210,0.04)' }
+          }}
+          component="label"
+        >
+          <Stack direction="row" spacing={2} alignItems="center" justifyContent="center">
+            <CloudUploadIcon sx={{ fontSize: 40, color: isDragging ? 'primary.main' : 'text.secondary' }} />
+            <Box>
+              <Typography variant="body1" sx={{ fontWeight: 600, color: isDragging ? 'primary.main' : '#ffffff' }}>
+                {t('wizard.step3.actions.dragDrop')}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {t('wizard.step3.actions.typesMax')}
+              </Typography>
+            </Box>
+            <input hidden type="file" multiple accept={ACCEPTED_EXT} onChange={e=>{ const files=e.target.files; if(files) onSelectMultiple(files) }} />
+          </Stack>
+        </Paper>
         <Grid container spacing={2}>
           {artifacts.map((a, i) => (
             <Grid item xs={12} key={i}>
-              <Paper variant="outlined" sx={{ p:1.5, borderRadius:2, bgcolor: a.status==='ready' ? 'action.hover' : undefined }}>
-                <Stack direction={{ xs:'column', md:'row' }} spacing={1.5} alignItems={{ xs:'stretch', md:'center' }}>
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ flex:1 }}>
-                    <Tooltip
-                      title={
-                        <Box>
-                          <Typography variant="body2">{a.filename ? t('wizard.step3.actions.replaceFile') : t('wizard.step3.actions.selectFile')}</Typography>
-                          <Typography variant="caption">{t('wizard.step3.actions.typesMax')}</Typography>
-                        </Box>
-                      }
-                    >
-                      <IconButton component="label" color="primary" aria-label={a.filename ? t('wizard.step3.actions.replaceFile') : t('wizard.step3.actions.selectFile')}>
-                        <UploadFileIcon />
-                        <input hidden type="file" multiple accept={ACCEPTED_EXT} onChange={e=>{ const files=e.target.files; if(files && files.length>1) onSelectMultiple(files); else { const f=e.target.files?.[0]; if(f) onSelectLocalFile(i, f) } }} />
-                      </IconButton>
-                    </Tooltip>
-                    {a.status==='uploading' && <Chip label={t('wizard.step3.status.uploading')} size="small" />}
-                    {a.status==='ready' && <Chip color="success" label={t('wizard.step3.status.ready')} size="small" />}
-                    {a.status==='error' && <Chip color="error" label={t('wizard.step3.status.error')} size="small" />}
-                    {a.filename && <Chip label={extLabel(a.filename)} size="small" />}
-                    <Tooltip title={t('wizard.step3.actions.fromCid')}>
-                      <IconButton size="small" onClick={()=>onPasteCID(i)}><ContentPasteIcon fontSize="small" /></IconButton>
-                    </Tooltip>
-                    {/* Botones Cancelar/Reintentar removidos según pedido */}
-                  </Stack>
-                  <TextField
-                    label="CID"
-                    value={a.cid}
-                    fullWidth
-                    InputProps={{ readOnly: true, endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title={t('wizard.step3.actions.copyCid')}><IconButton size="small" onClick={()=>a.cid && copy(a.cid)}><ContentCopyIcon fontSize="inherit" /></IconButton></Tooltip>
-                        <Tooltip title={t('wizard.step3.actions.openGateway')}><span><IconButton size="small" disabled={!a.cid} onClick={()=>window.open(`https://ipfs.io/ipfs/${a.cid}`,'_blank')}><OpenInNewIcon fontSize="inherit" /></IconButton></span></Tooltip>
-                      </InputAdornment>
-                    ) }}
-                  />
-                  <TextField
-                    label={t('wizard.step3.fields.filename')}
-                    value={a.filename}
-                    onChange={e=>onChangeArtifact(i,'filename',e.target.value)}
-                    fullWidth
-                    error={Boolean(a.filename) && artifacts.some((x,idx)=> idx!==i && x.filename && x.filename===a.filename)}
-                    helperText={Boolean(a.filename) && artifacts.some((x,idx)=> idx!==i && x.filename && x.filename===a.filename) ? t('wizard.step3.errors.duplicateFilenameShort') : undefined}
-                    InputProps={{
-                      startAdornment: (<InputAdornment position="start"><DescriptionIcon fontSize="small" /></InputAdornment>),
-                      endAdornment: (()=>{
-                        const dupIndex = artifacts.slice(0, i).filter(x=>x.filename===a.filename).length
-                        return dupIndex>0 ? <InputAdornment position="end">({dupIndex+1})</InputAdornment> : undefined
-                      })(),
-                      readOnly: a.status==='ready'
-                    }}
-                  />
-                  <TextField
-                    label={t('wizard.step3.fields.size')}
-                    value={fmtBytes(a.sizeBytes)}
-                    fullWidth
-                    InputProps={{ readOnly: true }}
-                  />
-                  <TextField
-                    label="SHA-256"
-                    value={a.sha256||''}
-                    fullWidth
-                    InputProps={{ readOnly: true, endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title={t('wizard.step3.actions.copyHash')}><IconButton size="small" onClick={()=>a.sha256 && copy(a.sha256)}><ContentCopyIcon fontSize="inherit" /></IconButton></Tooltip>
-                      </InputAdornment>
-                    ) }}
-                  />
-                  <IconButton color="error" onClick={()=>onRemoveArtifact(i)}><DeleteOutlineIcon/></IconButton>
+              <Paper variant="outlined" sx={{ p:2, borderRadius:2, bgcolor: a.status==='ready' ? 'action.hover' : undefined }}>
+                {/* Header row: Upload button, status chips, paste CID, delete */}
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                  <Tooltip
+                    title={
+                      <Box>
+                        <Typography variant="body2">{a.filename ? t('wizard.step3.actions.replaceFile') : t('wizard.step3.actions.selectFile')}</Typography>
+                        <Typography variant="caption">{t('wizard.step3.actions.typesMax')}</Typography>
+                      </Box>
+                    }
+                  >
+                    <IconButton component="label" color="primary" aria-label={a.filename ? t('wizard.step3.actions.replaceFile') : t('wizard.step3.actions.selectFile')}>
+                      <UploadFileIcon />
+                      <input hidden type="file" multiple accept={ACCEPTED_EXT} onChange={e=>{ const files=e.target.files; if(files && files.length>1) onSelectMultiple(files); else { const f=e.target.files?.[0]; if(f) onSelectLocalFile(i, f) } }} />
+                    </IconButton>
+                  </Tooltip>
+                  {a.status==='uploading' && (
+                    <Chip
+                      label={t('wizard.step3.status.uploading')}
+                      size="small"
+                      sx={{ bgcolor: '#fff', color: '#111', '& .MuiChip-label': { fontWeight: 600 } }}
+                    />
+                  )}
+                  {a.status==='pinning' && (
+                    <Chip
+                      label={t('wizard.step3.status.pinning')}
+                      size="small"
+                      sx={{ bgcolor: '#fff', color: '#111', '& .MuiChip-label': { fontWeight: 600 } }}
+                    />
+                  )}
+                  {a.status==='ready' && <Chip color="success" label={t('wizard.step3.status.ready')} size="small" />}
+                  {a.status==='error' && <Chip color="error" label={t('wizard.step3.status.error')} size="small" />}
+                  {a.filename && (
+                    <Chip
+                      label={extLabel(a.filename)}
+                      size="small"
+                      sx={{ bgcolor: '#fff', color: '#111', '& .MuiChip-label': { fontWeight: 600 } }}
+                    />
+                  )}
+                  <Box sx={{ flex: 1 }} />
+                  <Tooltip title={t('wizard.step3.actions.fromCid')}>
+                    <IconButton size="small" onClick={()=>onPasteCID(i)}><ContentPasteIcon fontSize="small" /></IconButton>
+                  </Tooltip>
+                  <IconButton color="error" size="small" onClick={()=>onRemoveArtifact(i)}><DeleteOutlineIcon/></IconButton>
                 </Stack>
-                {a.status==='uploading' && <LinearProgress variant={typeof a.progress==='number' ? 'determinate' : 'indeterminate'} value={a.progress||0} sx={{ mt:1 }} />}
-                {a.error && <Typography variant="caption" color="error.main" sx={{ mt: 0.5 }}>{a.error}</Typography>}
+
+                {/* Main content grid */}
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label={t('wizard.step3.fields.filename')}
+                      value={a.filename}
+                      onChange={e=>onChangeArtifact(i,'filename',e.target.value)}
+                      fullWidth
+                      error={Boolean(a.filename) && artifacts.some((x,idx)=> idx!==i && x.filename && x.filename===a.filename)}
+                      helperText={Boolean(a.filename) && artifacts.some((x,idx)=> idx!==i && x.filename && x.filename===a.filename) ? t('wizard.step3.errors.duplicateFilenameShort') : undefined}
+                      InputProps={{
+                        startAdornment: (<InputAdornment position="start"><DescriptionIcon fontSize="small" /></InputAdornment>),
+                        readOnly: a.status==='ready'
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      label={t('wizard.step3.fields.size')}
+                      value={fmtBytes(a.sizeBytes)}
+                      fullWidth
+                      InputProps={{ readOnly: true }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <FormControl fullWidth>
+                      <InputLabel>{t('wizard.step3.fields.role')}</InputLabel>
+                      <Select
+                        value={a.role || 'other'}
+                        onChange={e=>onChangeArtifact(i,'role',e.target.value as ArtifactRole)}
+                        label={t('wizard.step3.fields.role')}
+                      >
+                        {ARTIFACT_ROLES.map(role => (
+                          <MenuItem key={role} value={role}>
+                            {t(`wizard.step3.roles.${role}`)}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Tooltip title={a.cid || 'No CID'} placement="top">
+                      <TextField
+                        label="CID"
+                        value={truncate(a.cid, 30)}
+                        fullWidth
+                        InputProps={{ readOnly: true, endAdornment: (
+                          <InputAdornment position="end">
+                            <Tooltip title={t('wizard.step3.actions.copyCid')}><IconButton size="small" onClick={()=>a.cid && copy(a.cid)}><ContentCopyIcon fontSize="inherit" /></IconButton></Tooltip>
+                            <Tooltip title={t('wizard.step3.actions.openGateway')}><span><IconButton size="small" disabled={!a.cid} onClick={()=>window.open(`https://ipfs.io/ipfs/${a.cid}`,'_blank')}><OpenInNewIcon fontSize="inherit" /></IconButton></span></Tooltip>
+                          </InputAdornment>
+                        ) }}
+                      />
+                    </Tooltip>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Tooltip title={a.sha256 || 'No hash'} placement="top">
+                      <TextField
+                        label="SHA-256"
+                        value={truncate(a.sha256||'', 30)}
+                        fullWidth
+                        InputProps={{ readOnly: true, endAdornment: (
+                          <InputAdornment position="end">
+                            <Tooltip title={t('wizard.step3.actions.copyHash')}><IconButton size="small" onClick={()=>a.sha256 && copy(a.sha256)}><ContentCopyIcon fontSize="inherit" /></IconButton></Tooltip>
+                          </InputAdornment>
+                        ) }}
+                      />
+                    </Tooltip>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      label={t('wizard.step3.fields.artifactNotes')}
+                      value={a.notes || ''}
+                      onChange={e=>onChangeArtifact(i,'notes',e.target.value)}
+                      fullWidth
+                      multiline
+                      rows={2}
+                      placeholder={isES ? 'Ej: Archivo principal con pesos del modelo entrenado en español' : 'E.g., Main file with model weights trained on English data'}
+                    />
+                  </Grid>
+                </Grid>
+
+                {a.status==='uploading' && <LinearProgress variant={typeof a.progress==='number' ? 'determinate' : 'indeterminate'} value={a.progress||0} sx={{ mt:1.5 }} />}
+                {a.error && <Typography variant="caption" color="error.main" sx={{ mt: 1 }}>{a.error}</Typography>}
               </Paper>
             </Grid>
           ))}
@@ -567,7 +806,16 @@ export default function Step3ArtifactsDemoLocalized() {
         <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
           <Button variant="text" onClick={onAddArtifact}>+ {t('wizard.step3.actions.addArtifact')}</Button>
         </Stack>
-        <TextField label={t('wizard.step3.fields.downloadNotes')} multiline rows={3} value={downloadNotes} onChange={e=>setDownloadNotes(e.target.value)} fullWidth sx={{ mt:2 }} />
+        <TextField 
+          label={t('wizard.step3.fields.downloadNotes')} 
+          multiline 
+          rows={6} 
+          value={downloadNotes} 
+          onChange={e=>setDownloadNotes(e.target.value)} 
+          fullWidth 
+          sx={{ mt:2 }}
+          placeholder={t('wizard.step3.placeholders.downloadNotes')}
+        />
         </Box>
       </Paper>
 
@@ -596,46 +844,40 @@ export default function Step3ArtifactsDemoLocalized() {
         </Box>
       </Paper>
 
-      <Box sx={{ height: { xs: 76, md: 72 }, mt: 2 }} />
+      <Box sx={{ height: { xs: 76, md: 76 }, mt: 2 }} />
 
-      <Box sx={{ position:'fixed', bottom: 0, left: 0, right: 0, zIndex: (t)=>t.zIndex.appBar + 1 }}>
-        <Paper elevation={3} sx={{ borderRadius: 0, px: { xs:1.5, md:2 }, py: 1 }}>
-          <Box sx={{ maxWidth: 1000, mx: 'auto', width:'100%' }}>
-            <Box sx={{ display:{ xs:'flex', md:'none' }, alignItems:'center', justifyContent:'space-between', width:'100%' }}>
-              <Button size="small" href={`${base}/step2`} onClick={(e)=>navigateAfterSave(e, `${base}/step2`)} disabled={anyUploading} variant="text" color="inherit" startIcon={<ArrowBackIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 0.75, whiteSpace:'nowrap', fontSize:{ xs:12, md:14 }, '& .MuiButton-startIcon': { mr: 0.5, '& svg': { fontSize: 18 } } }}>
-                {t('wizard.common.back')}
-              </Button>
-              <Button size="small" onClick={()=>onSave('manual')} disabled={saving || anyUploading} variant="text" color="primary" startIcon={<SaveOutlinedIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 0.75, whiteSpace:'nowrap', fontSize:{ xs:12, md:14 }, '& .MuiButton-startIcon': { mr: 0.5, '& svg': { fontSize: 18 } }, transition:'opacity 120ms ease', opacity: (saving||anyUploading) ? 0.85 : 1 }}>
-                {saving? t('wizard.common.saving') : t('wizard.common.saveDraft')}
-              </Button>
-              <Button size="small" href={`${base}/step4`} onClick={(e)=>navigateAfterSave(e, `${base}/step4`)} disabled={!isStepValid() || anyUploading} variant="text" color="inherit" endIcon={<ArrowForwardIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 0.75, whiteSpace:'nowrap', fontSize:{ xs:12, md:14 }, '& .MuiButton-endIcon': { ml: 0.5, '& svg': { fontSize: 18 } }, transition:'opacity 120ms ease', opacity: (!isStepValid() || anyUploading) ? 0.85 : 1 }}>
-                {t('wizard.common.next')}
-              </Button>
-            </Box>
-            <Box sx={{ display:{ xs:'none', md:'flex' }, alignItems:'center', justifyContent:'space-between', gap: 1.25 }}>
-              <Button href={`${base}/step2`} onClick={(e)=>navigateAfterSave(e, `${base}/step2`)} disabled={anyUploading} variant="text" color="inherit" startIcon={<ArrowBackIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 1, transition:'opacity 120ms ease', opacity: anyUploading ? 0.85 : 1 }}>
-                {t('wizard.common.back')}
-              </Button>
-              <Box sx={{ display:'flex', gap: 1.25 }}>
-                <Button onClick={()=>onSave('manual')} disabled={saving || anyUploading} variant="text" color="primary" startIcon={<SaveOutlinedIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 1, transition:'opacity 120ms ease', opacity: (saving||anyUploading) ? 0.85 : 1 }}>
-                  {saving? t('wizard.common.saving') : t('wizard.common.saveDraft')}
-                </Button>
-                <Button href={`${base}/step4`} onClick={(e)=>navigateAfterSave(e, `${base}/step4`)} disabled={!isStepValid() || anyUploading} variant="text" color="inherit" endIcon={<ArrowForwardIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 1, transition:'opacity 120ms ease', opacity: (!isStepValid() || anyUploading) ? 0.85 : 1 }}>
-                  {t('wizard.common.next')}
-                </Button>
-              </Box>
-              {(loadingDraft || anyUploading) && (
-                <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-                  {loadingDraft ? COMMON.loadingDraft : COMMON.uploadInProgress}
-                </Typography>
-              )}
-            </Box>
-          </Box>
-        </Paper>
-      </Box>
+      <WizardFooter
+        currentStep={3}
+        totalSteps={5}
+        stepTitle={t('wizard.step3.title')}
+        onBack={() => { if (anyUploading) return; onSave().then(()=>{ window.location.href = `${base}/step2` }) }}
+        onSaveDraft={() => onSave('manual')}
+        onNext={() => { 
+          const validation = isStep3Complete()
+          if (!validation.valid) {
+            setValidationError(validation.error || '')
+            return
+          }
+          onSave().then(()=>{ window.location.href = `${base}/step4` }) 
+        }}
+        isNextDisabled={!isStep3Complete().valid}
+        isSaving={saving}
+        isLastStep={false}
+        backLabel={t('wizard.common.back')}
+        saveDraftLabel={t('wizard.common.saveDraft')}
+        savingLabel={t('wizard.common.saving')}
+        nextLabel={t('wizard.common.next')}
+        publishLabel={t('wizard.index.publish')}
+        leftStatusExtra={(loadingDraft || anyUploading) ? (
+          <Typography variant="caption" sx={{ ml: 1, color: 'oklch(0.92 0 0)' }}>
+            {loadingDraft ? COMMON.loadingDraft : COMMON.uploadInProgress}
+          </Typography>
+        ) : null}
+      />
 
       {msg && <p>{msg}</p>}
       </Box>
     </Box>
+    </WizardThemeProvider>
   )
 }

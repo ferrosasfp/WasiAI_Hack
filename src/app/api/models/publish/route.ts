@@ -68,15 +68,31 @@ export async function POST(req: Request) {
       const fs = await import('fs')
       const path = await import('path')
       const ROOT = process.cwd()
-      const deployPath = path.join(ROOT, `contracts/evm/deploy.${network}.json`)
-      let marketAddr: string | null = null
-      if (fs.existsSync(deployPath)) {
-        const deploy = JSON.parse(fs.readFileSync(deployPath, 'utf8'))
-        marketAddr = deploy.marketplace
-      } else {
-        // Fallback a env actual si no hay archivo por red
+      
+      // Map network to chainId
+      const chainIdMap: Record<string, string> = {
+        'avax': '43113',
+        'base': '84532'
+      }
+      const chainId = chainIdMap[network] || ''
+      
+      // 1. Try .env.local first (source of truth)
+      let marketAddr: string | null = chainId ? (process.env[`NEXT_PUBLIC_EVM_MARKET_${chainId}`] || null) : null
+      
+      // 2. Fallback to deploy.{network}.json if env var not found
+      if (!marketAddr) {
+        const deployPath = path.join(ROOT, `contracts/evm/deploy.${network}.json`)
+        if (fs.existsSync(deployPath)) {
+          const deploy = JSON.parse(fs.readFileSync(deployPath, 'utf8'))
+          marketAddr = deploy.marketplace
+        }
+      }
+      
+      // 3. Final fallback to generic NEXT_PUBLIC_EVM_MARKET
+      if (!marketAddr) {
         marketAddr = process.env.NEXT_PUBLIC_EVM_MARKET || null
       }
+      
       if (!marketAddr) throw new Error(`evm_market_address_missing:${network}`)
 
       const rpc = network === 'base' ? (process.env.RPC_BASE || '') : network === 'avax' ? (process.env.RPC_AVAX || '') : ''

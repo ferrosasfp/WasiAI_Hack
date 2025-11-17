@@ -21,9 +21,16 @@
   },
   "modelCard": {
     "details": "View details",
+    "viewModel": "View model",
+    "viewDetailsLink": "View details",
     "connect": "Connect wallet",
     "oneTime": "one-time purchase",
     "subscription": "subscription",
+    "perMonth": "/mo subscription",
+    "supportedLanguages": "Supported languages",
+    "runs": "runs",
+    "shareLink": "Share link",
+    "linkCopied": "Link copied!",
     "chips": {
       "apiUsage": "API usage",
       "modelDownload": "Model download",
@@ -76,7 +83,7 @@
     "index": {
       "title": "Publishing wizard",
       "subtitle": "Complete these steps to publish your model.",
-      "step1": "Step 1 · Basics",
+      "step1": "Step 1 · Model identity",
       "step2": "Step 2 · Customer sheet",
       "step3": "Step 3 · Technical setup",
       "step4": "Step 4 · Pricing & rights",
@@ -93,11 +100,12 @@
     },
     "step1": {
       "title": "Step 1 · Model identity",
-      "subtitle": "Present your model: name, summary, cover and classification.",
+      "subtitle": "Set the model's name, summary, cover, and classification. This powers the public listing and search.",
       "sections": {
         "identity": { "title": "Identity", "help": "These fields make your model easy to understand and find." },
         "cover": { "title": "Cover", "help": "Pick an image that represents your model." },
         "classification": { "title": "Classification", "help": "Help discovery with relevant categories and tags." },
+        "technical": { "title": "Technical classification", "help": "Describe how this model works under the hood: technical category and key capabilities." },
         "authorship": { "title": "Authorship", "help": "Public author information for the model." }
       },
       "fields": {
@@ -105,6 +113,16 @@
         "summary": { "label": "Summary", "placeholder": "1–3 sentences explaining the purpose" },
         "categories": { "label": "Categories", "placeholder": "Select one or more", "helper": "E.g.: nlp, vision" },
         "tags": { "label": "Tags", "placeholder": "Select tags", "helper": "Technologies/formats (pytorch, onnx, etc.)" },
+        "technicalCategories": { "label": "Technical categories", "placeholder": "Select one or more", "helper": "How it works under the hood (NLP, vision, time series, etc.)." },
+        "technicalTags": {
+          "label": "Technical tags",
+          "placeholder": "Select or type tags",
+          "helperNoCat": "Select technical categories to see suggestions — or start typing to add your own.",
+          "helperWithCatPrefix": "Showing tags for ",
+          "helperWithCatSuffix": " — you can also add custom tags.",
+          "groupSuggested": "Suggested",
+          "groupOther": "Other"
+        },
         "author": { "label": "Author or owner" },
         "socials": { "title": "Author links", "helper": "Optional. Add your links to show on the model page." }
       },
@@ -139,10 +157,65 @@
     },
     "step2": {
       "title": "Step 2 · Customer-facing sheet",
-      "subtitle": "Describe the value, use cases, inputs/outputs and expected outcomes. Technical configuration can be added later.",
+      "subtitle": "Explain the value and use cases in business terms; specify inputs/outputs, examples, and expected impact. Add privacy, deployment, and support notes.",
       "clientSheet": {
         "title": "Customer sheet",
         "help": "Information aimed at non-technical buyers"
+      },
+      "clientSheetMicrocopy": {
+        "intro": "Fill this section as if explaining the model to a business manager. Use simple language and concrete examples.",
+        "headers": {
+          "valuePropLabel": "In one sentence, what does this model do?",
+          "valuePropPh": "e.g. Recommend products based on shopping behavior.",
+          "descriptionLabel": "Explanation for business users",
+          "descriptionPh": "e.g. Analyzes purchase history and visits to suggest which product to offer each customer in email, app or web.",
+          "expectedImpactLabel": "Expected business impact",
+          "expectedImpactPh": "e.g. +10% purchase rate in campaigns; +5% average order value"
+        },
+        "context": {
+          "industriesLabel": "Best suited for which businesses?",
+          "industriesPh": "e.g. retail, e-commerce, supermarkets",
+          "useCasesLabel": "Typical use cases",
+          "useCasesPh": "e.g. email campaigns, web recommendations, checkout cross-sell",
+          "supportedLangsLabel": "Languages the model understands",
+          "supportedLangsPh": "e.g. en, es, pt"
+        },
+        "io": {
+          "title": "How you use this model in your business",
+          "helper": "What you send to the model and what you get back.",
+          "inputsLabel": "What you send to the model",
+          "inputsPh": "e.g. Daily sales CSV with customer_id, SKU, date, amount",
+          "outputsLabel": "What the model returns",
+          "outputsPh": "e.g. Top-N product recommendations per customer with score"
+        },
+        "examples": {
+          "inputLabel": "Example input",
+          "inputPh": "e.g. customer_id=123; last 90 days of purchases",
+          "outputLabel": "Example output",
+          "outputPh": "e.g. [\"SKU-34\", \"SKU-12\", \"SKU-87\"]",
+          "noteLabel": "Example context (optional)",
+          "notePh": "e.g. Recommendations for a winter email campaign"
+        },
+        "risks": {
+          "label": "Known limitations and risks",
+          "ph": "e.g. No real‑time stock; may recommend items without inventory if data isn’t refreshed daily"
+        },
+        "prohibited": {
+          "label": "Do not use for",
+          "ph": "e.g. Credit decisions or individual scoring without human review"
+        },
+        "privacy": {
+          "label": "Privacy & data",
+          "ph": "e.g. Don’t send raw personal identifiers; use aggregated purchase data only"
+        },
+        "deploy": {
+          "label": "How this model is delivered",
+          "ph": "e.g. Managed SaaS API; client only calls the endpoint"
+        },
+        "support": {
+          "label": "Support & service",
+          "ph": "e.g. Business 8×5 email support; quarterly performance review"
+        }
       },
       "fields": {
         "valueProp": "Value proposition (pitch)",
@@ -208,11 +281,16 @@
         "labels": {
           "tasks": "Tasks",
           "modalities": "Modalities",
+          "technicalModelType": "Architecture type (optional)",
           "frameworks": "Frameworks",
           "architectures": "Architectures",
           "precision": "Precision",
           "quantization": "Quantization",
+          "modelSize": "Model size (parameters)",
           "modelParams": "Parameters (M)",
+          "artifactSize": "Model artifact size",
+          "embedDim": "Embedding dimension",
+          "refPerf": "Reference latency / throughput (optional)",
           "fileFormats": "File formats",
           "python": "Python",
           "cuda": "CUDA",
@@ -233,18 +311,38 @@
         },
         "placeholders": {
           "select": "Select",
+          "technicalModelType": "decoder-only, encoder-decoder, diffusion...",
           "precision": "fp16, int8, etc.",
           "imagePx": "1024x1024",
           "cuda": "12.2",
           "torch": "2.2",
           "compute": "e.g., SM 8.0, ROCm 5.x, M-series",
           "packages": "torch==2.2.2, transformers>=4.42, onnxruntime-gpu"
+        },
+        "helpers": {
+          "technicalModelType": "High-level architectural classification (e.g., decoder-only for GPT/Llama). Optional but recommended."
+        },
+        "training": {
+          "labels": {
+            "primaryLanguage": "Primary training language (optional)",
+            "metrics": "Metrics / evaluation (optional)"
+          }
+        },
+        "technicalModelTypes": {
+          "decoder-only": "Decoder-only LLM",
+          "encoder-decoder": "Encoder-decoder (seq2seq)",
+          "encoder-only": "Encoder-only",
+          "vision-encoder": "Vision encoder",
+          "diffusion": "Diffusion",
+          "multimodal": "Multimodal",
+          "embedding": "Embedding model",
+          "other": "Other"
         }
       }
     },
     "step3": {
-      "title": "Step 3 · Package artifacts and test the demo",
-      "subtitle": "Upload your model files to IPFS (automatic CID and hash), add notes if needed and validate an input preset to run a hosted demo.",
+      "title": "Step 3 · Upload model files and explain how to run the demo",
+      "subtitle": "Upload model artifacts to IPFS (CID and SHA-256 auto-generated). Add install/run instructions and validate a hosted demo.",
       "sections": {
         "artifacts": { "title": "Artifacts (IPFS)", "help": "Upload your model files; we generate the CID automatically" },
         "demo": { "title": "Demo (Hosted)", "help": "The demo runs on our infrastructure" }
@@ -252,13 +350,25 @@
       "fields": {
         "filename": "Filename",
         "size": "Size",
-        "downloadNotes": "Download notes",
+        "role": "Role",
+        "artifactNotes": "Usage notes (optional)",
+        "downloadNotes": "Instructions to download and run the model",
         "presetJson": "Input preset (JSON)"
+      },
+      "roles": {
+        "primary-weights": "Primary weights",
+        "adapter": "Adapter / LoRA",
+        "inference-code": "Inference code",
+        "training-code": "Training code",
+        "tokenizer": "Tokenizer",
+        "assets": "Assets",
+        "other": "Other"
       },
       "actions": {
         "replaceFile": "Replace file",
         "selectFile": "Select file",
         "typesMax": "Types: safetensors, bin, pt, onnx, gguf, json, zip, tar, gz, bz2, xz. Max: 200 MB.",
+        "dragDrop": "Drag & drop your .zip / .gguf / .onnx files here or click to browse",
         "fromCid": "Create row from a CID",
         "pasteCidPrompt": "Paste existing CID (ipfs hash):",
         "copyCid": "Copy CID",
@@ -270,6 +380,7 @@
       },
       "status": {
         "uploading": "Uploading...",
+        "pinning": "Pinning...",
         "ready": "Ready",
         "error": "Error"
       },
@@ -277,7 +388,14 @@
         "tooLarge": "File too large. Max allowed: {max}",
         "duplicateFile": "Duplicate file in the list",
         "duplicateCID": "Duplicate CID",
-        "duplicateFilenameShort": "Repeated name in the list"
+        "duplicateFilenameShort": "Repeated name in the list",
+        "unsupportedType": "Unsupported file type"
+      },
+      "validation": {
+        "noPrimaryArtifact": "Please select which file is the primary model artifact (Primary weights).",
+        "noArtifacts": "Upload at least one artifact.",
+        "noInstructions": "Add instructions to download and run the model.",
+        "uploadInProgress": "Wait for all uploads to complete."
       },
       "demo": {
         "ok": "Demo OK",
@@ -285,11 +403,14 @@
         "errorValidate": "Error validating demo",
         "response": "Demo response"
       },
-      "file": "file"
+      "file": "file",
+      "placeholders": {
+        "downloadNotes": "Example:\n1. Download the primary artifact using its CID\n2. Extract: unzip model.zip\n3. Install dependencies: pip install -r requirements.txt\n4. Run inference server: python serve.py --model ./model\n5. Test with: curl -X POST http://localhost:8000/predict -d '{\"input\":\"test\"}'"
+      }
     },
     "step4": {
       "title": "Step 4 · Define licenses and terms",
-      "subtitle": "Set prices, usage rights and legal conditions. This data will be used when publishing the model.",
+      "subtitle": "Set pricing (one-time or subscription), royalties, and marketplace fee. Configure rights (API/Download/Transferable), delivery mode, and legal terms. Currency follows the selected chain (AVAX/ETH); no fiat conversions.",
       "sections": {
         "prices": { "title": "Prices", "help": "Reference values. You may leave 0 if not applicable." },
         "rights": { "title": "Rights and delivery", "help": "Select how the model can be used and delivered." },
@@ -297,7 +418,20 @@
         "revenueSplit": "Revenue Split"
       },
       "alerts": {
-        "onePrice": "Define at least one price (> 0): Perpetual or Subscription."
+        "onePrice": "Define at least one price (> 0): Perpetual or Subscription.",
+        "downloadTransferable": "Warning: Marking both Download + Transferable allows buyers to redistribute the model files."
+      },
+      "pricingMode": {
+        "label": "Pricing model",
+        "perpetual": "One-time (perpetual)",
+        "subscription": "Subscription",
+        "both": "Both",
+        "free": "Free / demo"
+      },
+      "rightsHelpers": {
+        "api": "Buyer uses the model only via API",
+        "download": "Can download artifacts for self-hosting",
+        "transferable": "Can resell or transfer the license"
       },
       "fields": {
         "perpetual": "Perpetual (ref)",
@@ -307,7 +441,8 @@
         "deliveryMode": "Delivery mode",
         "termsUrl": "Terms URL (optional)",
         "termsText": "Terms text",
-        "termsHash": "Hash (SHA-256)"
+        "termsHash": "Hash (SHA-256)",
+        "termsSummary": "Buyer-friendly summary (3–5 key points)"
       },
       "labels": {
         "perpetual": "Perpetual",
@@ -331,7 +466,22 @@
         "signTerms": "Sign terms"
       },
       "helpers": {
-        "termsText": "Summarize key clauses (use, attribution, updates). You can paste or edit."
+        "termsText": "Summarize key clauses (use, attribution, updates). You can paste or edit.",
+        "termsSummary": "3–5 key points that buyers will see in the listing. Example: No production use, Attribution required, etc.",
+        "hashExplanation": "The hash is generated from the text + current pricing configuration.",
+        "signExplanation": "Signing records on-chain the hash of these terms and pricing."
+      },
+      "templates": {
+        "label": "Terms template (optional)",
+        "placeholder": "Select a template...",
+        "standard": "Standard commercial license",
+        "eval": "Evaluation only (no production)",
+        "opensource": "Open-source compatible wrapper"
+      },
+      "templatesContent": {
+        "standard": "# Commercial License\n\n## Grant\nSeller grants buyer a non-exclusive, worldwide license to use the model.\n\n## Restrictions\n- No redistribution\n- No reverse engineering\n- Attribution required\n\n## Warranty\nProvided as-is, without warranty.\n\n## Liability\nSeller not liable for any damages.",
+        "eval": "# Evaluation License\n\n## Purpose\nFor testing and evaluation only. Not for production use.\n\n## Duration\n30 days from purchase.\n\n## Restrictions\n- No commercial use\n- No distribution\n- No modifications\n\n## Data\nAny output must be deleted after evaluation period.",
+        "opensource": "# Open Source Wrapper\n\n## Model License\nModel follows [specify license, e.g., Apache 2.0].\n\n## Wrapper Code\nInference wrapper provided under MIT license.\n\n## Attribution\nMust credit original authors.\n\n## Distribution\nYou may redistribute under same terms."
       },
       "termsEditor": {
         "bold": "Bold",
@@ -352,19 +502,160 @@
         "durationRequired": "Required if there is a subscription",
         "durationRange": "Select between 1 and 12 months",
         "chooseRight": "You must choose at least one right: API and/or Download.",
-        "termsMustBeSigned": "Please sign the Terms before continuing."
-      }
+        "termsMustBeSigned": "Please sign the Terms before continuing.",
+        "noPriceForMode": "Set a price greater than 0 for the selected pricing model."
+      },
+      "finalReminder": "Check that pricing, split and rights match your strategy. You can still edit them before publishing."
     },
     "step5": {
       "title": "Step 5 · Review and publish",
-      "subtitle": "Review the summary and publish to the selected networks. We build the metadata automatically from previous steps.",
+      "subtitle": "Review the consolidated summary and publish to the selected chain. All metadata is built from the previous steps.",
       "sections": {
         "networks": "Publishing networks",
         "summary": "Summary",
         "modelInfo": "Model information",
-        "licenses": "Licenses and delivery",
+        "listingOverview": "Listing overview (Step 1)",
+        "customerSheet": "Customer-facing sheet (Step 2)",
+        "technicalConfig": "Technical configuration (Step 2)",
+        "licensesTerms": "Licenses & terms (Step 4)",
+        "artifactsDemo": "Artifacts & demo (Step 3)",
         "artifacts": "Artifacts (IPFS)",
         "results": "Publish results"
+      },
+      "techConfig": {
+        "capabilities": "Capabilities",
+        "tasks": "Tasks",
+        "modalities": "Modalities",
+        "architecture": "Architecture",
+        "frameworks": "Frameworks",
+        "architectures": "Architectures",
+        "precisions": "Precisions",
+        "quantization": "Quantization",
+        "modelSizeParams": "Model size (parameters)",
+        "artifactSizeGB": "Model artifact size (GB)",
+        "embeddingDimension": "Embedding dimension",
+        "modelFiles": "Model files",
+        "trainingEval": "Training & evaluation (optional)",
+        "primaryLanguage": "Primary training language",
+        "metrics": "Metrics / evaluation",
+        "runtime": "Runtime",
+        "python": "Python",
+        "os": "Operating systems",
+        "accelerators": "Accelerators",
+        "cuda": "CUDA",
+        "torch": "PyTorch",
+        "cudnn": "cuDNN",
+        "computeCapability": "Compute capability",
+        "dependencies": "Dependencies",
+        "dependenciesPip": "Dependencies (pip)",
+        "resources": "Resources",
+        "vramGB": "VRAM (GB)",
+        "cpuCores": "CPU cores",
+        "ramGB": "RAM (GB)",
+        "inference": "Inference",
+        "maxBatchSize": "Max batch size",
+        "contextLength": "Context length",
+        "maxTokens": "Max tokens",
+        "imageResolution": "Image resolution",
+        "sampleRate": "Sample rate (Hz)",
+        "triton": "Triton",
+        "tritonEnabled": "Enabled",
+        "tritonDisabled": "Disabled",
+        "referencePerf": "Reference latency / throughput",
+        "editStep2": "Edit Step 2"
+      },
+      "step2Summary": {
+        "subtitle": "What buyers will see on the model listing",
+        "headline": "Headline",
+        "description": "Description",
+        "expectedImpact": "Expected impact",
+        "howUsed": "How this is used",
+        "inputs": "Inputs",
+        "outputs": "Outputs",
+        "ioExamples": "I/O examples",
+        "moreExamples": "more examples",
+        "limitations": "Known limitations & risks",
+        "prohibited": "Do not use for",
+        "privacy": "Privacy & data",
+        "support": "Support & service",
+        "businessFit": "Business fit",
+        "industries": "Industries",
+        "useCases": "Use cases",
+        "delivery": "How this model is delivered",
+        "languages": "Languages",
+        "primary": "Primary",
+        "modelType": "Model type",
+        "metrics": "Metrics",
+        "editStep2": "Edit Step 2",
+        "emptyState": "Customer sheet not completed yet. Edit Step 2 to fill it.",
+        "showMore": "Show more"
+      },
+      "step4Summary": {
+        "prices": "Prices",
+        "pricingModel": "Pricing model",
+        "perpetualPrice": "Perpetual price",
+        "subscriptionPrice": "Subscription price / month",
+        "baseDuration": "Base duration",
+        "creatorRoyalty": "Creator royalty",
+        "marketplaceFee": "Marketplace fee",
+        "revenueSplit": "Revenue split",
+        "splitPerpetual": "Split (perpetual)",
+        "splitSubscription": "Split (subscription)",
+        "rightsDelivery": "Rights & delivery",
+        "rights": "Rights",
+        "noRights": "No usage rights selected",
+        "deliveryMode": "Delivery mode",
+        "terms": "Terms",
+        "buyerSummary": "Buyer-friendly summary",
+        "termsTemplate": "Template",
+        "termsText": "Terms text",
+        "viewFullTerms": "View full terms",
+        "termsHash": "Signed terms hash (SHA-256)",
+        "termsNotSigned": "Terms not signed yet",
+        "editStep4": "Edit Step 4",
+        "copyHash": "Copy hash",
+        "hashCopied": "Hash copied!",
+        "months": "months"
+      },
+      "artifactsDemo": {
+        "totalFiles": "Total files",
+        "primaryWeights": "Primary weights",
+        "noPrimaryWeights": "No primary weights selected",
+        "rolesCovered": "Roles",
+        "file": "File",
+        "cid": "CID",
+        "size": "Size",
+        "sha256": "SHA-256",
+        "notes": "Notes",
+        "copy": "Copy",
+        "copied": "Copied!",
+        "open": "Open",
+        "viewSha": "View full SHA-256",
+        "viewNotes": "View full notes",
+        "roles": {
+          "primary-weights": "Primary weights",
+          "adapter": "Adapter / LoRA",
+          "inference-code": "Inference code",
+          "training-code": "Training code",
+          "tokenizer": "Tokenizer",
+          "assets": "Assets",
+          "other": "Other"
+        },
+        "demoInstructions": "Instructions to download and run the model",
+        "showFullInstructions": "Show full instructions",
+        "hideInstructions": "Hide instructions",
+        "editStep3": "Edit Step 3",
+        "noArtifacts": "No artifacts uploaded in Step 3 yet."
+      },
+      "step1Summary": {
+        "identifier": "Identifier (URL)",
+        "businessCategory": "Business category",
+        "modelType": "Model type (business)",
+        "technicalCategories": "Technical categories",
+        "technicalTags": "Technical tags",
+        "by": "By",
+        "editStep1": "Edit Step 1",
+        "viewFullListing": "View full listing"
       },
       "labels": {
         "selectNetworks": "Select networks",
@@ -423,7 +714,7 @@
       },
       "steps": {
         "title": "What you'll complete",
-        "subtitle": "Overview of the 5 steps before you start"
+        "subtitle": "A quick look at the 5 steps before you start."
       },
       "cta": "Start wizard"
     }
@@ -533,6 +824,133 @@
       "deliveryBoth": "API + Download",
       "transferable": "Transferable",
       "yes": "Yes"
+    }
+  },
+  "business": {
+    "categories": {
+      "marketingGrowth": "Marketing & growth",
+      "salesCrm": "Sales & CRM",
+      "riskFraud": "Risk & fraud",
+      "financePricing": "Finance & pricing",
+      "operationsLogistics": "Operations & logistics",
+      "supplyInventory": "Supply chain & inventory",
+      "supportCx": "Customer support & CX",
+      "hrPeople": "HR & people analytics",
+      "productUx": "Product & UX",
+      "itSecurity": "IT & security",
+      "general": "General purpose / cross-domain"
+    },
+    "modelTypes": {
+      "customerSegmentation": "Customer segmentation",
+      "leadScoring": "Lead scoring",
+      "campaignResponsePrediction": "Campaign response prediction",
+      "propensityToBuy": "Propensity to buy",
+      "recommendationSystem": "Recommendation system",
+      "nextBestOffer": "Next best offer",
+      "upsellCrossSell": "Upsell / cross-sell",
+      "customerChurnPrediction": "Customer churn prediction",
+      "customerLtv": "Customer lifetime value (LTV)",
+      "salesForecasting": "Sales forecasting",
+      "opportunityWinRate": "Opportunity win-rate prediction",
+      "creditRiskScoring": "Credit risk scoring",
+      "paymentFraudDetection": "Payment fraud detection",
+      "transactionAnomalyDetection": "Transaction anomaly detection",
+      "dynamicPricing": "Dynamic pricing / pricing optimization",
+      "revenueForecasting": "Revenue forecasting",
+      "demandForecasting": "Demand forecasting",
+      "inventoryOptimization": "Inventory optimization",
+      "replenishmentOptimization": "Replenishment optimization",
+      "routeOptimization": "Route optimization",
+      "workforceForecasting": "Workforce / staffing forecasting",
+      "predictiveMaintenance": "Predictive maintenance",
+      "qualityInspection": "Quality inspection / defect detection",
+      "stockoutPrediction": "Stock-out prediction",
+      "supplierRiskScoring": "Supplier risk scoring",
+      "supportTicketRouting": "Support ticket routing",
+      "supportIntentClassification": "Support intent classification",
+      "sentimentAnalysis": "Sentiment analysis",
+      "csatNpsPrediction": "CSAT / NPS prediction",
+      "employeeAttritionPrediction": "Employee attrition prediction",
+      "workforcePlanning": "Workforce planning",
+      "talentMatching": "Talent matching / candidate ranking",
+      "featureAdoptionPrediction": "Feature adoption prediction",
+      "searchRanking": "Search ranking / relevance",
+      "experimentOutcomePrediction": "Experiment outcome prediction",
+      "logAnomalyDetection": "Log anomaly detection",
+      "threatIntrusionDetection": "Threat / intrusion detection",
+      "accessRiskScoring": "Access risk scoring",
+      "generalTsForecasting": "General time-series forecasting",
+      "generalAnomalyDetection": "General anomaly detection",
+      "documentClassification": "Document classification",
+      "textClassification": "Text classification / intent detection",
+      "semanticSearch": "Semantic search / similarity"
+    }
+  }
+  ,
+  "technical": {
+    "categories": {
+      "nlpText": "NLP & text",
+      "vision": "Computer vision",
+      "speechAudio": "Speech & audio",
+      "video": "Video",
+      "tabular": "Tabular / structured data",
+      "timeSeries": "Time series",
+      "recommenders": "Recommender systems",
+      "multimodal": "Multi-modal",
+      "graph": "Graph / network",
+      "agentsOrchestration": "Agents & orchestration",
+      "foundationLlms": "Foundation models / LLMs",
+      "retrievalSearch": "Retrieval & search"
+    },
+    "tags": {
+      "textClassification": "Text classification",
+      "sentimentAnalysis": "Sentiment analysis",
+      "topicModeling": "Topic modeling",
+      "ner": "Named entity recognition (NER)",
+      "summarization": "Summarization",
+      "semanticSearch": "Semantic search",
+      "embeddingModel": "Embedding model",
+      "questionAnswering": "Question answering",
+      "documentClassification": "Document classification",
+      "documentParsing": "Document parsing",
+      "ocr": "OCR",
+      "chatbotAssistant": "Chatbot / assistant",
+
+      "imageClassification": "Image classification",
+      "objectDetection": "Object detection",
+      "imageSegmentation": "Image segmentation",
+      "faceRecognition": "Face recognition",
+      "imageGeneration": "Image generation",
+      "styleTransfer": "Style transfer",
+
+      "asr": "Speech-to-text (ASR)",
+      "tts": "Text-to-speech (TTS)",
+      "speakerDiarization": "Speaker diarization",
+      "keywordSpotting": "Keyword spotting",
+      "musicAudioGeneration": "Music / audio generation",
+
+      "videoClassification": "Video classification",
+      "actionRecognition": "Action recognition",
+      "videoSummarization": "Video summarization",
+
+      "timeSeriesForecasting": "Time-series forecasting",
+      "anomalyDetection": "Anomaly detection",
+      "churnPrediction": "Churn prediction",
+      "creditRiskScoring": "Credit risk scoring",
+      "demandForecasting": "Demand forecasting",
+      "pricingOptimization": "Pricing optimization",
+
+      "recommendationSystem": "Recommendation system",
+      "nextBestOffer": "Next best offer",
+      "upsellCrossSell": "Upsell / cross-sell",
+      "rankingSearch": "Ranking / search",
+
+      "graphNeuralNetwork": "Graph neural network",
+
+      "toolUsingAgent": "Tool-using agent",
+      "workflowOrchestration": "Workflow orchestration",
+
+      "rag": "RAG (retrieval-augmented generation)"
     }
   }
 }

@@ -565,6 +565,66 @@ contract Marketplace is Ownable, ReentrancyGuard {
         );
     }
 
+    /// @notice Buys a license and sets a metadata tokenURI for the newly minted NFT.
+    /// @dev Same behavior as buyLicense, plus assigns a tokenURI if provided. Useful for IPFS-static metadata flow.
+    /// @param modelId ID of the model to license.
+    /// @param licenseKind KIND_PERPETUAL or KIND_SUBSCRIPTION.
+    /// @param months Number of months when buying a subscription (ignored for perpetual).
+    /// @param transferable Whether the resulting license NFT is transferable.
+    /// @param tokenUri Full token URI (e.g., ipfs://<CID>/metadata.json). If empty, baseURI flow applies.
+    function buyLicenseWithURI(
+        uint256 modelId,
+        uint8 licenseKind,
+        uint16 months,
+        bool transferable,
+        string calldata tokenUri
+    ) external payable notPaused nonReentrant {
+        Model storage m = models[modelId];
+        if (!m.listed) revert NotListed();
+
+        _ensureFeePlusRoyaltyOk(feeBps, m.royaltyBps);
+        _ensureValidRights(m.deliveryRightsDefault);
+        _ensureValidDelivery(m.deliveryModeHint);
+
+        uint256 priceDue = _licensePrice(m, licenseKind, months);
+        if (msg.value != priceDue) revert InsufficientFunds();
+
+        (uint256 feePaid, uint256 royaltyPaid, ) = _distribute(priceDue, m.royaltyBps, m.creator, m.owner);
+
+        uint64 expiresAt = 0;
+        if (licenseKind == KIND_SUBSCRIPTION) {
+            uint256 totalDays = m.defaultDurationDays * uint256(months);
+            expiresAt = uint64(block.timestamp + totalDays * 1 days);
+        }
+
+        LicenseNFT.LicenseData memory d = LicenseNFT.LicenseData({
+            modelId: modelId,
+            licenseKind: licenseKind,
+            rights: m.deliveryRightsDefault,
+            expiresAt: expiresAt,
+            transferable: transferable,
+            termsHash: m.termsHash,
+            version: m.version
+        });
+
+        // Mint + opcional tokenURI específico (IPFS)
+        uint256 lid = licenseNFT.mintWithURI(msg.sender, d, tokenUri);
+        lastLicenseId = lid;
+
+        emit LicenseMinted(
+            lid,
+            modelId,
+            msg.sender,
+            licenseKind,
+            m.deliveryRightsDefault,
+            expiresAt,
+            m.version,
+            priceDue,
+            feePaid,
+            royaltyPaid
+        );
+    }
+
     /// @notice Renews a subscription license NFT.
     /// @dev Only the token owner can renew, and only if it is a subscription license.
     /// @param tokenId License NFT token ID.

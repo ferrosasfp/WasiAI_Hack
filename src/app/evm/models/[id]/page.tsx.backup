@@ -1,0 +1,1005 @@
+"use client";
+import React from 'react'
+import { useParams } from 'next/navigation'
+import { useConfig } from 'wagmi'
+import {
+  Container, Box, Stack, Typography, Chip, Grid, Skeleton, Button, Divider,
+  Card, CardContent, CardHeader, Tooltip, IconButton, SvgIcon,
+  Table, TableBody, TableCell, TableHead, TableRow,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  List, ListItem, ListItemText,
+  Radio, RadioGroup, FormControlLabel, TextField, MenuItem,
+  Snackbar, Alert, CircularProgress
+} from '@mui/material'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import Link from 'next/link'
+import { useChainId as useEvmChainId, useWriteContract, usePublicClient, useSwitchChain, useAccount } from 'wagmi'
+import MARKET_ARTIFACT from '@/abis/Marketplace.json'
+import { useTranslations, useLocale } from 'next-intl'
+import ModelDetailView, { ModelDetailData } from '@/components/ModelDetailView'
+
+function useEvmModel(id: number | undefined) {
+  const evmChainId = useEvmChainId()
+  const [data, setData] = React.useState<any | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [attempted, setAttempted] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!id) return
+    let alive = true
+    const load = async () => {
+      setLoading(true)
+      try {
+        const qs = new URLSearchParams()
+        if (typeof evmChainId === 'number') qs.set('chainId', String(evmChainId))
+        const fetchWithTimeout = async (input: RequestInfo | URL, init: RequestInit = {}, ms = 10000): Promise<Response> => {
+          const ac = new AbortController()
+          const t = setTimeout(()=> ac.abort(), ms)
+          try {
+            return await fetch(input, { ...init, signal: ac.signal })
+          } finally {
+            clearTimeout(t)
+          }
+        }
+        const r = await fetchWithTimeout(`/api/models/evm/${id}?${qs.toString()}`, { cache: 'no-store' }, 10000)
+        const j = await r.json().catch(()=>({}))
+        let m = j?.data || null
+        if (m && m.uri && typeof m.uri === 'string' && !m.uri.includes('.enc')) {
+          try {
+            const uri = m.uri as string
+            const toApiFromIpfs = (u: string): string => {
+              if (!u) return ''
+              if (u.startsWith('http://') || u.startsWith('https://')) return u
+              if (u.startsWith('ipfs://')) return `/api/ipfs/ipfs/${u.replace('ipfs://','')}`
+              if (u.startsWith('/ipfs/')) return `/api/ipfs${u}`
+              return `/api/ipfs/ipfs/${u}`
+            }
+            const httpUrl = toApiFromIpfs(uri)
+            const meta = await fetchWithTimeout(httpUrl, { cache: 'no-store' }, 10000).then(r=>r.json()).catch(()=>null)
+            if (meta) {
+              const img = meta.image || meta.image_url || meta.thumbnail || meta?.cover?.thumbCid || meta?.cover?.cid
+              if (img && typeof img === 'string') {
+                if (img.startsWith('http://') || img.startsWith('https://')) {
+                  m.imageUrl = img
+                } else if (img.startsWith('ipfs://')) {
+                  m.imageUrl = `/api/ipfs/ipfs/${img.replace('ipfs://','')}`
+                } else if (img.startsWith('/ipfs/')) {
+                  m.imageUrl = `/api/ipfs${img}`
+                } else {
+                  m.imageUrl = `/api/ipfs/ipfs/${img}`
+                }
+              }
+              if (!m.name && typeof meta.name === 'string') m.name = meta.name
+              const desc = typeof meta.description === 'string' ? meta.description : (typeof (meta as any).shortSummary === 'string' ? (meta as any).shortSummary : undefined)
+              if (!m.description && typeof desc === 'string') m.description = desc
+              const strMeta = (v:any): string => {
+                if (v == null) return ''
+                if (typeof v === 'string') return v
+                if (typeof v === 'object') {
+                  const n = v.name || v.framework || v.arch || v.type || ''
+                  const ver = v.version || v.ver || v.v || ''
+                  return [String(n||'').trim(), String(ver||'').trim()].filter(Boolean).join(' ')
+                }
+                return String(v)
+              }
+              const categories = Array.isArray(meta?.categories) ? meta.categories : []
+              const tasks = Array.isArray(meta?.tasks) ? meta.tasks : (Array.isArray(meta?.capabilities?.tasks) ? meta.capabilities.tasks : [])
+              const tagsA = Array.isArray(meta?.tags) ? meta.tags : []
+              const tagsB = Array.isArray(meta?.capabilities?.tags) ? meta.capabilities.tags : []
+              const mods = Array.isArray(meta?.modalities) ? meta.modalities : (Array.isArray(meta?.capabilities?.modalities) ? meta.capabilities.modalities : [])
+              const tags = Array.from(new Set([...tagsA, ...tagsB, ...mods].filter(Boolean).map(String)))
+              const architectures = Array.isArray(meta?.architectures) ? meta.architectures.map(strMeta)
+                : (Array.isArray(meta?.architecture?.architectures) ? meta.architecture.architectures.map(strMeta) : [])
+              const frameworks = Array.isArray(meta?.frameworks) ? meta.frameworks.map(strMeta)
+                : (Array.isArray(meta?.architecture?.frameworks) ? meta.architecture.frameworks.map(strMeta) : [])
+              const precision = Array.isArray(meta?.precision) ? meta.precision.map(strMeta)
+                : (Array.isArray(meta?.architecture?.precisions) ? meta.architecture.precisions.map(strMeta) : [])
+              const rights = (meta?.rights && typeof meta.rights === 'object') ? {
+                api: !!meta.rights.api,
+                download: !!meta.rights.download,
+                transferable: !!meta.rights.transferable,
+              } : (meta?.licensePolicy ? {
+                api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('api') : undefined,
+                download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('download') : undefined,
+                transferable: !!meta.licensePolicy.transferable,
+              } : undefined)
+              const deliveryMode = (typeof meta?.deliveryMode === 'string' && meta.deliveryMode) || (typeof meta?.delivery?.mode === 'string' && meta.delivery.mode) || (Array.isArray(meta?.licensePolicy?.delivery) ? ( ()=>{
+                const d = meta.licensePolicy.delivery.map((x:any)=> String(x).toLowerCase())
+                return d.includes('api') && d.includes('download') ? 'both' : d.includes('api') ? 'api' : d.includes('download') ? 'download' : undefined
+              })() : undefined)
+              const stripIpfs = (u:any): string => {
+                const s = String(u||'')
+                if (!s) return ''
+                if (s.startsWith('ipfs://')) return s.replace('ipfs://','')
+                if (s.startsWith('/ipfs/')) return s.replace('/ipfs/','')
+                return s
+              }
+              const toArray = (x:any): any[] => {
+                if (!x) return []
+                if (Array.isArray(x)) return x
+                if (typeof x === 'object') {
+                  if (Array.isArray((x as any).items)) return (x as any).items
+                  try { return Object.values(x) } catch { return [] }
+                }
+                return []
+              }
+              const rawArtifacts = [
+                ...toArray((meta as any)?.artifacts),
+                ...toArray((meta as any)?.files),
+                ...toArray((meta as any)?.assets),
+                ...toArray((meta as any)?.bundle?.files),
+                ...toArray((meta as any)?.model?.artifacts),
+              ]
+              const normArtifact = (v:any) => {
+                if (v == null) return null as any
+                if (typeof v === 'string') {
+                  const cid = stripIpfs(v)
+                  return cid ? { cid, filename: '', size: '', sha256: '' } : null
+                }
+                if (typeof v === 'object') {
+                  const cidRaw = (v as any).cid || (v as any).hash || (v as any).ipfs || (v as any).ipfs_cid || (v as any).url
+                  const cid = stripIpfs(cidRaw)
+                  const filename = (v as any).filename || (v as any).name || (v as any).path || ''
+                  const size = (v as any).size || (v as any).bytes || (v as any).length || ''
+                  const sha256 = (v as any).sha256 || (v as any).hash256 || (v as any).sha || ''
+                  return cid ? { cid: String(cid), filename: String(filename||''), size, sha256: String(sha256||'') } : null
+                }
+                return null as any
+              }
+              const artifactsList = rawArtifacts.map(normArtifact).filter(Boolean).reduce((acc:any[], cur:any)=>{
+                const key = `${cur.cid}::${cur.filename||''}`
+                if (!acc.some(x=> `${x.cid}::${x.filename||''}` === key)) acc.push(cur)
+                return acc
+              }, [])
+              // Map Step 2 customer-facing fields when present
+              const cust = (meta as any)?.customer || {}
+              const valueProposition = typeof cust.valueProp === 'string' ? cust.valueProp : (typeof (meta as any)?.valueProposition === 'string' ? (meta as any).valueProposition : undefined)
+              const customerDescription = typeof cust.description === 'string' ? cust.description : undefined
+              const expectedImpact = typeof cust.expectedImpact === 'string' ? cust.expectedImpact : (typeof cust.expectedOutcomes === 'string' ? cust.expectedOutcomes : undefined)
+              const inputs = typeof cust.inputs === 'string' ? cust.inputs : undefined
+              const outputs = typeof cust.outputs === 'string' ? cust.outputs : undefined
+              const examples = Array.isArray(cust.examples) ? cust.examples : undefined
+              const industries = Array.isArray(cust.industries) ? cust.industries : undefined
+              const useCases = Array.isArray(cust.useCases) ? cust.useCases : undefined
+              const limitations = typeof cust.limitations === 'string' ? cust.limitations : (typeof cust.risks === 'string' ? cust.risks : undefined)
+              const prohibited = typeof cust.prohibited === 'string' ? cust.prohibited : undefined
+              const privacy = typeof cust.privacy === 'string' ? cust.privacy : undefined
+              const deploy = Array.isArray(cust.deploy) ? cust.deploy : undefined
+              const support = typeof cust.support === 'string' ? cust.support : undefined
+              const supportedLanguages = Array.isArray(cust.supportedLanguages) ? cust.supportedLanguages : undefined
+              const primaryLanguage = typeof cust.primaryLanguage === 'string' ? cust.primaryLanguage : undefined
+              const modelType = typeof cust.modelType === 'string' ? cust.modelType : undefined
+              const metrics = typeof cust.metrics === 'string' ? cust.metrics : undefined
+              // Map Step 2 technical fields when present
+              const arch = (meta as any)?.architecture || {}
+              const quantization = typeof arch.quantization === 'string' ? arch.quantization : undefined
+              const fileFormats = Array.isArray(arch.modelFiles) ? arch.modelFiles : undefined
+              const modelSize = (arch as any).modelSizeParams != null ? String((arch as any).modelSizeParams) : undefined
+              const artifactSize = typeof (arch as any).artifactSizeGB === 'string' ? (arch as any).artifactSizeGB : undefined
+              const runtime2 = (meta as any)?.runtime || {}
+              const python = typeof (runtime2 as any).python === 'string' ? (runtime2 as any).python : undefined
+              const cuda = typeof (runtime2 as any).cuda === 'string' ? (runtime2 as any).cuda : undefined
+              const pytorch = typeof (runtime2 as any).torch === 'string' ? (runtime2 as any).torch : undefined
+              const cudnn = typeof (runtime2 as any).cudnn === 'string' ? (runtime2 as any).cudnn : undefined
+              const systems = Array.isArray((runtime2 as any).os) ? (runtime2 as any).os : undefined
+              const accelerators = Array.isArray((runtime2 as any).accelerators) ? (runtime2 as any).accelerators : undefined
+              const computeCapability = typeof (runtime2 as any).computeCapability === 'string' ? (runtime2 as any).computeCapability : undefined
+              const deps2 = (meta as any)?.dependencies || {}
+              const dependencies = Array.isArray((deps2 as any).pip) ? ((deps2 as any).pip as string[]).join('\n') : undefined
+              const res2 = (meta as any)?.resources || {}
+              const minVram = (res2 as any).vramGB != null ? String((res2 as any).vramGB) : undefined
+              const minCpu = (res2 as any).cpuCores != null ? String((res2 as any).cpuCores) : undefined
+              const recRam = (res2 as any).ramGB != null ? String((res2 as any).ramGB) : undefined
+              const inf2 = (meta as any)?.inference || {}
+              const maxBatch = (inf2 as any).maxBatchSize != null ? String((inf2 as any).maxBatchSize) : undefined
+              const contextLength = (inf2 as any).contextLength != null ? String((inf2 as any).contextLength) : undefined
+              const maxTokens = (inf2 as any).maxTokens != null ? String((inf2 as any).maxTokens) : undefined
+              const imageResolution = typeof (inf2 as any).imageResolution === 'string' ? (inf2 as any).imageResolution : undefined
+              const sampleRate = (inf2 as any).sampleRate != null ? String((inf2 as any).sampleRate) : undefined
+              const triton = typeof (inf2 as any).triton === 'boolean' ? (inf2 as any).triton : undefined
+              const gpuNotes = typeof (inf2 as any).referencePerf === 'string' ? (inf2 as any).referencePerf : undefined
+              const termsText = typeof (meta as any)?.licensePolicy?.termsText === 'string' ? (meta as any).licensePolicy.termsText : undefined
+              m = { ...m,
+                categories, tasks, tags, architectures, frameworks, precision, rights, deliveryMode,
+                modalities: mods,
+                valueProposition, customerDescription, expectedImpact, inputs, outputs, examples, industries, useCases, limitations, prohibited, privacy, deploy, support, supportedLanguages, primaryLanguage, modelType, metrics,
+                quantization, fileFormats, modelSize, artifactSize,
+                python, cuda, pytorch, cudnn, systems, accelerators, computeCapability,
+                dependencies, minVram, minCpu, recRam,
+                maxBatch, contextLength, maxTokens, imageResolution, sampleRate, triton, gpuNotes,
+                termsText,
+                artifactsList
+              }
+            }
+          } catch {}
+        }
+        if (alive) setData(m)
+      } catch {
+        if (alive) setData(null)
+      } finally {
+        if (alive) {
+          setLoading(false)
+          setAttempted(true)
+        }
+      }
+    }
+    load()
+    return () => { alive = false }
+  }, [id, evmChainId])
+
+  return { data, loading, attempted, evmChainId }
+}
+
+export default function EvmModelDetailPage() {
+  const params = useParams() as { id?: string }
+  const id = params?.id ? Number(params.id) : undefined
+  const { data, loading, attempted, evmChainId } = useEvmModel(id)
+  const { chains } = useConfig() as any
+  const t = useTranslations('evm.detail')
+  const locale = useLocale()
+  const [buyOpen, setBuyOpen] = React.useState(false)
+  const [buyStep, setBuyStep] = React.useState<'select'|'review'>('select')
+  const [buyKind, setBuyKind] = React.useState<'perpetual'|'subscription'|undefined>(undefined)
+  const [buyMonths, setBuyMonths] = React.useState<number>(1)
+  const { writeContractAsync } = useWriteContract()
+  const publicClient = usePublicClient()
+  const { switchChainAsync } = useSwitchChain()
+  const [txLoading, setTxLoading] = React.useState(false)
+  const [snkOpen, setSnkOpen] = React.useState(false)
+  const [snkMsg, setSnkMsg] = React.useState<string>('')
+  const [snkSev, setSnkSev] = React.useState<'success'|'error'|'info'|'warning'>('info')
+  const { isConnected, chain } = useAccount()
+  const L = React.useMemo(()=>({
+    back: t('back'),
+    buy: t('buy'),
+    tryDemo: t('tryDemo'),
+    noCover: t('noCover'),
+    perpetual: t('perpetual'),
+    subscriptionMo: t('subscriptionMo'),
+    version: t('version'),
+    uri: t('uri'),
+    notFound: t('notFound'),
+    whatItDoes: t('whatItDoes'),
+    valueProp: t('valueProp'),
+    descMissing: t('descMissing'),
+    expectedImpact: t('expectedImpact'),
+    customerSheet: t('customerSheet'),
+    ioTitle: t('ioTitle'),
+    ioSubtitle: t('ioSubtitle'),
+    inputs: t('inputs'),
+    outputs: t('outputs'),
+    examples: t('examples'),
+    exampleIn: t('exampleIn'),
+    exampleOut: t('exampleOut'),
+    note: t('note'),
+    noExamples: t('noExamples'),
+    industriesUseCases: t('industriesUseCases'),
+    industries: t('industries'),
+    useCases: t('useCases'),
+    unspecified: t('unspecified'),
+    knownLimits: t('knownLimits'),
+    prohibited: t('prohibited'),
+    privacy: t('privacy'),
+    deploy: t('deploy'),
+    support: t('support'),
+    techConfig: t('techConfig'),
+    capabilities: t('capabilities'),
+    modalities: t('modalities'),
+    architecture: t('architecture'),
+    frameworks: t('frameworks'),
+    architectures: t('architectures'),
+    precision: t('precision'),
+    quantization: t('quantization'),
+    fileFormats: t('fileFormats'),
+    modelSize: t('modelSize'),
+    artifactSize: t('artifactSize'),
+    runtime: t('runtime'),
+    dependencies: t('dependencies'),
+    minResources: t('minResources'),
+    minVram: t('minVram'),
+    cpuCores: t('cpuCores'),
+    recRam: t('recRam'),
+    inferenceOpts: t('inferenceOpts'),
+    maxBatch: t('maxBatch'),
+    contextLength: t('contextLength'),
+    maxTokens: t('maxTokens'),
+    referenceLatency: t('referenceLatency'),
+    triton: t('triton'),
+    imageResolution: t('imageResolution'),
+    artifactsDemo: t('artifactsDemo'),
+    artifacts: t('artifacts'),
+    cid: t('cid'),
+    filename: t('filename'),
+    size: t('size'),
+    sha256: t('sha256'),
+    actions: t('actions'),
+    open: t('open'),
+    copy: t('copy'),
+    copyHash: t('copyHash'),
+    noArtifacts: t('noArtifacts'),
+    hostedDemo: t('hostedDemo'),
+    runDemo: t('runDemo'),
+    noDemo: t('noDemo'),
+    licensesTerms: t('licensesTerms'),
+    perpetualLicense: t('perpetualLicense'),
+    subscriptionPerMonth: t('subscriptionPerMonth'),
+    baseDuration: t('baseDuration'),
+    rightsDelivery: t('rightsDelivery'),
+    deliveryHint: t('deliveryHint'),
+    transferableHint: t('transferableHint'),
+    termsKey: t('termsKey'),
+    termsHash: t('termsHash'),
+    buyModalTitle: t('buyModalTitle'),
+    buyModalHint: t('buyModalHint'),
+    close: t('close'),
+    continue: t('continue'),
+    months: t('months'),
+    selectType: t('selectType'),
+    review: t('review'),
+    purchase: t('purchase'),
+    // snack / status
+    connectWallet: t('connectWallet'),
+    wrongNetwork: t('wrongNetwork'),
+    purchaseSuccess: t('purchaseSuccess'),
+    purchaseErrorPrefix: t('purchaseErrorPrefix'),
+    marketAddressMissing: t('marketAddressMissing'),
+    loadingModelTitle: t('loadingModelTitle'),
+    loadingModelBody: t('loadingModelBody'),
+    systems: t('systems'),
+    accelerators: t('accelerators'),
+  }), [t])
+  const evmSymbol = React.useMemo(()=>{
+    try {
+      if (typeof evmChainId !== 'number') return 'ETH'
+      const ch = Array.isArray(chains) ? chains.find((c:any)=> c?.id === evmChainId) : undefined
+      const sym = ch?.nativeCurrency?.symbol
+      return typeof sym === 'string' && sym ? sym : 'ETH'
+    } catch {
+      return 'ETH'
+    }
+  }, [evmChainId, chains])
+  const marketAddress = React.useMemo(() => {
+    try {
+      if (typeof evmChainId !== 'number') return undefined
+      // Use explicit env references so Next.js inlines them at build time
+      const map: Record<number, `0x${string}` | undefined> = {
+        43113: (process.env.NEXT_PUBLIC_EVM_MARKET_43113 as any),
+        43114: (process.env.NEXT_PUBLIC_EVM_MARKET_43114 as any),
+        84532: (process.env.NEXT_PUBLIC_EVM_MARKET_84532 as any),
+        8453: (process.env.NEXT_PUBLIC_EVM_MARKET_8453 as any),
+      }
+      return map[evmChainId]
+    } catch { return undefined }
+  }, [evmChainId])
+
+  const handleOpenBuy = React.useCallback(() => {
+    // set default months from default_duration_days rounded to months (1..12)
+    const days = (data as any)?.default_duration_days
+    const m = Math.max(1, Math.min(12, Math.round((typeof days === 'number' ? (days/30) : 1))))
+    setBuyMonths(m)
+    setBuyKind(undefined)
+    setBuyStep('select')
+    setBuyOpen(true)
+  }, [data])
+
+  const handlePurchase = React.useCallback(async ()=>{
+    try {
+      if (!id || typeof evmChainId !== 'number' || !buyKind) return
+      if (!marketAddress) { setSnkSev('error'); setSnkMsg(L.marketAddressMissing); setSnkOpen(true); return }
+      // require wallet connection
+      if (!isConnected) { setSnkSev('warning'); setSnkMsg(L.connectWallet); setSnkOpen(true); return }
+      // validate network and auto-switch
+      const currentChainId = chain?.id
+      const desiredChainId = evmChainId
+      if (currentChainId !== desiredChainId) {
+        try {
+          await switchChainAsync({ chainId: desiredChainId })
+        } catch {
+          setSnkSev('warning'); setSnkMsg(L.wrongNetwork); setSnkOpen(true)
+          return
+        }
+      }
+      const abi = (MARKET_ARTIFACT as any).abi
+      const licenseKind = buyKind === 'perpetual' ? 0 : 1
+      const months = buyKind === 'subscription' ? buyMonths : 0
+      const transferable = Boolean((data as any)?.rights?.transferable)
+      const priceP = (data as any)?.price_perpetual
+      const priceS = (data as any)?.price_subscription
+      const valueWei = buyKind === 'perpetual'
+        ? (typeof priceP === 'number' ? BigInt(Math.max(0, Math.floor(priceP))) : 0n)
+        : (typeof priceS === 'number' ? BigInt(Math.max(0, Math.floor(priceS * months))) : 0n)
+      setTxLoading(true)
+      const hash = await writeContractAsync({
+        address: marketAddress as `0x${string}`,
+        abi: abi as any,
+        functionName: 'buyLicense',
+        args: [BigInt(id), Number(licenseKind), Number(months), Boolean(transferable)],
+        chainId: evmChainId,
+        value: valueWei,
+      })
+      if (publicClient && hash) {
+        await publicClient.waitForTransactionReceipt({ hash })
+      }
+      setSnkSev('success'); setSnkMsg(L.purchaseSuccess); setSnkOpen(true)
+      setBuyOpen(false)
+      setBuyStep('select')
+      setBuyKind(undefined)
+    } catch (e: any) {
+      const msg = String(e?.shortMessage || e?.message || e || '')
+      setSnkSev('error'); setSnkMsg(L.purchaseErrorPrefix + msg)
+      setSnkOpen(true)
+    }
+    finally { setTxLoading(false) }
+  }, [id, marketAddress, evmChainId, buyKind, buyMonths, data, writeContractAsync])
+  const chainName = React.useMemo(()=>{
+    try {
+      if (typeof evmChainId !== 'number') return 'EVM'
+      const ch = Array.isArray(chains) ? chains.find((c:any)=> c?.id === evmChainId) : undefined
+      return typeof ch?.name === 'string' && ch.name ? ch.name : 'EVM'
+    } catch {
+      return 'EVM'
+    }
+  }, [evmChainId, chains])
+
+  const chainIconSrc = React.useMemo(() => {
+    const id = evmChainId
+    if (id === 43113 || id === 43114) return '/icons/avalanche.svg'
+    if (id === 84532 || id === 8453) return '/icons/base.svg'
+    return undefined
+  }, [evmChainId])
+
+  const truncateAddr = React.useCallback((s: any) => {
+    const v = typeof s === 'string' ? s : ''
+    if (!v) return ''
+    return v.length > 12 ? `${v.slice(0,6)}…${v.slice(-4)}` : v
+  }, [])
+
+  const ChainIcon: React.FC = React.useCallback(() => {
+    const id = evmChainId
+    const color = (id === 43113 || id === 43114) ? '#E84142' /* Avalanche */
+      : (id === 84532 || id === 8453) ? '#0052FF' /* Base */
+      : '#627EEA' /* Ethereum default */
+    return (
+      <SvgIcon fontSize="small" sx={{ color }} viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" fill="currentColor" />
+      </SvgIcon>
+    )
+  }, [evmChainId])
+
+  const backHref = React.useMemo(()=> `/${locale}/models`, [locale])
+  return (
+    <Box sx={{
+      minHeight: '100vh',
+      background: [
+        'radial-gradient(900px 520px at 88% -140px, rgba(46,160,255,0.22), rgba(46,160,255,0) 60%)',
+        'radial-gradient(700px 420px at -120px 240px, rgba(124,92,255,0.16), rgba(124,92,255,0) 55%)',
+        'linear-gradient(180deg, #0b1422 0%, #0a111c 50%, #070b12 80%, #05080d 100%)'
+      ].join(', '),
+      color: 'oklch(0.985 0 0)'
+    }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 8 } }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+          <Button component={Link} href={backHref} startIcon={<ArrowBackIcon />}>
+            {L.back}
+          </Button>
+        </Stack>
+        {loading && (
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={5}>
+              <Skeleton variant="rounded" width="100%" height={300} />
+            </Grid>
+            <Grid item xs={12} md={7}>
+              <Skeleton variant="text" height={44} />
+              <Skeleton variant="text" height={28} width={240} />
+              <Divider sx={{ my: 2 }} />
+              <Skeleton variant="text" height={20} />
+              <Skeleton variant="text" height={20} />
+            </Grid>
+          </Grid>
+        )}
+        {!loading && data && (
+          <Grid container spacing={3} alignItems="stretch">
+            {/* Hero Resumen */}
+            <Grid item xs={12} md={5} sx={{ display:'flex' }}>
+              <Card sx={{ flex:1, display:'flex', flexDirection:'column', borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+                <CardContent sx={{ p: 3 }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {data.imageUrl ? (
+                    <Box sx={{ position:'relative', width:'100%', height: 300, overflow:'hidden', bgcolor:'#0a111c', p: 1, borderRadius: 2 }}>
+                      <img src={data.imageUrl} alt={data.name || 'cover'} style={{ width:'100%', height:'100%', objectFit:'contain', display:'block' }} />
+                    </Box>
+                  ) : (
+                    <Box sx={{ border: '1px dashed rgba(255,255,255,0.24)', borderRadius: 2, height: 300, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <Typography sx={{ color: '#ffffffcc' }}>{L.noCover}</Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={7} sx={{ display:'flex' }}>
+              <Card sx={{ flex:1, display:'flex', flexDirection:'column', borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Stack spacing={1}>
+                    <Typography variant="h4" fontWeight={800} sx={{ color: '#fff' }}>{data.name || `Model #${id}`}</Typography>
+                    {data.description && (
+                      <Typography variant="body2" sx={{ color: '#ffffffd6', whiteSpace:'pre-wrap' }}>{data.description}</Typography>
+                    )}
+                    {data.owner && (
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>Owner:</b> </Typography>
+                        <Tooltip title={String(data.owner)}>
+                          <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{truncateAddr(data.owner)}</Typography>
+                        </Tooltip>
+                        <Tooltip title={L.copy}>
+                          <span>
+                            <IconButton
+                              size="small"
+                              aria-label={L.copy}
+                              onClick={()=>{ try { navigator.clipboard.writeText(String(data.owner||'')) } catch {} }}
+                              sx={{
+                                color: '#fff',
+                                border: 'none',
+                                backgroundColor: 'rgba(255,255,255,0.08)',
+                                '&:hover': {
+                                  backgroundColor: 'rgba(255,255,255,0.14)'
+                                }
+                              }}
+                            >
+                              <ContentCopyIcon fontSize="inherit" sx={{ color: '#fff' }} />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title={chainName}>
+                          <span>
+                            {chainIconSrc ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={chainIconSrc} alt={chainName} style={{ width: 18, height: 18, display:'block' }} />
+                            ) : (
+                              <ChainIcon />
+                            )}
+                          </span>
+                        </Tooltip>
+                      </Stack>
+                    )}
+                    <Stack direction={{ xs:'column', sm:'row' }} spacing={1} sx={{ mt: 1, alignItems:{ xs:'stretch', sm:'center' } }}>
+                      {typeof data.price_perpetual === 'number' && data.price_perpetual > 0 && (
+                        <Chip label={`${L.perpetual}: ${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}`} sx={{ width:{ xs:'100%', sm:'auto' }, bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />
+                      )}
+                      {typeof data.price_subscription === 'number' && data.price_subscription > 0 && (
+                        <Chip label={`${L.subscriptionPerMonth}: ${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}/` + t('monthShort')} sx={{ width:{ xs:'100%', sm:'auto' }, bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />
+                      )}
+                      {typeof data.version === 'number' && data.version > 0 && (
+                        <Chip label={`v${data.version}`} sx={{ width:{ xs:'fit-content', sm:'auto' }, bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)
+                      }
+                    </Stack>
+                    <Stack direction={{ xs:'column', sm:'row' }} spacing={1} sx={{ mt: 2 }}>
+                      <Button variant="contained" onClick={handleOpenBuy} sx={{ backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color: '#fff', textTransform: 'none', fontWeight: 700, boxShadow: '0 6px 20px rgba(46,160,255,0.25)', '&:hover': { filter: 'brightness(1.05)', backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}>{L.buy}</Button>
+                      <Button
+                        variant="outlined"
+                        onClick={()=> demoAnchorRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                        disabled={!data?.demoPreset}
+                        sx={{
+                          textTransform: 'none',
+                          fontWeight: 700,
+                          color: '#fff',
+                          borderColor: 'rgba(255,255,255,0.28)',
+                          backgroundColor: 'rgba(255,255,255,0.06)',
+                          '&:hover': {
+                            borderColor: 'rgba(255,255,255,0.40)',
+                            backgroundColor: 'rgba(255,255,255,0.10)'
+                          },
+                          '&.Mui-disabled': {
+                            color: 'rgba(255,255,255,0.5)',
+                            borderColor: 'rgba(255,255,255,0.16)'
+                          }
+                        }}
+                      >
+                        {L.tryDemo}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        )}
+        {!loading && !data && !attempted && (
+          <Card sx={{ mt: 2 }}>
+            <CardContent>
+              <Stack spacing={1} alignItems="center" sx={{ py: 2 }}>
+                <Typography variant="subtitle1" fontWeight={700}>{L.loadingModelTitle}</Typography>
+                <Typography variant="body2" color="text.secondary">{L.loadingModelBody}</Typography>
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
+        {!loading && !data && attempted && (
+          <Typography color="error">{L.notFound}</Typography>
+        )}
+
+        {/* Sección: Qué hace este modelo (Resumen extendido) */}
+        {!loading && data && (
+          <Box sx={{ mt: 4 }}>
+            <Card sx={{ borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+              <CardHeader title={<Typography variant="h5" fontWeight={800} sx={{ color: '#fff' }}>{L.whatItDoes}</Typography>} />
+              <CardContent sx={{ color: '#ffffffd6' }}>
+                <Stack spacing={2}>
+                  <Typography variant="subtitle1" fontWeight={700} sx={{ color: '#fff' }}>{data.valueProposition || L.valueProp}</Typography>
+                  <Typography variant="body1" sx={{ whiteSpace:'pre-wrap', color: '#ffffffd6' }}>{data.customerDescription || data.description || L.descMissing}</Typography>
+                  {typeof (data as any)?.expectedImpact === 'string' && String((data as any).expectedImpact).trim() && (
+                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap', color: '#ffffffcc' }}>{(data as any).expectedImpact}</Typography>
+                  )}
+                  {Array.isArray((data as any)?.expectedBusinessImpact) ? (
+                    <Box>
+                      <Stack component="ul" sx={{ pl: 3 }} spacing={0.5}>
+                        {((data as any).expectedBusinessImpact as string[]).map((s, i)=>(<li key={i}><Typography variant="body2" sx={{ color: '#ffffffcc' }}>{s}</Typography></li>))}
+                      </Stack>
+                    </Box>
+                  ) : null}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+
+        {/* Sección: Ficha para clientes */}
+        {!loading && data && (
+          <Box sx={{ mt: 4 }}>
+            <Card sx={{ borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+              <CardHeader title={<Typography variant="h5" fontWeight={800} sx={{ color: '#fff' }}>{L.customerSheet}</Typography>} />
+              <CardContent sx={{ color: '#ffffffd6' }}>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.ioTitle}</Typography>
+                    <Typography variant="body2" sx={{ mb: 1, color: '#ffffff99' }}>{L.ioSubtitle}</Typography>
+                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap', color: '#ffffffcc' }}><b>{L.inputs}:</b> {(data as any).inputs || L.unspecified}</Typography>
+                    <Typography variant="body2" sx={{ whiteSpace:'pre-wrap', mt: 0.5, color: '#ffffffcc' }}><b>{L.outputs}:</b> {(data as any).outputs || L.unspecified}</Typography>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.examples}</Typography>
+                    {Array.isArray((data as any)?.examples) && (data as any).examples.length > 0 ? (
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ color: '#fff' }}>{L.exampleIn}</TableCell>
+                            <TableCell sx={{ color: '#fff' }}>{L.exampleOut}</TableCell>
+                            <TableCell sx={{ color: '#fff' }}>{L.note}</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {((data as any).examples as any[]).map((ex, i)=> (
+                            <TableRow key={i}>
+                              <TableCell sx={{ color: '#ffffffcc' }}>{ex.input || '-'}</TableCell>
+                              <TableCell sx={{ color: '#ffffffcc' }}>{ex.output || '-'}</TableCell>
+                              <TableCell sx={{ color: '#ffffffcc' }}>{ex.note || '-'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <Typography variant="body2" sx={{ color: '#ffffff99' }}>{L.noExamples}</Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.industriesUseCases}</Typography>
+                    <Typography variant="body2" fontWeight={700} sx={{ mt: 1, color: '#fff' }}>{L.industries}</Typography>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 0.5 }}>
+                      {Array.isArray((data as any)?.industries) ? ((data as any).industries as string[]).map((x,i)=>(<Chip key={i} label={x} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)) : <Typography variant="body2" sx={{ color: '#ffffff99' }}>{L.unspecified}</Typography>}
+                    </Stack>
+                    <Typography variant="body2" fontWeight={700} sx={{ mt: 1, color: '#fff' }}>{L.useCases}</Typography>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 0.5 }}>
+                      {Array.isArray((data as any)?.useCases) ? ((data as any).useCases as string[]).map((x,i)=>(<Chip key={i} label={x} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)) : <Typography variant="body2" sx={{ color: '#ffffff99' }}>{L.unspecified}</Typography>}
+                    </Stack>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.knownLimits}</Typography>
+                    <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).limitations || L.unspecified}</Typography>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.prohibited}</Typography>
+                    <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).prohibited || L.unspecified}</Typography>
+                  </Grid>
+                </Grid>
+                <Divider sx={{ my: 3 }} />
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ borderRadius: '14px', border: '1px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(42,50,70,0.78), rgba(22,28,46,0.78))' }}>
+                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.privacy}</Typography>} />
+                      <CardContent>
+                        <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).privacy || L.unspecified}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ borderRadius: '14px', border: '1px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(42,50,70,0.78), rgba(22,28,46,0.78))' }}>
+                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.deploy}</Typography>} />
+                      <CardContent>
+                        <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).deploy || L.unspecified}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ borderRadius: '14px', border: '1px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(42,50,70,0.78), rgba(22,28,46,0.78))' }}>
+                      <CardHeader title={<Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.support}</Typography>} />
+                      <CardContent>
+                        <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).support || L.unspecified}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+
+        {/* Sección: Configuración técnica */}
+        {!loading && data && (
+          <Box sx={{ mt: 4 }}>
+            <Card sx={{ borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+              <CardHeader title={<Typography variant="h5" fontWeight={800} sx={{ color: '#fff' }}>{L.techConfig}</Typography>} />
+              <CardContent sx={{ color: '#ffffffd6' }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.capabilities}</Typography>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 1 }}>
+                      {Array.isArray(data.tasks) && data.tasks.length ? data.tasks.map((t:string, i:number)=>(<Chip key={i} label={t} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)) : <Typography variant="body2" sx={{ color: '#ffffff99' }}>{'No especificado'}</Typography>}
+                    </Stack>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2, color: '#fff' }}>{L.modalities}</Typography>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 1 }}>
+                      {Array.isArray((data as any)?.modalities) && (data as any).modalities.length ? ((data as any).modalities as string[]).map((m,i)=>(<Chip key={i} label={m} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)) : <Typography variant="body2" sx={{ color: '#ffffff99' }}>{'No especificado'}</Typography>}
+                    </Stack>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.architecture}</Typography>
+                    <Stack spacing={0.5} sx={{ mt: 1 }}>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.frameworks}:</b> {Array.isArray(data.frameworks) && data.frameworks.length ? data.frameworks.join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.architectures}:</b> {Array.isArray(data.architectures) && data.architectures.length ? data.architectures.join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.precision}:</b> {Array.isArray(data.precision) && data.precision.length ? data.precision.join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.quantization}:</b> {(data as any).quantization || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.fileFormats}:</b> {Array.isArray((data as any)?.fileFormats) ? ((data as any).fileFormats as string[]).join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.modelSize}:</b> {(data as any).modelSize || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.artifactSize}:</b> {(data as any).artifactSize || L.unspecified}</Typography>
+                    </Stack>
+                  </Grid>
+                </Grid>
+                <Divider sx={{ my: 2 }} />
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.runtime}</Typography>
+                    <Stack spacing={0.5} sx={{ mt: 1 }}>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>Python:</b> {(data as any).python || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>CUDA:</b> {(data as any).cuda || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>PyTorch:</b> {(data as any).pytorch || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>cuDNN:</b> {(data as any).cudnn || L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.systems}:</b> {Array.isArray((data as any)?.systems) ? ((data as any).systems as string[]).join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>{L.accelerators}:</b> {Array.isArray((data as any)?.accelerators) ? ((data as any).accelerators as string[]).join(', ') : L.unspecified}</Typography>
+                      <Typography variant="body2" sx={{ color: '#ffffffcc' }}><b>Compute Capability:</b> {(data as any).computeCapability || L.unspecified}</Typography>
+                    </Stack>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.dependencies}</Typography>
+                    <Box component="pre" sx={{ bgcolor:'rgba(255,255,255,0.06)', color:'#fff', border: '1px solid rgba(255,255,255,0.18)', p: 2, borderRadius: 1.5, fontSize: 12, whiteSpace:'pre-wrap', minHeight: 80 }}>
+                      {(data as any).dependencies || L.unspecified}
+                    </Box>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.minResources}</Typography>
+                    <Grid container spacing={1} sx={{ mt: 0.5 }}>
+                      <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.minVram}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).minVram || L.unspecified}</Typography></CardContent></Card></Grid>
+                      <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.cpuCores}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).minCpu || L.unspecified}</Typography></CardContent></Card></Grid>
+                      <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.recRam}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).recRam || L.unspecified}</Typography></CardContent></Card></Grid>
+                    </Grid>
+                  </Grid>
+                </Grid>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.inferenceOpts}</Typography>
+                <Grid container spacing={1} sx={{ mt: 0.5 }}>
+                  <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.maxBatch}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).maxBatch || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.contextLength}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).contextLength || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.maxTokens}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).maxTokens || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.referenceLatency}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).gpuNotes || L.unspecified}</Typography></CardContent></Card></Grid>
+                  <Grid item xs={12} sm={4}><Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent><Typography variant="caption" sx={{ color:'#ffffff99' }}>{L.triton}</Typography><Typography variant="body2" sx={{ color:'#fff' }}>{(data as any).triton ? t('yes') : L.unspecified}</Typography></CardContent></Card></Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+
+        {/* Sección: Demo (solo mostrar demo; ocultar artefactos hasta compra) */}
+        {!loading && data && (
+          <Box sx={{ mt: 4 }} ref={demoAnchorRef}>
+            <Card sx={{ borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+              <CardHeader title={<Typography variant="h5" fontWeight={800} sx={{ color: '#fff' }}>{L.hostedDemo}</Typography>} />
+              <CardContent>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.hostedDemo}</Typography>
+                {Boolean((data as any)?.demoPreset) ? (
+                  <>
+                    <Box component="pre" sx={{ bgcolor:'rgba(255,255,255,0.06)', color:'#fff', border: '1px solid rgba(255,255,255,0.18)', p: 2, borderRadius: 1.5, fontSize: 12, whiteSpace:'pre-wrap' }}>
+                      {typeof (data as any).demoPreset === 'string' ? (data as any).demoPreset : JSON.stringify((data as any).demoPreset, null, 2)}
+                    </Box>
+                    <Button variant="contained" sx={{ mt: 1, backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color: '#fff', fontWeight: 700, '&:hover': { filter: 'brightness(1.05)', backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}>{L.runDemo}</Button>
+                  </>
+                ) : (
+                  <Typography variant="body2" sx={{ color: '#ffffff99' }}>{L.noDemo}</Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+
+        {/* Sección: Licencias y términos */}
+        {!loading && data && (
+          <Box sx={{ mt: 4 }}>
+            <Card sx={{ borderRadius: '16px', border: '2px solid', borderColor: 'oklch(0.30 0 0)', background: 'linear-gradient(180deg, rgba(38,46,64,0.78), rgba(20,26,42,0.78))', boxShadow: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 10px 28px rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)' }}>
+              <CardHeader title={<Typography variant="h5" fontWeight={800} sx={{ color: '#fff' }}>{L.licensesTerms}</Typography>} />
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.perpetualLicense}</Typography>
+                      <Typography variant="h6" sx={{ color: '#4fe1ff' }}>{typeof data.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                    </CardContent></Card>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.subscriptionPerMonth}</Typography>
+                      <Typography variant="h6" sx={{ color: '#4fe1ff' }}>{typeof data.price_subscription === 'number' && data.price_subscription > 0 ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                    </CardContent></Card>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ borderRadius: 2, border: '1px solid rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}><CardContent>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.baseDuration}</Typography>
+                      <Typography variant="h6" sx={{ color: '#4fe1ff' }}>{(data as any).default_duration_days ? `${Math.round(((data as any).default_duration_days/30))} ${t('monthsShort')}` : L.unspecified}</Typography>
+                    </CardContent></Card>
+                  </Grid>
+                </Grid>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.rightsDelivery}</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', mt: 1 }}>
+                  {data.deliveryMode === 'api' && (<Chip size="small" label={t('deliveryApi')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
+                  {data.deliveryMode === 'download' && (<Chip size="small" label={t('deliveryDownload')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
+                  {data.deliveryMode === 'both' && (<Chip size="small" label={t('deliveryBoth')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
+                  {data.rights?.transferable && (<Chip size="small" label={t('transferable')} sx={{ bgcolor: 'rgba(255,255,255,0.10)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }} />)}
+                </Stack>
+                <Typography variant="caption" sx={{ mt: 0.5, color: '#ffffff99' }}>{L.deliveryHint}</Typography>
+                {data.rights?.transferable && (
+                  <Typography variant="caption" sx={{ mt: 0.25, color: '#ffffff99' }}>{L.transferableHint}</Typography>
+                )}
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#fff' }}>{L.termsKey}</Typography>
+                <Typography variant="body2" sx={{ color: '#ffffffcc' }}>{(data as any).termsText || L.unspecified}</Typography>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+      </Container>
+
+      {/* Modal: Comprar licencia */}
+      <Dialog
+        open={buyOpen}
+        onClose={()=> { setBuyOpen(false); setBuyStep('select'); setBuyKind(undefined); }}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: '16px',
+            border: '2px solid',
+            borderColor: 'oklch(0.30 0 0)',
+            background: 'linear-gradient(180deg, rgba(38,46,64,0.90), rgba(20,26,42,0.90))',
+            boxShadow: '0 0 0 1px rgba(255,255,255,0.05) inset, 0 14px 36px rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(10px)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ color:'#fff', fontWeight:800 }}>{L.buyModalTitle}</DialogTitle>
+        <DialogContent dividers sx={{ color:'#ffffffd6', borderColor:'rgba(255,255,255,0.08)' }}>
+          {buyStep === 'select' && (
+            <Stack spacing={2}>
+              <Typography variant="body2" sx={{ color:'#ffffff99' }}>{L.buyModalHint}</Typography>
+              <Box>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, color:'#fff' }}>{L.selectType}</Typography>
+                <RadioGroup row value={buyKind || ''} onChange={(e)=> setBuyKind((e.target as HTMLInputElement).value as any)}>
+                  <FormControlLabel
+                    value="perpetual"
+                    control={<Radio sx={{ color:'#ffffffb3', '&.Mui-checked': { color:'#fff' } }} />}
+                    label={L.perpetual}
+                    sx={{ color:'#fff' }}
+                  />
+                  <FormControlLabel
+                    value="subscription"
+                    control={<Radio sx={{ color:'#ffffffb3', '&.Mui-checked': { color:'#fff' } }} />}
+                    label={L.subscriptionPerMonth}
+                    sx={{ color:'#fff' }}
+                  />
+                </RadioGroup>
+              </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Card sx={{ borderRadius: 2, border:'1px solid', borderColor: buyKind==='perpetual' ? 'primary.main' : 'rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ color:'#fff' }}>{L.perpetual}</Typography>
+                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{data && typeof data.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Card sx={{ borderRadius: 2, border:'1px solid', borderColor: buyKind==='subscription' ? 'primary.main' : 'rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ color:'#fff' }}>{L.subscriptionPerMonth}</Typography>
+                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{data && typeof data.price_subscription === 'number' && data.price_subscription > 0 ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                      {buyKind === 'subscription' && (
+                        <Box sx={{ mt: 2 }}>
+                          <TextField
+                            label={L.months}
+                            size="small"
+                            select
+                            fullWidth
+                            value={buyMonths}
+                            onChange={(e)=> setBuyMonths(Number(e.target.value) || 1)}
+                            sx={{
+                              '& .MuiInputBase-input': { color:'#fff' },
+                              '& .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.28)' },
+                              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor:'rgba(255,255,255,0.40)' },
+                              '& .MuiInputLabel-root': { color:'#ffffffcc' }
+                            }}
+                          >
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map(m=> (<MenuItem key={m} value={m}>{m}</MenuItem>))}
+                          </TextField>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+            </Stack>
+          )}
+          {buyStep === 'review' && (
+            <Stack spacing={2}>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ color:'#fff' }}>{L.review}</Typography>
+              <Stack spacing={0.5}>
+                <Typography variant="body2" sx={{ color:'#ffffffcc' }}><b>{L.selectType}:</b> {buyKind === 'perpetual' ? L.perpetual : L.subscriptionPerMonth}</Typography>
+                {buyKind === 'subscription' && (
+                  <Typography variant="body2" sx={{ color:'#ffffffcc' }}><b>{L.months}:</b> {buyMonths}</Typography>
+                )}
+                <Divider sx={{ my: 1 }} />
+                <Typography variant="body2" sx={{ color:'#ffffffcc' }}>
+                  {buyKind === 'perpetual' ? (
+                    <>{typeof data?.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</>
+                  ) : (
+                    <>
+                      {typeof data?.price_subscription === 'number' && data.price_subscription > 0
+                        ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol} × ${buyMonths} = ${(((data.price_subscription*buyMonths)/1e18)).toFixed(2)} ${evmSymbol}`
+                        : L.unspecified}
+                    </>
+                  )}
+                </Typography>
+              </Stack>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          {buyStep === 'review' ? (
+            <>
+              <Button onClick={()=> setBuyStep('select')} sx={{ textTransform:'none', color:'#fff' }}>{L.back}</Button>
+              <Button variant="contained" onClick={handlePurchase} disabled={txLoading} startIcon={txLoading ? <CircularProgress size={16} /> : undefined} sx={{ backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color:'#fff', fontWeight:700, '&:hover': { filter:'brightness(1.05)', backgroundImage:'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}>{L.purchase}</Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={()=> { setBuyOpen(false); setBuyStep('select'); setBuyKind(undefined); }} sx={{ textTransform:'none', color:'#fff' }}>{L.close}</Button>
+              <Button
+                variant="contained"
+                disabled={!buyKind || (buyKind==='subscription' && (!data?.price_subscription || data.price_subscription <= 0 || buyMonths < 1 || buyMonths > 12)) || (buyKind==='perpetual' && (!data?.price_perpetual || data.price_perpetual <= 0))}
+                onClick={()=> setBuyStep('review')}
+                sx={{ backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color:'#fff', fontWeight:700, '&:hover': { filter:'brightness(1.05)', backgroundImage:'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}
+              >
+                {L.continue}
+              </Button>
+            </>
+          )}
+        </DialogActions>
+      </Dialog>
+      <Snackbar open={snkOpen} autoHideDuration={6000} onClose={()=> setSnkOpen(false)} anchorOrigin={{ vertical:'bottom', horizontal:'center' }}>
+        <Alert onClose={()=> setSnkOpen(false)} severity={snkSev} sx={{ width: '100%' }}>
+          {snkMsg}
+        </Alert>
+      </Snackbar>
+    </Box>
+  )
+}

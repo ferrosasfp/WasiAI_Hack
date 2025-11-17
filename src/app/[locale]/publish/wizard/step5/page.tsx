@@ -1,17 +1,28 @@
 "use client";
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { Box, Button, Paper, Typography, Stack, Grid, Chip, List, ListItem, ListItemText, Divider, Alert, Checkbox, FormControlLabel, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Tooltip, Skeleton, SvgIcon, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import CheckIcon from '@mui/icons-material/Check'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
+import WizardFooter from '@/components/WizardFooter'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import WizardThemeProvider from '@/components/WizardThemeProvider'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import GitHubIcon from '@mui/icons-material/GitHub'
 import LanguageIcon from '@mui/icons-material/Language'
 import LinkedInIcon from '@mui/icons-material/LinkedIn'
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
+import FolderZipIcon from '@mui/icons-material/FolderZip'
+import CodeIcon from '@mui/icons-material/Code'
+import DescriptionIcon from '@mui/icons-material/Description'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 // removed copy actions per request
 import { useLocale, useTranslations } from 'next-intl'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
 import { useRouter } from 'next/navigation'
+import { createViewModelFromDraft, UnifiedModelViewModel } from '@/viewmodels'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,6 +71,9 @@ export default function Step5ReviewPublishLocalized() {
   const [loadedRemote, setLoadedRemote] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [hashCopied, setHashCopied] = useState(false)
+  const [copiedCid, setCopiedCid] = useState<string | null>(null)
+  const [showFullInstructions, setShowFullInstructions] = useState(false)
   const acceptLabel = useMemo(() => (
     locale === 'es'
       ? 'He revisado toda la información y confirmo que es correcta para su publicación.'
@@ -271,6 +285,29 @@ export default function Step5ReviewPublishLocalized() {
     return merged
   }, [draft])
 
+  // ViewModel (unified source of truth)
+  // Migration Guide:
+  // Old: metadata?.name → New: viewModel?.step1.name
+  // Old: metadata?.businessCategory → New: viewModel?.step1.businessCategory
+  // Old: metadata?.valueProp → New: viewModel?.step2.customer.valueProp
+  // Old: metadata?.frameworks → New: viewModel?.step2.technical.frameworks
+  // Old: metadata?.artifacts → New: viewModel?.step3.artifacts
+  // Old: metadata?.licensePolicy → New: viewModel?.step4
+  // See /src/viewmodels/README.md for complete documentation
+  const viewModel = useMemo<UnifiedModelViewModel | null>(()=>{
+    if (!draft) return null
+    try {
+      const vm = createViewModelFromDraft(draft)
+      console.log('🔍 Step5 Debug - Draft:', draft)
+      console.log('🔍 Step5 Debug - ViewModel:', vm)
+      console.log('🔍 Step5 Debug - step1:', vm?.step1)
+      return vm
+    } catch (err) {
+      console.error('Error creating ViewModel:', err)
+      return null
+    }
+  }, [draft])
+
   const truncateMiddle = (s:string, start=6, end=6) => {
     if (!s) return '-'
     if (s.length <= start + end + 3) return s
@@ -295,9 +332,23 @@ export default function Step5ReviewPublishLocalized() {
     return (
       <Box sx={{ display:'flex', flexWrap:'wrap', gap:0.5 }}>
         {head.map((v, i)=> (
-          <Tooltip key={`${v}-${i}`} title={v}><Chip size="small" label={<span style={{ maxWidth: 160, display:'inline-block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{v}</span>} /></Tooltip>
+          <Tooltip key={`${v}-${i}`} title={v}>
+            <Chip 
+              size="small" 
+              variant="outlined"
+              sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff', '& .MuiChip-label': { fontSize:'0.75rem' } }}
+              label={<span style={{ maxWidth: 160, display:'inline-block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{v}</span>} 
+            />
+          </Tooltip>
         ))}
-        {rest>0 && <Chip size="small" label={`+${rest}`} />}
+        {rest>0 && (
+          <Chip 
+            size="small" 
+            variant="outlined"
+            sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff', '& .MuiChip-label': { fontSize:'0.75rem' } }}
+            label={`+${rest}`} 
+          />
+        )}
       </Box>
     )
   }
@@ -541,7 +592,14 @@ export default function Step5ReviewPublishLocalized() {
     }
   }
 
+  const navigateAfterSave = async (e: React.MouseEvent<HTMLButtonElement | HTMLAnchorElement>, url: string) => {
+    e.preventDefault()
+    try { await onSave() } catch {}
+    try { router.push(url) } catch { try { window.location.href = url } catch {} }
+  }
+
   return (
+    <WizardThemeProvider>
     <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0f2740 0%, #0b1626 30%, #0a111c 100%)' }}>
       <Box sx={{
         p: 3,
@@ -578,13 +636,17 @@ export default function Step5ReviewPublishLocalized() {
           return (
             <div key={secId} draggable onDragStart={()=>onDragStart(secId)} onDragOver={(e)=>onDragOver(e,secId)} onDrop={()=>onDrop(secId)}>
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
-                <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1 }}>
-                  <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700 }}>{t('wizard.step5.sections.modelInfo')}</Typography>
-                  <Tooltip title={COMMON.edit}>
-                    <IconButton size="small" href={`${base}/step1`} aria-label={COMMON.edit}>
-                      <EditOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:2 }}>
+                  <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700 }}>{t('wizard.step5.sections.listingOverview')}</Typography>
+                  <Button 
+                    size="small" 
+                    variant="outlined" 
+                    startIcon={<EditOutlinedIcon fontSize="small" />}
+                    onClick={(e) => navigateAfterSave(e as any, `${base}/step1`)}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    {t('wizard.step5.step1Summary.editStep1')}
+                  </Button>
                 </Box>
                 {loading ? (
                   <List dense>
@@ -596,82 +658,227 @@ export default function Step5ReviewPublishLocalized() {
                   </List>
                 ) : (
                   <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1 }}>
-                  <Grid container spacing={2}>
+                  <Grid container spacing={3}>
+                    {/* Left column: Listing information from Step 1 */}
                     <Grid item xs={12} md={8}>
-                      <List dense>
-                        <ListItem>
-                          <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'center', columnGap: 1, width:'100%' }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{t('wizard.step5.labels.name')}:</Typography>
-                            <Box sx={{ color:'#fff' }}><Trunc value={metadata?.name} max={40} /></Box>
-                          </Box>
-                        </ListItem>
-                        {Boolean((metadata as any)?.slug) && (
-                          <ListItem>
-                            <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'center', columnGap: 1, width:'100%' }}>
-                              <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{locale==='es' ? 'Identificador (URL)' : 'Identifier (URL)'}:</Typography>
-                              <Box>
-                                <Typography variant="body2" sx={{ color:'#fff' }}>
-                                  {(typeof window!=='undefined' ? window.location.origin : '') + `/${locale}/models/` + String((metadata as any).slug || '')}
-                                </Typography>
-                              </Box>
-                            </Box>
-                          </ListItem>
-                        )}
-                        <ListItem>
-                          <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'center', columnGap: 1, width:'100%' }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{t('wizard.step5.labels.author')}:</Typography>
-                            <Box sx={{ color:'#fff' }}><Trunc value={(metadata as any)?.author?.displayName} max={40} /></Box>
-                          </Box>
-                        </ListItem>
-                        {Boolean((metadata as any)?.shortSummary) && (
-                          <ListItem>
-                            <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'start', columnGap: 1, width:'100%' }}>
-                              <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{t('wizard.step1.fields.summary.label')}:</Typography>
-                              <Box><Trunc value={(metadata as any)?.shortSummary} max={120} /></Box>
-                            </Box>
-                          </ListItem>
-                        )}
-                        {Boolean((metadata as any)?.author?.links && Object.keys((metadata as any).author.links).length>0) && (
-                          <ListItem>
-                            <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'center', columnGap: 1, width:'100%' }}>
-                              <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{t('wizard.step1.fields.socials.title')}:</Typography>
-                              <Box>
-                                {Object.entries((metadata as any).author.links).filter(([,v])=>!!v).map(([k,v]: any, i: number)=> {
-                                  const label = k==='github'? 'GitHub' : k==='website'? 'Website' : k==='twitter'? 'X' : k==='linkedin'? 'LinkedIn' : k
-                                  const icon = k==='github'? <GitHubIcon /> : k==='website'? <LanguageIcon /> : k==='twitter'? <XIcon /> : k==='linkedin'? <LinkedInIcon /> : undefined
-                                  return (
-                                    <Tooltip key={`${k}-${i}`} title={`${label}: ${v}`}>
-                                      <IconButton size="small" sx={{ mr:0.5, mb:0.5 }} aria-label={label} onClick={()=>{ try { if (v) window.open(String(v), '_blank', 'noopener,noreferrer') } catch {} }}>
-                                        {icon}
-                                      </IconButton>
-                                    </Tooltip>
-                                  )
-                                })}
-                              </Box>
-                            </Box>
-                          </ListItem>
-                        )}
-                      </List>
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      {Boolean((metadata as any)?.cover?.thumbCid || (metadata as any)?.cover?.cid) && (
-                        <Box sx={{ display:'flex', alignItems:'center', justifyContent:'center', width:'100%', maxWidth:'100%', overflow:'hidden' }}>
-                          <img
-                            src={`https://ipfs.io/ipfs/${(metadata as any).cover.thumbCid || (metadata as any).cover.cid}`}
-                            alt="cover"
-                            loading="lazy"
-                            style={{
-                              maxWidth: '100%',
-                              height: 'auto',
-                              maxHeight: 160,
-                              borderRadius: 8,
-                              objectFit: 'contain',
-                              display: 'block',
-                              margin: '0 auto'
-                            }}
-                          />
+                      <Stack spacing={2}>
+                        {/* Name */}
+                        <Box>
+                          <Typography variant="h6" sx={{ fontWeight:700, color:'#fff', mb:0.5 }}>
+                            {viewModel?.step1.name || metadata?.name || '-'}
+                          </Typography>
+                          {/* Identifier (URL) */}
+                          {Boolean((metadata as any)?.slug) && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display:'block', mt:0.5 }}>
+                              {t('wizard.step5.step1Summary.identifier')}: {(typeof window!=='undefined' ? window.location.origin : '') + `/${locale}/models/` + String((metadata as any).slug || '')}
+                            </Typography>
+                          )}
                         </Box>
-                      )}
+
+                        {/* Summary with line clamp + view link */}
+                        {Boolean(viewModel?.step1.summary || (metadata as any)?.shortSummary) && (
+                          <Box>
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                color:'#ffffffcc',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 3,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                mb: 0.5
+                              }}
+                            >
+                              {viewModel?.step1.summary || (metadata as any).shortSummary}
+                            </Typography>
+                            {Boolean((metadata as any)?.slug) && (
+                              <Button 
+                                size="small" 
+                                variant="text" 
+                                sx={{ textTransform:'none', p:0, minWidth:'auto', fontSize:'0.75rem' }}
+                                onClick={(e) => navigateAfterSave(e as any, `${base}/step1`)}
+                              >
+                                {t('wizard.step5.step1Summary.viewFullListing')} →
+                              </Button>
+                            )}
+                          </Box>
+                        )}
+
+                        {/* Business profile */}
+                        {(Boolean(viewModel?.step1.businessCategory || (metadata as any)?.businessCategory) || Boolean(viewModel?.step1.modelTypeBusiness || (metadata as any)?.modelType)) && (
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                              {locale==='es' ? 'Perfil de negocio' : 'Business profile'}
+                            </Typography>
+                            <Grid container spacing={1}>
+                              {Boolean(viewModel?.step1.businessCategory || (metadata as any)?.businessCategory) && (
+                                <Grid item xs={12} sm={6}>
+                                  <Typography variant="body2" color="text.secondary" sx={{ fontSize:'0.8rem' }}>
+                                    {t('wizard.step5.step1Summary.businessCategory')}:
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ color:'#fff', fontWeight:600 }}>
+                                    {viewModel?.step1.businessCategory || (metadata as any).businessCategory}
+                                  </Typography>
+                                </Grid>
+                              )}
+                              {Boolean(viewModel?.step1.modelTypeBusiness || (metadata as any)?.modelType) && (
+                                <Grid item xs={12} sm={6}>
+                                  <Typography variant="body2" color="text.secondary" sx={{ fontSize:'0.8rem' }}>
+                                    {t('wizard.step5.step1Summary.modelType')}:
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ color:'#fff', fontWeight:600 }}>
+                                    {viewModel?.step1.modelTypeBusiness || (metadata as any).modelType}
+                                  </Typography>
+                                </Grid>
+                              )}
+                            </Grid>
+                          </Box>
+                        )}
+
+                        {/* Technical classification */}
+                        {(Boolean(viewModel?.step1.technicalCategories?.length || (metadata as any)?.technicalCategories?.length) || Boolean(viewModel?.step1.technicalTags?.length || (metadata as any)?.technicalTags?.length)) && (
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                              {locale==='es' ? 'Clasificación técnica' : 'Technical classification'}
+                            </Typography>
+                            <Stack spacing={1}>
+                              {Boolean(viewModel?.step1.technicalCategories?.length || (metadata as any)?.technicalCategories?.length) && (
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontSize:'0.75rem' }}>
+                                    {t('wizard.step5.step1Summary.technicalCategories')}
+                                  </Typography>
+                                  <ChipsShort items={viewModel?.step1.technicalCategories || (metadata as any).technicalCategories} max={6} />
+                                </Box>
+                              )}
+                              {Boolean(viewModel?.step1.technicalTags?.length || (metadata as any)?.technicalTags?.length) && (
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontSize:'0.75rem' }}>
+                                    {t('wizard.step5.step1Summary.technicalTags')}
+                                  </Typography>
+                                  <ChipsShort items={viewModel?.step1.technicalTags || (metadata as any).technicalTags} max={6} />
+                                </Box>
+                              )}
+                            </Stack>
+                          </Box>
+                        )}
+
+                        {/* Author section */}
+                        <Box sx={{ pt:1, borderTop:'1px solid rgba(255,255,255,0.1)' }}>
+                          <Typography variant="body2" sx={{ color:'#ffffffcc', mb:1 }}>
+                            {t('wizard.step5.step1Summary.by')} <strong>{viewModel?.step1.authorName || (metadata as any)?.author?.displayName || '-'}</strong>
+                          </Typography>
+                          {Boolean((viewModel?.step1.authorLinks && Object.keys(viewModel.step1.authorLinks).length>0) || ((metadata as any)?.author?.links && Object.keys((metadata as any).author.links).length>0)) && (
+                            <Stack direction="row" spacing={0.5} sx={{ flexWrap:'wrap' }}>
+                              {Object.entries(viewModel?.step1.authorLinks || (metadata as any).author.links || {}).filter(([,v])=>!!v).map(([k,v]: any, i: number)=> {
+                                const label = k==='github'? 'GitHub' : k==='website'? 'Website' : k==='twitter'? 'X' : k==='linkedin'? 'LinkedIn' : k
+                                const icon = k==='github'? <GitHubIcon fontSize="small" /> : k==='website'? <LanguageIcon fontSize="small" /> : k==='twitter'? <XIcon fontSize="small" /> : k==='linkedin'? <LinkedInIcon fontSize="small" /> : undefined
+                                return (
+                                  <Tooltip key={`${k}-${i}`} title={`${label}: ${v}`}>
+                                    <IconButton size="small" aria-label={label} onClick={()=>{ try { if (v) window.open(String(v), '_blank', 'noopener,noreferrer') } catch {} }}>
+                                      {icon}
+                                    </IconButton>
+                                  </Tooltip>
+                                )
+                              })}
+                            </Stack>
+                          )}
+                        </Box>
+                      </Stack>
+                    </Grid>
+
+                    {/* Right column: Cover + Metadata badges from Step 1 */}
+                    <Grid item xs={12} md={4}>
+                      <Stack spacing={2}>
+                        {/* Cover / Hero Image */}
+                        {Boolean(viewModel?.step1.cover?.thumbCid || viewModel?.step1.cover?.cid || (metadata as any)?.cover?.thumbCid || (metadata as any)?.cover?.cid) ? (
+                          <Box sx={{ 
+                            display:'flex', 
+                            alignItems:'center', 
+                            justifyContent:'center', 
+                            width:'100%', 
+                            maxWidth:'100%', 
+                            overflow:'hidden',
+                            borderRadius:2,
+                            border:'1px solid rgba(255,255,255,0.1)'
+                          }}>
+                            <img
+                              src={`https://ipfs.io/ipfs/${viewModel?.step1.cover?.thumbCid || viewModel?.step1.cover?.cid || (metadata as any).cover?.thumbCid || (metadata as any).cover?.cid}`}
+                              alt="Model cover"
+                              loading="lazy"
+                              style={{
+                                maxWidth: '100%',
+                                width: '100%',
+                                height: 'auto',
+                                maxHeight: 200,
+                                borderRadius: 8,
+                                objectFit: 'cover',
+                                display: 'block'
+                              }}
+                            />
+                          </Box>
+                        ) : (
+                          <Box sx={{
+                            display:'flex',
+                            alignItems:'center',
+                            justifyContent:'center',
+                            width:'100%',
+                            height:160,
+                            borderRadius:2,
+                            border:'1px solid rgba(255,255,255,0.1)',
+                            bgcolor:'rgba(255,255,255,0.05)'
+                          }}>
+                            <Typography variant="caption" color="text.secondary">
+                              {locale==='es' ? 'Sin imagen' : 'No image'}
+                            </Typography>
+                          </Box>
+                        )}
+
+                        {/* Metadata badges from Step 1 */}
+                        <Stack spacing={1}>
+                          {/* Business Category */}
+                          {Boolean(viewModel?.step1.businessCategory || (metadata as any)?.businessCategory) && (
+                            <Chip 
+                              size="small" 
+                              label={`${locale==='es' ? 'Categoría' : 'Category'}: ${viewModel?.step1.businessCategory || (metadata as any).businessCategory}`}
+                              sx={{ 
+                                borderColor:'rgba(255,255,255,0.3)',
+                                color:'#fff',
+                                '& .MuiChip-label': { fontSize:'0.75rem' }
+                              }}
+                              variant="outlined"
+                            />
+                          )}
+
+                          {/* Model Type (business) */}
+                          {Boolean(viewModel?.step1.modelTypeBusiness || (metadata as any)?.modelType) && (
+                            <Chip 
+                              size="small" 
+                              label={`${locale==='es' ? 'Tipo' : 'Model type'}: ${viewModel?.step1.modelTypeBusiness || (metadata as any).modelType}`}
+                              sx={{ 
+                                borderColor:'rgba(255,255,255,0.3)',
+                                color:'#fff',
+                                '& .MuiChip-label': { fontSize:'0.75rem' }
+                              }}
+                              variant="outlined"
+                            />
+                          )}
+
+                          {/* Technical spotlight (first technical category or tag) */}
+                          {Boolean(viewModel?.step1.technicalCategories?.[0] || viewModel?.step1.technicalTags?.[0] || (metadata as any)?.technicalCategories?.[0] || (metadata as any)?.technicalTags?.[0]) && (
+                            <Chip 
+                              size="small" 
+                              label={`Tech: ${viewModel?.step1.technicalCategories?.[0] || viewModel?.step1.technicalTags?.[0] || (metadata as any).technicalCategories?.[0] || (metadata as any).technicalTags?.[0]}`}
+                              sx={{ 
+                                borderColor:'rgba(255,255,255,0.3)',
+                                color:'#fff',
+                                '& .MuiChip-label': { fontSize:'0.75rem' }
+                              }}
+                              variant="outlined"
+                            />
+                          )}
+                        </Stack>
+                      </Stack>
                     </Grid>
                   </Grid>
                   </Box>
@@ -681,305 +888,450 @@ export default function Step5ReviewPublishLocalized() {
           )
         }
         if (secId==='licenses') {
+          const licenseData = viewModel?.step4 || ({} as any)
+          const pricingMode = (metadata as any)?.pricingMode || 'both'
+          const pricingModeLabel = pricingMode === 'perpetual' ? (locale==='es' ? 'Perpetuo' : 'One-time (perpetual)') 
+            : pricingMode === 'subscription' ? (locale==='es' ? 'Suscripción' : 'Subscription') 
+            : (locale==='es' ? 'Ambos' : 'Both')
+          const termsSummary = licenseData.termsSummary?.join('\n') || (metadata as any)?.termsSummary || ''
+          const termsHash = licenseData.termsHash || metadata?.licensePolicy?.termsHash || ''
+          const hasRights = (licenseData.rights && (licenseData.rights.canUseAPI || licenseData.rights.canDownload || licenseData.rights.isTransferable)) || (metadata?.licensePolicy?.rights && Array.isArray(metadata.licensePolicy.rights) && metadata.licensePolicy.rights.length > 0)
+          
+          const copyHashToClipboard = () => {
+            if (termsHash) {
+              try {
+                navigator.clipboard.writeText(termsHash)
+                setHashCopied(true)
+                setTimeout(() => setHashCopied(false), 2000)
+              } catch {}
+            }
+          }
+
           return (
             <div key={secId} draggable onDragStart={()=>onDragStart(secId)} onDragOver={(e)=>onDragOver(e,secId)} onDrop={()=>onDrop(secId)}>
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
-                <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1 }}>
-                  <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700 }}>{L.sectionTitle}</Typography>
-                  <Tooltip title={COMMON.edit}>
-                    <IconButton size="small" href={`${base}/step4`} aria-label={COMMON.edit}>
-                      <EditOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:2 }}>
+                  <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700 }}>{t('wizard.step5.sections.licensesTerms')}</Typography>
+                  <Button 
+                    size="small" 
+                    variant="outlined" 
+                    startIcon={<EditOutlinedIcon fontSize="small" />}
+                    onClick={(e) => navigateAfterSave(e as any, `${base}/step4`)}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    {t('wizard.step5.step4Summary.editStep4')}
+                  </Button>
                 </Box>
-                <List dense>
-                  {loading ? (
-                    <>
-                      <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
-                      <ListItem><Skeleton animation="wave" variant="text" width={260} /></ListItem>
-                      <ListItem><Skeleton animation="wave" variant="text" width={180} /></ListItem>
-                      <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
-                      <ListItem><Skeleton animation="wave" variant="text" width={200} /></ListItem>
-                    </>
-                  ) : (
-                    <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1 }}>
-                      {/* Prices with unit */}
-                      <Row label={L.perpetual} value={<>{fmt2Up(Number(metadata?.licensePolicy?.perpetual?.priceRef||0))} {unit}</>} />
-                      <Row label={L.subscriptionPerMonth} value={<>{fmt2Up(Number(metadata?.licensePolicy?.subscription?.perMonthPriceRef||0))} {unit}</>} />
-                      <Row label={L.baseDurationDays} value={formatDurationDays(metadata?.licensePolicy?.defaultDurationDays)} />
-                      {/* Royalty percent */}
-                      <Row label={L.royalty} value={<>{Math.round((royaltyBps||0)/100)}%</>} />
-                      {/* Marketplace fee percent */}
-                      <Row label={L.marketplaceFee} value={<>{Math.round((feeBpsEff5||0)/100)}%</>} />
+                {loading ? (
+                  <List dense>
+                    <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
+                    <ListItem><Skeleton animation="wave" variant="text" width={260} /></ListItem>
+                    <ListItem><Skeleton animation="wave" variant="text" width={180} /></ListItem>
+                    <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
+                    <ListItem><Skeleton animation="wave" variant="text" width={200} /></ListItem>
+                  </List>
+                ) : (
+                  <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1 }}>
+                    <Stack spacing={2}>
+                      {/* 1. PRICES SECTION */}
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                          {t('wizard.step5.step4Summary.prices')}
+                        </Typography>
+                        <List dense>
+                          {/* Pricing Model */}
+                          <Row label={t('wizard.step5.step4Summary.pricingModel')} value={pricingModeLabel} />
+                          
+                          {/* Perpetual Price */}
+                          {(pricingMode === 'perpetual' || pricingMode === 'both') && (
+                            <Row label={t('wizard.step5.step4Summary.perpetualPrice')} value={<>{fmt2Up(Number(metadata?.licensePolicy?.perpetual?.priceRef||0))} {unit}</>} />
+                          )}
+                          
+                          {/* Subscription Price */}
+                          {(pricingMode === 'subscription' || pricingMode === 'both') && (
+                            <Row label={t('wizard.step5.step4Summary.subscriptionPrice')} value={<>{fmt2Up(Number(metadata?.licensePolicy?.subscription?.perMonthPriceRef||0))} {unit}</>} />
+                          )}
+                          
+                          {/* Base Duration */}
+                          {(pricingMode === 'subscription' || pricingMode === 'both') && (
+                            <Row label={t('wizard.step5.step4Summary.baseDuration')} value={<>{Math.round(Number(metadata?.licensePolicy?.defaultDurationDays||0)/30)} {t('wizard.step5.step4Summary.months')}</>} />
+                          )}
+                          
+                          {/* Creator Royalty */}
+                          <Row label={t('wizard.step5.step4Summary.creatorRoyalty')} value={<>{Math.round((royaltyBps||0)/100)}%</>} />
+                          
+                          {/* Marketplace Fee */}
+                          <Row label={t('wizard.step5.step4Summary.marketplaceFee')} value={<>{Math.round((feeBpsEff5||0)/100)}%</>} />
+                        </List>
+                      </Box>
 
-                      <Divider sx={{ my: 1 }} />
+                      <Divider />
 
-                      {/* Revenue split calculations below royalty */}
-                      {Number(metadata?.licensePolicy?.perpetual?.priceRef||0) > 0 && (()=>{
-                        const amt = Number(metadata?.licensePolicy?.perpetual?.priceRef||0)
-                        const s = splitFor(amt)
-                        return (
-                          <Row label={L.splitPerpetual} value={<>
-                            {L.marketplace}: {fmt2Up(s.fee)} {unit} • {L.creator}: {fmt2Up(s.royalty)} {unit} • {L.seller}: {fmt2Up(s.seller)} {unit}
-                          </>} />
-                        )
-                      })()}
-                      {Number(metadata?.licensePolicy?.subscription?.perMonthPriceRef||0) > 0 && (()=>{
-                        const amt = Number(metadata?.licensePolicy?.subscription?.perMonthPriceRef||0)
-                        const s = splitFor(amt)
-                        return (
-                          <Row label={L.splitSubscription} value={<>
-                            {L.marketplace}: {fmt2Up(s.fee)} {unit} • {L.creator}: {fmt2Up(s.royalty)} {unit} • {L.seller}: {fmt2Up(s.seller)} {unit}
-                          </>} />
-                        )
-                      })()}
+                      {/* 2. REVENUE SPLIT SECTION */}
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                          {t('wizard.step5.step4Summary.revenueSplit')}
+                        </Typography>
+                        <List dense>
+                          {/* Perpetual Split */}
+                          {Number(metadata?.licensePolicy?.perpetual?.priceRef||0) > 0 && (()=>{
+                            const amt = Number(metadata?.licensePolicy?.perpetual?.priceRef||0)
+                            const s = splitFor(amt)
+                            return (
+                              <Row label={t('wizard.step5.step4Summary.splitPerpetual')} value={<>
+                                {L.marketplace}: {fmt2Up(s.fee)} {unit} • {L.creator}: {fmt2Up(s.royalty)} {unit} • {L.seller}: {fmt2Up(s.seller)} {unit}
+                              </>} />
+                            )
+                          })()}
+                          
+                          {/* Subscription Split */}
+                          {Number(metadata?.licensePolicy?.subscription?.perMonthPriceRef||0) > 0 && (()=>{
+                            const amt = Number(metadata?.licensePolicy?.subscription?.perMonthPriceRef||0)
+                            const s = splitFor(amt)
+                            return (
+                              <Row label={t('wizard.step5.step4Summary.splitSubscription')} value={<>
+                                {L.marketplace}: {fmt2Up(s.fee)} {unit} • {L.creator}: {fmt2Up(s.royalty)} {unit} • {L.seller}: {fmt2Up(s.seller)} {unit}
+                              </>} />
+                            )
+                          })()}
+                        </List>
+                      </Box>
 
-                      <Divider sx={{ my: 1 }} />
+                      <Divider />
 
-                      {/* Rights and delivery after distribution */}
-                      <Row label={L.rights} value={<ChipsShort items={metadata?.licensePolicy?.rights} />} />
-                      <Row label={L.deliveryMode} value={<ChipsShort items={metadata?.licensePolicy?.delivery} />} />
+                      {/* 3. RIGHTS & DELIVERY SECTION */}
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                          {t('wizard.step5.step4Summary.rightsDelivery')}
+                        </Typography>
+                        <List dense>
+                          {/* Rights (use Row for consistent alignment) */}
+                          <Row 
+                            label={t('wizard.step5.step4Summary.rights')} 
+                            value={hasRights ? (
+                              <ChipsShort items={metadata.licensePolicy.rights} max={6} />
+                            ) : (
+                              <Typography variant="body2" color="text.secondary" sx={{ fontStyle:'italic', fontSize:'0.85rem' }}>
+                                {t('wizard.step5.step4Summary.noRights')}
+                              </Typography>
+                            )}
+                          />
 
-                      {/* Terms text */}
-                      {Boolean(metadata?.licensePolicy?.termsText) && (
-                        <Row label={L.termsText} value={<Trunc value={String(metadata?.licensePolicy?.termsText||'')} max={200} />} />
-                      )}
-                    </Box>
-                  )}
-                </List>
+                          {/* Delivery Mode */}
+                          {Boolean(metadata?.licensePolicy?.delivery?.length) && (
+                            <Row label={t('wizard.step5.step4Summary.deliveryMode')} value={<ChipsShort items={metadata?.licensePolicy?.delivery} />} />
+                          )}
+                        </List>
+                      </Box>
+
+                      <Divider />
+
+                      {/* 4. TERMS SECTION */}
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                          {t('wizard.step5.step4Summary.terms')}
+                        </Typography>
+                        <List dense>
+                          {/* Buyer-friendly summary */}
+                          {Boolean(termsSummary) && (
+                            <ListItem sx={{ px:0, py:0.5, alignItems:'flex-start' }}>
+                              <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'start', columnGap: 1, width:'100%' }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{t('wizard.step5.step4Summary.buyerSummary')}:</Typography>
+                                <Box>
+                                  <Typography 
+                                    variant="body2" 
+                                    sx={{ 
+                                      color:'#ffffffcc',
+                                      maxHeight: 80,
+                                      overflow: 'auto',
+                                      fontSize:'0.85rem',
+                                      '&::-webkit-scrollbar': { width: 4 },
+                                      '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2 }
+                                    }}
+                                  >
+                                    {termsSummary}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </ListItem>
+                          )}
+
+                          {/* Terms text (truncated) */}
+                          {Boolean(metadata?.licensePolicy?.termsText) && (
+                            <ListItem sx={{ px:0, py:0.5, alignItems:'flex-start' }}>
+                              <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'start', columnGap: 1, width:'100%' }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{t('wizard.step5.step4Summary.termsText')}:</Typography>
+                                <Box>
+                                  <Typography 
+                                    variant="body2" 
+                                    sx={{ 
+                                      color:'#ffffffcc',
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      mb: 0.5,
+                                      fontSize:'0.85rem'
+                                    }}
+                                  >
+                                    {String(metadata?.licensePolicy?.termsText||'')}
+                                  </Typography>
+                                  <Button 
+                                    size="small" 
+                                    variant="text" 
+                                    sx={{ textTransform:'none', p:0, minWidth:'auto', fontSize:'0.75rem' }}
+                                    onClick={(e) => navigateAfterSave(e as any, `${base}/step4`)}
+                                  >
+                                    {t('wizard.step5.step4Summary.viewFullTerms')} →
+                                  </Button>
+                                </Box>
+                              </Box>
+                            </ListItem>
+                          )}
+
+                          {/* Terms hash */}
+                          <ListItem sx={{ px:0, py:0.5, alignItems:'flex-start' }}>
+                            <Box sx={{ display:'grid', gridTemplateColumns: { xs:'auto 1fr', md:'180px 1fr' }, alignItems:'start', columnGap: 1, width:'100%' }}>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{t('wizard.step5.step4Summary.termsHash')}:</Typography>
+                              <Box>
+                                {termsHash ? (
+                                  <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+                                    <Typography variant="body2" sx={{ color:'#ffffffcc', fontFamily:'monospace', fontSize:'0.8rem' }}>
+                                      {termsHash.substring(0, 10)}...
+                                    </Typography>
+                                    <Tooltip title={hashCopied ? t('wizard.step5.step4Summary.hashCopied') : t('wizard.step5.step4Summary.copyHash')}>
+                                      <IconButton size="small" onClick={copyHashToClipboard} sx={{ p:0.5 }}>
+                                        {hashCopied ? <CheckIcon fontSize="small" sx={{ color:'success.main' }} /> : <ContentCopyIcon fontSize="small" />}
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Box>
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle:'italic', fontSize:'0.85rem' }}>
+                                    {t('wizard.step5.step4Summary.termsNotSigned')}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                          </ListItem>
+                        </List>
+                      </Box>
+                    </Stack>
+                  </Box>
+                )}
               </Paper>
             </div>
           )
         }
         if (secId==='compat') {
+          const tech = viewModel?.step2.technical ? {
+            capabilities: { tasks: viewModel.step2.technical.tasks, modalities: viewModel.step2.technical.modalities },
+            architecture: {
+              frameworks: viewModel.step2.technical.frameworks,
+              architectures: viewModel.step2.technical.architectures,
+              precisions: viewModel.step2.technical.precisions,
+              quantization: viewModel.step2.technical.quantization?.join(', '),
+              modelSizeParams: viewModel.step2.technical.modelSize,
+              artifactSizeGB: viewModel.step2.technical.artifactSize,
+              embeddingDimension: viewModel.step2.technical.embeddingDimension,
+              modelFiles: viewModel.step2.technical.modelFiles
+            },
+            runtime: {
+              python: viewModel.step2.technical.python,
+              os: viewModel.step2.technical.os,
+              accelerators: viewModel.step2.technical.accelerators,
+              cuda: viewModel.step2.technical.cuda,
+              torch: viewModel.step2.technical.pytorch,
+              cudnn: viewModel.step2.technical.cudnn,
+              computeCapability: viewModel.step2.technical.computeCapability
+            },
+            dependencies: {
+              pip: viewModel.step2.technical.pip
+            },
+            resources: {
+              vramGB: viewModel.step2.technical.vramGB,
+              cpuCores: viewModel.step2.technical.cpuCores,
+              ramGB: viewModel.step2.technical.ramGB
+            },
+            inference: {
+              maxBatchSize: viewModel.step2.technical.maxBatchSize,
+              contextLength: viewModel.step2.technical.contextLength,
+              maxTokens: viewModel.step2.technical.maxTokens,
+              imageResolution: viewModel.step2.technical.imageResolution,
+              sampleRate: viewModel.step2.technical.sampleRate,
+              triton: viewModel.step2.technical.triton,
+              referencePerf: viewModel.step2.technical.referenceLatency
+            }
+          } : (metadata || {})
+          const step2Data = draft?.data?.step2 || {}
+          
+          // Helper to display value or dash
+          const displayValue = (val: any, isNumber = false): string | React.ReactNode => {
+            if (val === null || val === undefined || val === '') return '–'
+            if (isNumber && (Number(val) === 0 || isNaN(Number(val)))) return '–'
+            return val
+          }
+          
+          // Get primary language from tech or customer
+          const primaryLang = tech.primaryLanguage ?? step2Data?.customer?.primaryLanguage
+          const metrics = tech.metrics ?? step2Data?.customer?.metrics
+          const hasTrainingEval = Boolean(primaryLang || metrics)
+          
           return (
             <div key={secId} draggable onDragStart={()=>onDragStart(secId)} onDragOver={(e)=>onDragOver(e,secId)} onDrop={()=>onDrop(secId)}>
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
-                <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1 }}>
-                  <Typography variant="subtitle2" sx={{ color:'primary.main', fontWeight:700 }}>{C.sectionTitle}</Typography>
-                  <Tooltip title={COMMON.edit}>
-                    <IconButton size="small" href={`${base}/step2`} aria-label={COMMON.edit}>
-                      <EditOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:2 }}>
+                  <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700 }}>
+                    {t('wizard.step5.sections.technicalConfig')}
+                  </Typography>
+                  <Button 
+                    size="small" 
+                    variant="outlined" 
+                    startIcon={<EditOutlinedIcon fontSize="small" />}
+                    onClick={(e) => navigateAfterSave(e as any, `${base}/step2`)}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    {t('wizard.step5.techConfig.editStep2')}
+                  </Button>
                 </Box>
-                <Grid container spacing={1.5}>
-                  <Grid item xs={12} md={6}>
-                    <List dense>
-                      {loading ? (
-                        <>
-                          <ListItem><Skeleton animation="wave" variant="text" width={260} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={240} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={200} /></ListItem>
-                        </>
-                      ) : (
-                        <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1 }}>
-                          <Row label={C.tasks} value={<ChipsShort items={metadata?.capabilities?.tasks} />} />
-                          <Row label={C.modalities} value={<ChipsShort items={metadata?.capabilities?.modalities} />} />
-                          <Row label={C.frameworks} value={<ChipsShort items={metadata?.architecture?.frameworks} />} />
-                          <Row label={C.architectures} value={<ChipsShort items={metadata?.architecture?.architectures} />} />
-                        </Box>
-                      )}
-                    </List>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <List dense>
-                      {loading ? (
-                        <>
-                          <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={200} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
-                        </>
-                      ) : (
-                        <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1 }}>
-                          <Row label={C.precisions} value={<ChipsShort items={metadata?.architecture?.precisions} />} />
-                          <Row label={C.quantization} value={<Trunc value={metadata?.architecture?.quantization} max={24} />} />
-                          <Row label={C.modelFiles} value={<ChipsShort items={metadata?.architecture?.modelFiles} />} />
-                        </Box>
-                      )}
-                    </List>
-                  </Grid>
-                </Grid>
+                
                 {loading ? (
-                  <>
-                    <Divider sx={{ my: 1 }} />
-                    <Grid container spacing={1.5}>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <ListItem><Skeleton animation="wave" variant="text" width={200} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={180} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={160} /></ListItem>
-                        </List>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <ListItem><Skeleton animation="wave" variant="text" width={200} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
-                        </List>
-                      </Grid>
-                    </Grid>
-                    <Divider sx={{ my: 1 }} />
-                    <Skeleton animation="wave" variant="text" width={120} sx={{ mb:0.5 }} />
-                    <Grid container spacing={1.5}>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <ListItem><Skeleton animation="wave" variant="text" width={180} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={180} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={180} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={160} /></ListItem>
-                        </List>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <ListItem><Skeleton animation="wave" variant="text" width={200} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={240} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={200} /></ListItem>
-                        </List>
-                      </Grid>
-                    </Grid>
-                    <Divider sx={{ my: 1 }} />
-                    <Skeleton animation="wave" variant="text" width={120} sx={{ mb:0.5 }} />
-                    <Grid container spacing={1.5}>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <ListItem><Skeleton animation="wave" variant="text" width={140} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={140} /></ListItem>
-                        </List>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <ListItem><Skeleton animation="wave" variant="text" width={140} /></ListItem>
-                        </List>
-                      </Grid>
-                    </Grid>
-                    <Divider sx={{ my: 1 }} />
-                    <Skeleton animation="wave" variant="text" width={120} sx={{ mb:0.5 }} />
-                    <Grid container spacing={1.5}>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <ListItem><Skeleton animation="wave" variant="text" width={160} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={160} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={160} /></ListItem>
-                        </List>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <ListItem><Skeleton animation="wave" variant="text" width={180} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={140} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={100} /></ListItem>
-                          <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
-                        </List>
-                      </Grid>
-                    </Grid>
-                  </>
+                  <List dense>
+                    <ListItem><Skeleton animation="wave" variant="text" width={280} /></ListItem>
+                    <ListItem><Skeleton animation="wave" variant="text" width={260} /></ListItem>
+                    <ListItem><Skeleton animation="wave" variant="text" width={240} /></ListItem>
+                    <ListItem><Skeleton animation="wave" variant="text" width={220} /></ListItem>
+                  </List>
                 ) : (
-                  <Box sx={{ position:'relative', minHeight: 240 }}>
-                    {shouldFade && !loadedRemote && (
-                      <Box sx={{ position:'absolute', inset:0, pointerEvents:'none', p:1, opacity:1, transition:'opacity 150ms ease 60ms' }}>
-                        <Divider sx={{ my: 1 }} />
-                        <Grid container spacing={1.5}>
-                          <Grid item xs={12} md={6}>
-                            <List dense>
-                              <ListItem><Skeleton animation="wave" variant="text" width={180} /></ListItem>
-                              <ListItem><Skeleton animation="wave" variant="text" width={160} /></ListItem>
-                              <ListItem><Skeleton animation="wave" variant="text" width={140} /></ListItem>
-                            </List>
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <List dense>
-                              <ListItem><Skeleton animation="wave" variant="text" width={200} /></ListItem>
-                            </List>
-                          </Grid>
-                        </Grid>
-                        <Divider sx={{ my: 1 }} />
-                        <Skeleton animation="wave" variant="text" width={140} sx={{ mb:0.5 }} />
-                        <Grid container spacing={1.5}>
-                          <Grid item xs={12} md={6}>
-                            <List dense>
-                              <ListItem><Skeleton animation="wave" variant="text" width={160} /></ListItem>
-                              <ListItem><Skeleton animation="wave" variant="text" width={160} /></ListItem>
-                              <ListItem><Skeleton animation="wave" variant="text" width={160} /></ListItem>
-                            </List>
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <List dense>
-                              <ListItem><Skeleton animation="wave" variant="text" width={180} /></ListItem>
-                              <ListItem><Skeleton animation="wave" variant="text" width={140} /></ListItem>
-                            </List>
-                          </Grid>
-                        </Grid>
+                  <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1 }}>
+                    {/* 1. CAPABILITIES */}
+                    {(tech.capabilities?.tasks?.length > 0 || tech.capabilities?.modalities?.length > 0) && (
+                      <Box sx={{ mb:2 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                          {t('wizard.step5.techConfig.capabilities')}
+                        </Typography>
+                        <List dense>
+                          {tech.capabilities?.tasks?.length > 0 && (
+                            <Row label={t('wizard.step5.techConfig.tasks')} value={<ChipsShort items={tech.capabilities.tasks} />} />
+                          )}
+                          {tech.capabilities?.modalities?.length > 0 && (
+                            <Row label={t('wizard.step5.techConfig.modalities')} value={<ChipsShort items={tech.capabilities.modalities} />} />
+                          )}
+                        </List>
                       </Box>
                     )}
-                    <Box sx={{ transition:'opacity 150ms ease 60ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0.6) : 1 }}>
-                    <Divider sx={{ my: 1 }} />
-                    <Grid container spacing={1.5}>
-                      <Grid item xs={12} md={6}>
+
+                    {/* 2. ARCHITECTURE */}
+                    <Box sx={{ mb:2 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                        {t('wizard.step5.techConfig.architecture')}
+                      </Typography>
+                      <List dense>
+                        {tech.architecture?.frameworks?.length > 0 && (
+                          <Row label={t('wizard.step5.techConfig.frameworks')} value={<ChipsShort items={tech.architecture.frameworks} />} />
+                        )}
+                        {tech.architecture?.architectures?.length > 0 && (
+                          <Row label={t('wizard.step5.techConfig.architectures')} value={<ChipsShort items={tech.architecture.architectures} />} />
+                        )}
+                        {tech.architecture?.precisions?.length > 0 && (
+                          <Row label={t('wizard.step5.techConfig.precisions')} value={<ChipsShort items={tech.architecture.precisions} />} />
+                        )}
+                        <Row label={t('wizard.step5.techConfig.quantization')} value={displayValue(tech.architecture?.quantization)} />
+                        <Row label={t('wizard.step5.techConfig.modelSizeParams')} value={displayValue(tech.architecture?.modelSizeParams)} />
+                        <Row label={t('wizard.step5.techConfig.artifactSizeGB')} value={displayValue(tech.architecture?.artifactSizeGB)} />
+                        {tech.architecture?.embeddingDimension && (
+                          <Row label={t('wizard.step5.techConfig.embeddingDimension')} value={displayValue(tech.architecture.embeddingDimension, true)} />
+                        )}
+                        {tech.architecture?.modelFiles?.length > 0 && (
+                          <Row label={t('wizard.step5.techConfig.modelFiles')} value={<ChipsShort items={tech.architecture.modelFiles} />} />
+                        )}
+                      </List>
+                    </Box>
+
+                    {/* 3. TRAINING & EVALUATION (optional) */}
+                    {hasTrainingEval && (
+                      <Box sx={{ mb:2 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                          {t('wizard.step5.techConfig.trainingEval')}
+                        </Typography>
                         <List dense>
-                          <Row label={C.modelSizeParams} value={<Trunc value={metadata?.architecture?.modelSizeParams} max={24} />} />
-                          <Row label={C.artifactSizeGB} value={<Trunc value={metadata?.architecture?.artifactSizeGB} max={16} />} />
-                          <Row label={C.embeddingDimension} value={<Trunc value={metadata?.architecture?.embeddingDimension} max={16} />} />
+                          {primaryLang && (
+                            <Row label={t('wizard.step5.techConfig.primaryLanguage')} value={primaryLang} />
+                          )}
+                          {metrics && (
+                            <Row label={t('wizard.step5.techConfig.metrics')} value={metrics} />
+                          )}
                         </List>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
+                      </Box>
+                    )}
+
+                    {/* 4. RUNTIME */}
+                    <Box sx={{ mb:2 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                        {t('wizard.step5.techConfig.runtime')}
+                      </Typography>
+                      <List dense>
+                        <Row label={t('wizard.step5.techConfig.python')} value={displayValue(tech.runtime?.python)} />
+                        {tech.runtime?.os?.length > 0 && (
+                          <Row label={t('wizard.step5.techConfig.os')} value={<ChipsShort items={tech.runtime.os} />} />
+                        )}
+                        {tech.runtime?.accelerators?.length > 0 && (
+                          <Row label={t('wizard.step5.techConfig.accelerators')} value={<ChipsShort items={tech.runtime.accelerators} />} />
+                        )}
+                        <Row label={t('wizard.step5.techConfig.cuda')} value={displayValue(tech.runtime?.cuda)} />
+                        <Row label={t('wizard.step5.techConfig.torch')} value={displayValue(tech.runtime?.torch)} />
+                        <Row label={t('wizard.step5.techConfig.cudnn')} value={displayValue(tech.runtime?.cudnn)} />
+                        <Row label={t('wizard.step5.techConfig.computeCapability')} value={displayValue(tech.runtime?.computeCapability)} />
+                      </List>
+                    </Box>
+
+                    {/* 5. DEPENDENCIES */}
+                    {tech.dependencies?.pip?.length > 0 && (
+                      <Box sx={{ mb:2 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                          {t('wizard.step5.techConfig.dependencies')}
+                        </Typography>
                         <List dense>
-                          <Row label={C.dependencies} value={<ChipsShort items={metadata?.dependencies?.pip} />} />
+                          <Row label={t('wizard.step5.techConfig.dependenciesPip')} value={tech.dependencies.pip.join(' · ')} />
                         </List>
-                      </Grid>
-                    </Grid>
-                    <Divider sx={{ my: 1 }} />
-                    <Typography variant="subtitle2" sx={{ fontWeight:700, mb:0.5 }}>{C.runtime}</Typography>
-                    <Grid container spacing={1.5}>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <Row label={C.python} value={<Trunc value={metadata?.runtime?.python} max={24} />} />
-                          <Row label={C.cuda} value={<Trunc value={metadata?.runtime?.cuda} max={24} />} />
-                          <Row label={C.torch} value={<Trunc value={metadata?.runtime?.torch} max={24} />} />
-                          <Row label={C.cudnn} value={<Trunc value={metadata?.runtime?.cudnn} max={24} />} />
-                        </List>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <Row label={C.os} value={<ChipsShort items={metadata?.runtime?.os} />} />
-                          <Row label={C.accelerators} value={<ChipsShort items={metadata?.runtime?.accelerators} />} />
-                          <Row label={C.computeCapability} value={<Trunc value={metadata?.runtime?.computeCapability} max={24} />} />
-                        </List>
-                      </Grid>
-                    </Grid>
-                    <Divider sx={{ my: 1 }} />
-                    <Typography variant="subtitle2" sx={{ fontWeight:700, mb:0.5 }}>{C.resources}</Typography>
-                    <Grid container spacing={1.5}>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <Row label={C.vramGB} value={<Trunc value={metadata?.resources?.vramGB} max={12} />} />
-                          <Row label={C.cpuCores} value={<Trunc value={metadata?.resources?.cpuCores} max={12} />} />
-                        </List>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <Row label={C.ramGB} value={<Trunc value={metadata?.resources?.ramGB} max={12} />} />
-                        </List>
-                      </Grid>
-                    </Grid>
-                    <Divider sx={{ my: 1 }} />
-                    <Typography variant="subtitle2" sx={{ fontWeight:700, mb:0.5 }}>{C.inference}</Typography>
-                    <Grid container spacing={1.5}>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <Row label={C.maxBatch} value={<Trunc value={metadata?.inference?.maxBatchSize} max={12} />} />
-                          <Row label={C.contextLen} value={<Trunc value={metadata?.inference?.contextLength} max={12} />} />
-                          <Row label={C.maxTokens} value={<Trunc value={metadata?.inference?.maxTokens} max={12} />} />
-                        </List>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <List dense>
-                          <Row label={C.imageResolution} value={<Trunc value={metadata?.inference?.imageResolution} max={24} />} />
-                          <Row label={C.sampleRate} value={<Trunc value={metadata?.inference?.sampleRate} max={12} />} />
-                          <Row label={C.triton} value={<Trunc value={String(metadata?.inference?.triton)} max={8} />} />
-                          <Row label={C.refPerf} value={<Trunc value={metadata?.inference?.referencePerf} max={40} />} />
-                        </List>
-                      </Grid>
-                    </Grid>
+                      </Box>
+                    )}
+
+                    {/* 6. RESOURCES */}
+                    <Box sx={{ mb:2 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                        {t('wizard.step5.techConfig.resources')}
+                      </Typography>
+                      <List dense>
+                        <Row label={t('wizard.step5.techConfig.vramGB')} value={displayValue(tech.resources?.vramGB, true)} />
+                        <Row label={t('wizard.step5.techConfig.cpuCores')} value={displayValue(tech.resources?.cpuCores, true)} />
+                        <Row label={t('wizard.step5.techConfig.ramGB')} value={displayValue(tech.resources?.ramGB, true)} />
+                      </List>
+                    </Box>
+
+                    {/* 7. INFERENCE */}
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                        {t('wizard.step5.techConfig.inference')}
+                      </Typography>
+                      <List dense>
+                        <Row label={t('wizard.step5.techConfig.maxBatchSize')} value={displayValue(tech.inference?.maxBatchSize, true)} />
+                        <Row label={t('wizard.step5.techConfig.contextLength')} value={displayValue(tech.inference?.contextLength, true)} />
+                        <Row label={t('wizard.step5.techConfig.maxTokens')} value={displayValue(tech.inference?.maxTokens, true)} />
+                        {tech.inference?.imageResolution && (
+                          <Row label={t('wizard.step5.techConfig.imageResolution')} value={tech.inference.imageResolution} />
+                        )}
+                        {tech.inference?.sampleRate && Number(tech.inference.sampleRate) > 0 && (
+                          <Row label={t('wizard.step5.techConfig.sampleRate')} value={tech.inference.sampleRate} />
+                        )}
+                        <Row 
+                          label={t('wizard.step5.techConfig.triton')} 
+                          value={tech.inference?.triton ? t('wizard.step5.techConfig.tritonEnabled') : t('wizard.step5.techConfig.tritonDisabled')} 
+                        />
+                        {tech.inference?.referencePerf && (
+                          <Row label={t('wizard.step5.techConfig.referencePerf')} value={tech.inference.referencePerf} />
+                        )}
+                      </List>
                     </Box>
                   </Box>
                 )}
@@ -988,158 +1340,611 @@ export default function Step5ReviewPublishLocalized() {
           )
         }
         if (secId==='business') {
+          const customer = viewModel?.step2.customer || metadata?.customer || {}
+          const hasCustomerData = Boolean(
+            customer.valueProp || customer.description || customer.expectedImpact || 
+            customer.inputs || customer.outputs || customer.risks || customer.privacy || 
+            customer.support || customer.prohibited ||
+            (customer.industries && customer.industries.length > 0) ||
+            (customer.useCases && customer.useCases.length > 0) ||
+            (customer.deploy && customer.deploy.length > 0) ||
+            (customer.supportedLanguages && customer.supportedLanguages.length > 0) ||
+            (customer.examples && customer.examples.length > 0) ||
+            (viewModel?.step1.industries && viewModel.step1.industries.length > 0) ||
+            (viewModel?.step1.useCases && viewModel.step1.useCases.length > 0) ||
+            (viewModel?.step1.supportedLanguages && viewModel.step1.supportedLanguages.length > 0)
+          )
+
           return (
             <div key={secId} draggable onDragStart={()=>onDragStart(secId)} onDragOver={(e)=>onDragOver(e,secId)} onDrop={()=>onDrop(secId)}>
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
-                <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1 }}>
-                  <Typography variant="subtitle2" sx={{ color:'primary.main', fontWeight:700 }}>{B.sectionTitle}</Typography>
-                  <Tooltip title={COMMON.edit}>
-                    <IconButton size="small" href={`${base}/step2`} aria-label={COMMON.edit}>
-                      <EditOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                {/* Header with title and edit button */}
+                <Box sx={{ mb:2 }}>
+                  <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:0.5 }}>
+                    <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700 }}>
+                      {t('wizard.step5.sections.customerSheet')}
+                    </Typography>
+                    <Button 
+                      size="small" 
+                      variant="outlined" 
+                      startIcon={<EditOutlinedIcon fontSize="small" />}
+                      onClick={(e) => navigateAfterSave(e as any, `${base}/step2`)}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      {t('wizard.step5.step2Summary.editStep2')}
+                    </Button>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display:'block' }}>
+                    {t('wizard.step5.step2Summary.subtitle')}
+                  </Typography>
                 </Box>
-                <List dense>
-                  {loading ? (
-                    <>
-                      <ListItem><Skeleton animation="wave" variant="text" width={280} /></ListItem>
-                      <ListItem><Skeleton animation="wave" variant="text" width={320} /></ListItem>
-                      <ListItem><Skeleton animation="wave" variant="text" width={260} /></ListItem>
-                      <ListItem><Skeleton animation="wave" variant="text" width={240} /></ListItem>
-                    </>
-                  ) : (
-                    <Box sx={{ position:'relative', minHeight: 220 }}>
-                      {shouldFade && !loadedRemote && (
-                        <Box sx={{ position:'absolute', inset:0, pointerEvents:'none', p:1, opacity:1, transition:'opacity 150ms ease 60ms' }}>
-                          <List dense>
-                            <ListItem><Skeleton animation="wave" variant="text" width={260} /></ListItem>
-                            <ListItem><Skeleton animation="wave" variant="text" width={300} /></ListItem>
-                            <ListItem><Skeleton animation="wave" variant="text" width={280} /></ListItem>
-                            <ListItem><Skeleton animation="wave" variant="text" width={240} /></ListItem>
-                          </List>
-                        </Box>
-                      )}
-                      <Box sx={{ transition:'opacity 150ms ease 60ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0.6) : 1 }}>
-                      <Row label={B.valueProp} value={<Trunc value={metadata?.customer?.valueProp} max={80} />} />
-                      <Row label={B.description} value={<Trunc value={metadata?.customer?.description} max={100} />} />
-                      <Row label={B.industries} value={<ChipsShort items={metadata?.customer?.industries} />} />
-                      <Row label={B.useCases} value={<ChipsShort items={metadata?.customer?.useCases} />} />
-                      <Row label={B.expectedImpact} value={<Trunc value={metadata?.customer?.expectedImpact} max={120} />} />
-                      <Row label={B.inputs} value={<Trunc value={metadata?.customer?.inputs} max={120} />} />
-                      <Row label={B.outputs} value={<Trunc value={metadata?.customer?.outputs} max={120} />} />
-                      {/* Examples list */}
-                      {Array.isArray(metadata?.customer?.examples) && metadata.customer.examples.length>0 && (
-                        <Row label={B.examples} value={<Box>
-                          {(metadata.customer.examples as any[]).slice(0,3).map((e:any, i:number)=> (
-                            <Box key={i} sx={{ mb:0.5 }}>
-                              <Typography variant="caption" color="text.secondary">{`#${i+1}`}</Typography>
-                              <div><Typography variant="body2">Input: <Trunc value={e?.input} max={80} /></Typography></div>
-                              <div><Typography variant="body2">Output: <Trunc value={e?.output} max={80} /></Typography></div>
-                              {e?.note && <div><Typography variant="body2">Note: <Trunc value={e?.note} max={80} /></Typography></div>}
+
+                {loading ? (
+                  <List dense>
+                    <ListItem><Skeleton animation="wave" variant="text" width={280} /></ListItem>
+                    <ListItem><Skeleton animation="wave" variant="text" width={320} /></ListItem>
+                    <ListItem><Skeleton animation="wave" variant="text" width={260} /></ListItem>
+                    <ListItem><Skeleton animation="wave" variant="text" width={240} /></ListItem>
+                  </List>
+                ) : !hasCustomerData ? (
+                  <Alert severity="info" sx={{ mt:1 }}>
+                    {t('wizard.step5.step2Summary.emptyState')}
+                  </Alert>
+                ) : (
+                  <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1 }}>
+                    <Grid container spacing={3}>
+                      {/* LEFT COLUMN: Business narrative */}
+                      <Grid item xs={12} md={7}>
+                        <Stack spacing={2}>
+                          {/* Headline (valueProp) */}
+                          {Boolean(customer.valueProp) && (
+                            <Box>
+                              <Typography variant="h6" sx={{ fontWeight:700, color:'#fff', mb:0.5 }}>
+                                {customer.valueProp}
+                              </Typography>
                             </Box>
-                          ))}
-                        </Box>} />
-                      )}
-                      <Row label={B.risks} value={<Trunc value={metadata?.customer?.risks} max={140} />} />
-                      <Row label={B.privacy} value={<Trunc value={metadata?.customer?.privacy} max={140} />} />
-                      <Row label={B.deploy} value={<ChipsShort items={metadata?.customer?.deploy} />} />
-                      <Row label={B.support} value={<Trunc value={metadata?.customer?.support} max={80} />} />
-                      <Row label={B.supportedLanguages} value={<ChipsShort items={metadata?.customer?.supportedLanguages} />} />
-                      <Row label={B.primaryLanguage} value={<Trunc value={metadata?.customer?.primaryLanguage} max={24} />} />
-                      <Row label={B.modelType} value={<Trunc value={metadata?.capabilities?.modelType} max={24} />} />
-                      <Row label={B.metrics} value={<Trunc value={metadata?.customer?.metrics} max={80} />} />
-                      <Row label={B.prohibited} value={<Trunc value={metadata?.customer?.prohibited} max={140} />} />
-                      </Box>
-                    </Box>
-                  )}
-                </List>
+                          )}
+
+                          {/* Description */}
+                          {Boolean(customer.description) && (
+                            <Box>
+                              <Typography variant="body2" sx={{ color:'#ffffffcc' }}>
+                                {customer.description}
+                              </Typography>
+                            </Box>
+                          )}
+
+                          {/* Expected Impact */}
+                          {Boolean(customer.expectedImpact) && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontWeight:600 }}>
+                                {t('wizard.step5.step2Summary.expectedImpact')}
+                              </Typography>
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  color:'#ffffffcc',
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 3,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}
+                              >
+                                {customer.expectedImpact}
+                              </Typography>
+                            </Box>
+                          )}
+
+                          {/* How this is used (Inputs/Outputs) */}
+                          {(Boolean(customer.inputs) || Boolean(customer.outputs)) && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                                {t('wizard.step5.step2Summary.howUsed')}
+                              </Typography>
+                              <List dense sx={{ p:0 }}>
+                                {Boolean(customer.inputs) && (
+                                  <Row label={t('wizard.step5.step2Summary.inputs')} value={customer.inputs} />
+                                )}
+                                {Boolean(customer.outputs) && (
+                                  <Row label={t('wizard.step5.step2Summary.outputs')} value={customer.outputs} />
+                                )}
+                              </List>
+                            </Box>
+                          )}
+
+                          {/* I/O Examples */}
+                          {Boolean(customer.examples && Array.isArray(customer.examples) && customer.examples.length > 0) && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600 }}>
+                                {t('wizard.step5.step2Summary.ioExamples')}
+                              </Typography>
+                              <Box sx={{ p:1.5, bgcolor:'rgba(255,255,255,0.03)', borderRadius:1, border:'1px solid rgba(255,255,255,0.1)' }}>
+                                {/* First example */}
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight:600 }}>#1</Typography>
+                                  <Box sx={{ mt:0.5 }}>
+                                    <Typography variant="body2" sx={{ color:'#ffffffcc', fontSize:'0.85rem' }}>
+                                      <strong>Input:</strong> {customer.examples[0].input}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color:'#ffffffcc', fontSize:'0.85rem', mt:0.5 }}>
+                                      <strong>Output:</strong> {customer.examples[0].output}
+                                    </Typography>
+                                    {customer.examples[0].note && (
+                                      <Typography variant="body2" sx={{ color:'text.secondary', fontSize:'0.8rem', mt:0.5, fontStyle:'italic' }}>
+                                        {customer.examples[0].note}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </Box>
+                                {/* More examples indicator */}
+                                {customer.examples.length > 1 && (
+                                  <Typography variant="caption" color="primary.main" sx={{ display:'block', mt:1 }}>
+                                    + {customer.examples.length - 1} {t('wizard.step5.step2Summary.moreExamples')}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                          )}
+
+                          {/* Limitations / Risks */}
+                          {Boolean(customer.risks) && (
+                            <Box>
+                              <Typography variant="caption" sx={{ display:'block', mb:0.5, fontWeight:600, color:'warning.main' }}>
+                                ⚠️ {t('wizard.step5.step2Summary.limitations')}
+                              </Typography>
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  color:'#ffffffcc',
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 3,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}
+                              >
+                                {customer.risks}
+                              </Typography>
+                            </Box>
+                          )}
+
+                          {/* Prohibited uses */}
+                          {Boolean(customer.prohibited) && (
+                            <Box>
+                              <Typography variant="caption" sx={{ display:'block', mb:0.5, fontWeight:600, color:'error.main' }}>
+                                🚫 {t('wizard.step5.step2Summary.prohibited')}
+                              </Typography>
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  color:'#ffffffcc',
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 4,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}
+                              >
+                                {customer.prohibited}
+                              </Typography>
+                            </Box>
+                          )}
+
+                          {/* Privacy & data */}
+                          {Boolean(customer.privacy) && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontWeight:600 }}>
+                                {t('wizard.step5.step2Summary.privacy')}
+                              </Typography>
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  color:'#ffffffcc',
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 3,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}
+                              >
+                                {customer.privacy}
+                              </Typography>
+                            </Box>
+                          )}
+
+                          {/* Support & service */}
+                          {Boolean(customer.support) && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontWeight:600 }}>
+                                {t('wizard.step5.step2Summary.support')}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color:'#ffffffcc' }}>
+                                {customer.support}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Stack>
+                      </Grid>
+
+                      {/* RIGHT COLUMN: Context chips/badges */}
+                      <Grid item xs={12} md={5}>
+                        <Stack spacing={2}>
+                          {/* Business fit */}
+                          {(Boolean(customer.industries?.length) || Boolean(customer.useCases?.length) || Boolean(viewModel?.step1.industries?.length) || Boolean(viewModel?.step1.useCases?.length)) && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                                {t('wizard.step5.step2Summary.businessFit')}
+                              </Typography>
+                              <Stack spacing={1.5}>
+                                {Boolean(customer.industries?.length || viewModel?.step1.industries?.length) && (
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontSize:'0.75rem' }}>
+                                      {t('wizard.step5.step2Summary.industries')}
+                                    </Typography>
+                                    <Box sx={{ display:'flex', flexWrap:'wrap', gap:0.5 }}>
+                                      {(customer.industries || viewModel?.step1.industries || []).map((item: string, i: number) => (
+                                        <Chip key={i} label={item} size="small" variant="outlined" sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff', fontSize:'0.75rem' }} />
+                                      ))}
+                                    </Box>
+                                  </Box>
+                                )}
+                                {Boolean(customer.useCases?.length || viewModel?.step1.useCases?.length) && (
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontSize:'0.75rem' }}>
+                                      {t('wizard.step5.step2Summary.useCases')}
+                                    </Typography>
+                                    <Box sx={{ display:'flex', flexWrap:'wrap', gap:0.5 }}>
+                                      {(customer.useCases || viewModel?.step1.useCases || []).map((item: string, i: number) => (
+                                        <Chip key={i} label={item} size="small" variant="outlined" sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff', fontSize:'0.75rem' }} />
+                                      ))}
+                                    </Box>
+                                  </Box>
+                                )}
+                              </Stack>
+                            </Box>
+                          )}
+
+                          {/* Delivery & deploy */}
+                          {Boolean(customer.deploy?.length) && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontSize:'0.75rem' }}>
+                                {t('wizard.step5.step2Summary.delivery')}
+                              </Typography>
+                              <Box sx={{ display:'flex', flexWrap:'wrap', gap:0.5 }}>
+                                {customer.deploy.map((item: string, i: number) => (
+                                  <Chip key={i} label={item} size="small" variant="outlined" sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff', fontSize:'0.75rem' }} />
+                                ))}
+                              </Box>
+                            </Box>
+                          )}
+
+                          {/* Languages */}
+                          {(Boolean(customer.supportedLanguages?.length) || Boolean(customer.primaryLanguage) || Boolean(viewModel?.step1.supportedLanguages?.length)) && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontSize:'0.75rem' }}>
+                                {t('wizard.step5.step2Summary.languages')}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color:'#ffffffcc', fontSize:'0.85rem' }}>
+                                {(customer.supportedLanguages || viewModel?.step1.supportedLanguages || []).join(', ') || '-'}
+                                {customer.primaryLanguage && (
+                                  <> • <strong>{t('wizard.step5.step2Summary.primary')}:</strong> {customer.primaryLanguage}</>
+                                )}
+                              </Typography>
+                            </Box>
+                          )}
+
+                          {/* Model type */}
+                          {Boolean(customer.modelType) && (
+                            <Box>
+                              <Chip 
+                                label={`${t('wizard.step5.step2Summary.modelType')}: ${customer.modelType}`}
+                                size="small" 
+                                variant="outlined" 
+                                sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff', fontSize:'0.75rem' }} 
+                              />
+                            </Box>
+                          )}
+
+                          {/* Metrics */}
+                          {Boolean(customer.metrics) && (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:0.5, fontSize:'0.75rem' }}>
+                                {t('wizard.step5.step2Summary.metrics')}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color:'#ffffffcc', fontSize:'0.85rem' }}>
+                                {customer.metrics}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Stack>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
               </Paper>
             </div>
           )
         }
         
         if (secId==='artifacts') {
+          const artifacts = viewModel?.step3.artifacts || metadata?.artifacts || []
+          const downloadNotes = viewModel?.step3.downloadInstructions || (draft?.data?.step3 as any)?.downloadNotes || ''
+          
+          // Helper to get file icon
+          const getFileIcon = (filename: string) => {
+            const ext = filename.split('.').pop()?.toLowerCase() || ''
+            if (['zip', 'tar', 'gz', 'bz2', 'xz', '7z'].includes(ext)) return <FolderZipIcon fontSize="small" />
+            if (['py', 'js', 'ts', 'jsx', 'tsx', 'cpp', 'c', 'java', 'sh'].includes(ext)) return <CodeIcon fontSize="small" />
+            if (['pdf', 'md', 'txt', 'doc', 'docx'].includes(ext)) return <DescriptionIcon fontSize="small" />
+            return <InsertDriveFileIcon fontSize="small" />
+          }
+          
+          // Helper to format file size
+          const formatFileSize = (sizeBytes: number | undefined): string => {
+            if (!sizeBytes || sizeBytes === 0) return '–'
+            if (sizeBytes < 1024 * 1024) {
+              return `${(sizeBytes / 1024).toFixed(1)} KB`
+            }
+            return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+          }
+          
+          // Get primary weights artifact
+          const primaryWeights = artifacts.find((a: any) => a.role === 'primary-weights')
+          
+          // Get unique roles
+          const roleSet = new Set<string>((artifacts as any[])
+            .map((a: any) => (a.role as string) || 'other')
+            .filter((r: string) => r !== 'primary-weights'))
+          const uniqueRoles: string[] = Array.from(roleSet)
+          
+          // Sort artifacts: primary-weights first, then by role
+          const sortedArtifacts = [...artifacts].sort((a: any, b: any) => {
+            const roleA = a.role || 'other'
+            const roleB = b.role || 'other'
+            if (roleA === 'primary-weights') return -1
+            if (roleB === 'primary-weights') return 1
+            const roleOrder = ['adapter', 'inference-code', 'training-code', 'tokenizer', 'assets', 'other']
+            return roleOrder.indexOf(roleA) - roleOrder.indexOf(roleB)
+          })
+          
+          // Copy CID handler
+          const copyCid = (cid: string) => {
+            try {
+              navigator.clipboard.writeText(cid)
+              setCopiedCid(cid)
+              setTimeout(() => setCopiedCid(null), 2000)
+            } catch {}
+          }
+
           return (
             <div key={secId} draggable onDragStart={()=>onDragStart(secId)} onDragOver={(e)=>onDragOver(e,secId)} onDrop={()=>onDrop(secId)}>
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
-                <Typography variant="h6" sx={{ fontWeight:700, mb:1, color:'primary.main' }}>{A.sectionTitle}</Typography>
-                {(metadata?.artifacts || []).length>0 ? (
+                {/* Header */}
+                <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:2 }}>
+                  <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700 }}>
+                    {t('wizard.step5.sections.artifactsDemo')}
+                  </Typography>
+                  <Button 
+                    size="small" 
+                    variant="outlined" 
+                    startIcon={<EditOutlinedIcon fontSize="small" />}
+                    onClick={(e) => navigateAfterSave(e as any, `${base}/step3`)}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    {t('wizard.step5.artifactsDemo.editStep3')}
+                  </Button>
+                </Box>
+                
+                {artifacts.length === 0 ? (
+                  <Alert severity="info" sx={{ mt:1 }}>
+                    {t('wizard.step5.artifactsDemo.noArtifacts')}
+                  </Alert>
+                ) : (
                   <>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb:1 }}>
-                      {A.total}: {(metadata?.artifacts || []).length}
-                    </Typography>
-                    {/* Mobile stacked list */}
-                    <Box sx={{ display:{ xs:'block', md:'none' } }}>
-                      <List dense>
-                        {(metadata?.artifacts || []).map((a:any, idx:number)=> (
-                          <ListItem key={idx} sx={{ alignItems:'flex-start' }}>
-                            <Box sx={{ width:'100%' }}>
-                              <Box sx={{ display:'grid', gridTemplateColumns:'minmax(110px,40%) 1fr', columnGap:1 }}>
-                                <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{A.file}</Typography>
-                                <Typography variant="body2"><Trunc value={a.filename||'-'} max={40} /></Typography>
-                              </Box>
-                              <Box sx={{ display:'grid', gridTemplateColumns:'minmax(110px,40%) 1fr', columnGap:1, mt:0.5 }}>
-                                <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{A.cid}</Typography>
-                                <Typography variant="body2"><Trunc value={a.cid||'-'} middle /></Typography>
-                              </Box>
-                              <Box sx={{ display:'grid', gridTemplateColumns:'minmax(110px,40%) 1fr', columnGap:1, mt:0.5 }}>
-                                <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{A.uri}</Typography>
-                                <Typography variant="body2"><Trunc value={a.cid? `ipfs://${a.cid}` : '-'} middle /></Typography>
-                              </Box>
-                              <Box sx={{ display:'grid', gridTemplateColumns:'minmax(110px,40%) 1fr', columnGap:1, mt:0.5 }}>
-                                <Typography variant="body2" color="text.secondary" sx={{ fontWeight:600 }}>{A.sha256}</Typography>
-                                <Typography variant="body2"><Trunc value={a.sha256||'-'} middle /></Typography>
-                              </Box>
-                              <Box sx={{ display:'flex', justifyContent:'flex-end', mt:0.5 }}>
-                                <Tooltip title={A.view}>
-                                  <span>
-                                    <Button size="small" variant="outlined" endIcon={<OpenInNewIcon fontSize="inherit" />} disabled={!a?.cid} onClick={()=>{ if(a?.cid) window.open(`https://ipfs.io/ipfs/${a.cid}`, '_blank', 'noopener,noreferrer') }}>
-                                      {A.view}
-                                    </Button>
-                                  </span>
-                                </Tooltip>
-                              </Box>
-                            </Box>
-                          </ListItem>
-                        ))}
-                      </List>
+                    {/* Summary badges */}
+                    <Box sx={{ display:'flex', flexWrap:'wrap', gap:1, mb:2 }}>
+                      <Chip 
+                        label={`${t('wizard.step5.artifactsDemo.totalFiles')}: ${artifacts.length}`} 
+                        size="small" 
+                        variant="outlined"
+                        sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff' }}
+                      />
+                      <Chip 
+                        label={primaryWeights 
+                          ? `${t('wizard.step5.artifactsDemo.primaryWeights')}: ${primaryWeights.filename}` 
+                          : t('wizard.step5.artifactsDemo.noPrimaryWeights')
+                        }
+                        size="small" 
+                        variant="outlined"
+                        color={primaryWeights ? 'success' : 'warning'}
+                        sx={{ borderColor: primaryWeights ? 'rgba(76,175,80,0.5)' : 'rgba(255,152,0,0.5)' }}
+                      />
+                      {uniqueRoles.length > 0 && (
+                        <Chip 
+                          label={`${t('wizard.step5.artifactsDemo.rolesCovered')}: ${uniqueRoles.map((r: string) => 
+                            t(`wizard.step5.artifactsDemo.roles.${r}` as any) || r
+                          ).join(', ')}`}
+                          size="small" 
+                          variant="outlined"
+                          sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff' }}
+                        />
+                      )}
                     </Box>
-                    {/* Desktop table */}
-                    <Box sx={{ display:{ xs:'none', md:'block' } }}>
+
+                    {/* Artifacts table */}
+                    <Box sx={{ overflowX:'auto', mb:2 }}>
                       <Table size="small">
                         <TableHead>
                           <TableRow>
-                            <TableCell>{A.file}</TableCell>
-                            <TableCell>{A.cid}</TableCell>
-                            <TableCell>{A.uri}</TableCell>
-                            <TableCell>{A.sha256}</TableCell>
-                            <TableCell align="right">{A.actions}</TableCell>
+                            <TableCell sx={{ color:'#fff' }}>{t('wizard.step5.artifactsDemo.file')}</TableCell>
+                            <TableCell sx={{ color:'#fff' }}>{t('wizard.step5.artifactsDemo.cid')}</TableCell>
+                            <TableCell sx={{ color:'#fff' }}>{t('wizard.step5.artifactsDemo.size')}</TableCell>
+                            <TableCell sx={{ color:'#fff' }}>{t('wizard.step5.artifactsDemo.sha256')}</TableCell>
+                            <TableCell sx={{ color:'#fff' }}>{t('wizard.step5.artifactsDemo.notes')}</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {(metadata?.artifacts || []).map((a:any, idx:number)=> (
-                            <TableRow key={idx}>
-                              <TableCell>{a.filename||'-'}</TableCell>
-                              <TableCell>{truncateMiddle(a.cid||'-')}</TableCell>
-                              <TableCell>{a.cid? truncateMiddle(`ipfs://${a.cid}`) : '-'}</TableCell>
-                              <TableCell>{truncateMiddle(a.sha256||'-')}</TableCell>
-                              <TableCell align="right">
-                                <Tooltip title={A.view}>
-                                  <span>
-                                    <IconButton size="small" disabled={!a?.cid} onClick={()=>{ if(a?.cid) window.open(`https://ipfs.io/ipfs/${a.cid}`, '_blank', 'noopener,noreferrer') }}>
-                                      <OpenInNewIcon fontSize="inherit" />
-                                    </IconButton>
-                                  </span>
-                                </Tooltip>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {sortedArtifacts.map((a: any, idx: number) => {
+                            const role = a.role || 'other'
+                            const roleLabel = t(`wizard.step5.artifactsDemo.roles.${role}` as any) || role
+                            
+                            return (
+                              <TableRow key={idx}>
+                                {/* File column with icon, name, and role chip */}
+                                <TableCell>
+                                  <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+                                    {getFileIcon(a.filename || '')}
+                                    <Box>
+                                      <Typography variant="body2" sx={{ fontWeight:500 }}>
+                                        {a.filename || '–'}
+                                      </Typography>
+                                      <Chip 
+                                        label={roleLabel} 
+                                        size="small" 
+                                        sx={{ 
+                                          height:18, 
+                                          fontSize:'0.7rem', 
+                                          mt:0.5,
+                                          backgroundColor: role === 'primary-weights' ? 'rgba(76,175,80,0.2)' : 'rgba(255,255,255,0.1)',
+                                          color: role === 'primary-weights' ? '#4caf50' : '#ffffffcc'
+                                        }} 
+                                      />
+                                    </Box>
+                                  </Box>
+                                </TableCell>
+                                
+                                {/* CID column with copy and open buttons */}
+                                <TableCell>
+                                  <Box sx={{ display:'flex', alignItems:'center', gap:0.5 }}>
+                                    <Typography variant="body2" sx={{ fontFamily:'monospace', fontSize:'0.8rem' }}>
+                                      {a.cid ? `${a.cid.substring(0, 6)}...${a.cid.substring(a.cid.length - 4)}` : '–'}
+                                    </Typography>
+                                    {a.cid && (
+                                      <>
+                                        <Tooltip title={copiedCid === a.cid ? t('wizard.step5.artifactsDemo.copied') : t('wizard.step5.artifactsDemo.copy')}>
+                                          <IconButton size="small" onClick={() => copyCid(a.cid)} sx={{ p:0.5 }}>
+                                            {copiedCid === a.cid ? <CheckIcon fontSize="small" sx={{ color:'success.main' }} /> : <ContentCopyIcon fontSize="small" />}
+                                          </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title={t('wizard.step5.artifactsDemo.open')}>
+                                          <IconButton 
+                                            size="small" 
+                                            onClick={() => window.open(`https://ipfs.io/ipfs/${a.cid}`, '_blank', 'noopener,noreferrer')} 
+                                            sx={{ p:0.5 }}
+                                          >
+                                            <OpenInNewIcon fontSize="small" />
+                                          </IconButton>
+                                        </Tooltip>
+                                      </>
+                                    )}
+                                  </Box>
+                                </TableCell>
+                                
+                                {/* Size column */}
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {formatFileSize(a.sizeBytes)}
+                                  </Typography>
+                                </TableCell>
+                                
+                                {/* SHA-256 column with tooltip */}
+                                <TableCell>
+                                  {a.sha256 ? (
+                                    <Tooltip title={`${t('wizard.step5.artifactsDemo.viewSha')}: ${a.sha256}`}>
+                                      <Typography variant="body2" sx={{ fontFamily:'monospace', fontSize:'0.8rem', cursor:'help' }}>
+                                        {a.sha256.substring(0, 10)}...
+                                      </Typography>
+                                    </Tooltip>
+                                  ) : (
+                                    <Typography variant="body2">–</Typography>
+                                  )}
+                                </TableCell>
+                                
+                                {/* Notes column with tooltip */}
+                                <TableCell>
+                                  {a.notes ? (
+                                    <Tooltip title={`${t('wizard.step5.artifactsDemo.viewNotes')}: ${a.notes}`}>
+                                      <Typography 
+                                        variant="body2" 
+                                        sx={{ 
+                                          maxWidth: 150,
+                                          whiteSpace: 'nowrap',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          cursor:'help'
+                                        }}
+                                      >
+                                        {a.notes}
+                                      </Typography>
+                                    </Tooltip>
+                                  ) : (
+                                    <Typography variant="body2">–</Typography>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
                         </TableBody>
                       </Table>
                     </Box>
+
+                    {/* Demo instructions section */}
+                    {downloadNotes && (
+                      <Box sx={{ mt:2 }}>
+                        <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                            {t('wizard.step5.artifactsDemo.demoInstructions')}
+                          </Typography>
+                          <Button 
+                            size="small" 
+                            onClick={() => setShowFullInstructions(!showFullInstructions)}
+                            endIcon={showFullInstructions ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                            sx={{ textTransform: 'none', fontSize:'0.75rem' }}
+                          >
+                            {showFullInstructions ? t('wizard.step5.artifactsDemo.hideInstructions') : t('wizard.step5.artifactsDemo.showFullInstructions')}
+                          </Button>
+                        </Box>
+                        <Paper 
+                          variant="outlined" 
+                          sx={{ 
+                            p:1.5, 
+                            bgcolor:'rgba(0,0,0,0.2)', 
+                            maxHeight: showFullInstructions ? 'none' : 120,
+                            overflow: showFullInstructions ? 'visible' : 'hidden',
+                            position: 'relative'
+                          }}
+                        >
+                          <Typography 
+                            variant="body2" 
+                            component="pre" 
+                            sx={{ 
+                              fontFamily:'monospace', 
+                              fontSize:'0.8rem', 
+                              color:'#ffffffcc',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              m:0
+                            }}
+                          >
+                            {downloadNotes}
+                          </Typography>
+                          {!showFullInstructions && downloadNotes.split('\n').length > 5 && (
+                            <Box 
+                              sx={{ 
+                                position:'absolute', 
+                                bottom:0, 
+                                left:0, 
+                                right:0, 
+                                height:40, 
+                                background:'linear-gradient(to bottom, transparent, rgba(0,0,0,0.8))' 
+                              }} 
+                            />
+                          )}
+                        </Paper>
+                      </Box>
+                    )}
                   </>
-                ) : (
-                  <Alert severity="info">{locale==='es' ? 'No hay artefactos' : 'No artifacts'}</Alert>
                 )}
               </Paper>
             </div>
@@ -1158,7 +1963,7 @@ export default function Step5ReviewPublishLocalized() {
           </Alert>
         )}
         <FormControlLabel
-          sx={{ color:'#fff', alignItems:'flex-start', '& .MuiSvgIcon-root': { color:'#fff' } }}
+          sx={{ color:'#fff', alignItems:'center', '& .MuiSvgIcon-root': { color:'#fff' }, '& .MuiFormControlLabel-label': { lineHeight: 1.4 } }}
           control={<Checkbox
             checked={accepted}
             onChange={(e)=>setAccepted(e.target.checked)}
@@ -1191,26 +1996,27 @@ export default function Step5ReviewPublishLocalized() {
         </Paper>
       )}
 
-      <Box sx={{ height: { xs: 76, md: 72 }, mt: 2 }} />
+      <Box sx={{ height: { xs: 76, md: 76 }, mt: 2 }} />
 
-      <Box sx={{ position:'fixed', bottom: 0, left: 0, right: 0, zIndex: (t)=>t.zIndex.appBar + 1 }}>
-        <Paper elevation={3} sx={{ borderRadius: 0, px: { xs:1.5, md:2 }, py: 1 }}>
-          <Box sx={{ maxWidth: 1000, mx: 'auto', width:'100%' }}>
-            <Box sx={{ display:{ xs:'flex', md:'none' }, alignItems:'center', justifyContent:'flex-start', width:'100%' }}>
-              <Button size="small" href={`${base}/step4`} variant="text" color="inherit" startIcon={<ArrowBackIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 0.75, whiteSpace:'nowrap', fontSize:{ xs:12, md:14 }, '& .MuiButton-startIcon': { mr: 0.5, '& svg': { fontSize: 18 } } }}>
-                {t('wizard.common.back')}
-              </Button>
-            </Box>
-
-            <Box sx={{ display:{ xs:'none', md:'flex' }, alignItems:'center', justifyContent:'space-between', gap: 1.25 }}>
-              <Button href={`${base}/step4`} variant="text" color="inherit" startIcon={<ArrowBackIcon />} sx={{ borderRadius: 2, textTransform:'none', py: 1 }}>
-                {t('wizard.common.back')}
-              </Button>
-              <Box sx={{ display:'flex', gap: 1.25 }}></Box>
-            </Box>
-          </Box>
-        </Paper>
-      </Box>
+      <WizardFooter
+        currentStep={5}
+        totalSteps={5}
+        stepTitle={t('wizard.step5.title')}
+        onBack={() => { window.location.href = `${base}/step4` }}
+        onSaveDraft={() => { /* optional on step 5; no-op */ }}
+        onNext={() => { if (publishing || issues.length>0 || !accepted) return; onPublish() }}
+        isNextDisabled={publishing || issues.length>0 || !accepted}
+        isSaving={false}
+        isLastStep={true}
+        backLabel={t('wizard.common.back')}
+        saveDraftLabel={t('wizard.common.saveDraft')}
+        savingLabel={t('wizard.common.saving')}
+        nextLabel={t('wizard.index.publish')}
+        publishLabel={t('wizard.index.publish')}
+        hideSaveDraft
+        hideNext
+        hideBack
+      />
 
       {/* Dialog to reset wizard after successful publish */}
       <Dialog open={resetOpen} onClose={()=>setResetOpen(false)} maxWidth="xs" fullWidth>
@@ -1237,5 +2043,6 @@ export default function Step5ReviewPublishLocalized() {
       {msg && <p>{msg}</p>}
       </Box>
     </Box>
+    </WizardThemeProvider>
   )
 }

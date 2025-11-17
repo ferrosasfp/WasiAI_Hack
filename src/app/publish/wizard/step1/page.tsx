@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef, useState, useEffect } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   Box,
   Stack,
@@ -34,32 +34,13 @@ import LanguageIcon from '@mui/icons-material/Language'
 import TwitterIcon from '@mui/icons-material/Twitter'
 import LinkedInIcon from '@mui/icons-material/LinkedIn'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
-import NextDynamic from 'next/dynamic'
 
-export const dynamic = 'force-dynamic'
 async function saveDraft(payload: any) {
-  let addr: string | null = null
-  try {
-    addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null)
-  } catch {}
-  const res = await fetch('/api/models/draft', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(addr ? { 'X-Wallet-Address': addr } : {}) },
-    body: JSON.stringify(addr ? { ...payload, address: addr } : payload)
-  })
+  const res = await fetch('/api/models/draft', { method: 'POST', body: JSON.stringify(payload) })
   return res.json()
 }
 
-async function loadDraft() {
-  let addr: string | null = null
-  try {
-    addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null)
-  } catch {}
-  const res = await fetch('/api/models/draft' + (addr ? `?address=${addr}` : ''), { method: 'GET', headers: addr ? { 'X-Wallet-Address': addr } : {} })
-  return res.json()
-}
-
-function Step1BasicsImpl() {
+export default function Step1Basics() {
   const detectedLocale = typeof window !== 'undefined' ? (['en','es'].includes((window.location.pathname.split('/')[1]||'').toLowerCase()) ? window.location.pathname.split('/')[1] : 'en') : 'en'
   if (typeof window !== 'undefined' && !/^\/(en|es)\//.test(window.location.pathname)) {
     window.location.replace(`/${detectedLocale}/publish/wizard/step1`)
@@ -102,35 +83,6 @@ function Step1BasicsImpl() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [errors, setErrors] = useState<{name?:string; slug?:string; categories?:string}>({})
   const { walletAddress } = useWalletAddress()
-
-  // Autoload draft on mount and when wallet changes
-  useEffect(() => {
-    let alive = true
-    loadDraft().then((r)=>{
-      if (!alive) return
-      const s1 = r?.data?.step1
-      if (!s1) return
-      setName(s1.name || '')
-      setShortSummary(s1.shortSummary || '')
-      setSlug(s1.slug || '')
-      setCategoriesSel(Array.isArray(s1.categories)? s1.categories : [])
-      setTagsSel(Array.isArray(s1.tags)? s1.tags : [])
-      const disp = s1?.author?.displayName || ''
-      setAuthorDisplay(disp)
-      const links = (s1?.author?.links && typeof s1.author.links === 'object') ? s1.author.links : {}
-      setSocialValues(links)
-      const cov = s1?.cover
-      if (cov?.cid || cov?.thumbCid) {
-        setCoverCid(cov?.cid || '')
-        setCoverThumbCid(cov?.thumbCid || '')
-        setCoverMime(cov?.mime || '')
-        setCoverSize(Number(cov?.size||0))
-        const url = cov?.thumbCid ? `https://ipfs.io/ipfs/${cov.thumbCid}` : (cov?.cid ? `https://ipfs.io/ipfs/${cov.cid}` : '')
-        if (url) setCoverDisplayUrl(url)
-      }
-    }).catch(()=>{})
-    return () => { alive = false }
-  }, [walletAddress])
 
   const onNameChange = (v: string) => {
     setName(v)
@@ -278,20 +230,10 @@ function Step1BasicsImpl() {
       setCoverMime(f.type)
       setCoverSize(f.size)
       setCoverMsg('Portada subida')
-      // Mostrar de inmediato la preview local y promover a IPFS con verificación de gateways
+      // Mostrar de inmediato la preview local y promover a IPFS en segundo plano
       if (coverPreview) setCoverDisplayUrl(coverPreview)
       setPromoting(true)
-      try {
-        const ok1 = await promoteCoverToIPFS(coverVersion)
-        if (!ok1) {
-          // Intentar re-pin por CID en Pinata y reintentar promoción
-          try { await fetch('/api/ipfs/pin-cid', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ cid: main.cid, name: `cover-${slug||name||'model'}` }) }) } catch {}
-          try { await fetch('/api/ipfs/pin-cid', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ cid: thumb.cid, name: `cover-thumb-${slug||name||'model'}` }) }) } catch {}
-          await promoteCoverToIPFS(coverVersion)
-        }
-      } finally {
-        setPromoting(false)
-      }
+      promoteCoverToIPFS(coverVersion).finally(()=>setPromoting(false))
       // Unpin previos
       if (prevMain && prevMain!==main.cid) unpinCid(prevMain)
       if (prevThumb && prevThumb!==thumb.cid) unpinCid(prevThumb)
@@ -319,7 +261,6 @@ function Step1BasicsImpl() {
       step: 'step1',
       data: {
         name, shortSummary,
-        slug,
         categories: categoriesSel,
         tags: tagsSel,
         author: { displayName: authorDisplay, links: linksObj },
@@ -588,8 +529,6 @@ function Step1BasicsImpl() {
     </Box>
   )
 }
-
-export default NextDynamic(() => Promise.resolve(Step1BasicsImpl), { ssr: false })
 
 function safeIsJson(s: string) {
   try { JSON.parse(s); return true } catch { return false }
