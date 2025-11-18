@@ -10,6 +10,7 @@ import RocketIcon from '@mui/icons-material/RocketLaunch'
 import { ModelCard } from '@/components/ModelCard'
 import { useWalletEcosystem } from '@/contexts/WalletEcosystemContext'
 import { useChainId as useEvmChainId, useConfig as useWagmiConfig, useAccount as useEvmAccount } from 'wagmi'
+import { ipfsToApiRoute } from '@/config'
 
 type ApiModel = {
   objectId: string
@@ -114,36 +115,13 @@ export default function ExploreModelsPage() {
         const j = await r.json().catch(()=>({}))
         // API indexada devuelve {models: [], total, page, pages}
         const arr = Array.isArray(j?.models) ? j.models as any[] : []
-        // hydrate images similar to non-locale page
-        const gateway = (process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://gateway.pinata.cloud')
-        const toHttpFromIpfs = (u: string): string => {
-          if (!u) return ''
-          if (u.startsWith('ipfs://')) return `/api/ipfs/ipfs/${u.replace('ipfs://','')}`
-          if (u.startsWith('/ipfs/')) return `/api/ipfs${u}`
-          if (u.startsWith('http://') || u.startsWith('https://')) {
-            try {
-              const url = new URL(u)
-              if (url.hostname.includes('pinata.cloud') || url.hostname.includes('ipfs.io')) {
-                const idx = url.pathname.indexOf('/ipfs/')
-                if (idx >= 0) {
-                  const rest = url.pathname.substring(idx + '/ipfs/'.length)
-                  return `/api/ipfs/ipfs/${rest}`
-                }
-              }
-            } catch {}
-            return u
-          }
-          return `/api/ipfs/ipfs/${u}`
-        }
-        const toApiFromIpfs = (u: string): string => {
-          if (!u) return ''
-          if (u.startsWith('http://') || u.startsWith('https://')) return u // already http json, fetch directly
-          if (u.startsWith('ipfs://')) return `/api/ipfs/ipfs/${u.replace('ipfs://','')}`
-          if (u.startsWith('/ipfs/')) return `/api/ipfs${u}`
-          return `/api/ipfs/ipfs/${u}`
-        }
+        // hydrate images using centralized IPFS config
+        const hydrated = arr.map(model => ({
+          ...model,
+          imageUrl: ipfsToApiRoute(model.imageUrl || '')
+        }))
         // Transform indexed API response (already has metadata cached!)
-        const withImages: ApiModel[] = arr.map((m: any) => {
+        const withImages: ApiModel[] = hydrated.map((m: any) => {
           const meta = m.metadata || {}
           return {
             objectId: String(m?.model_id || ''),

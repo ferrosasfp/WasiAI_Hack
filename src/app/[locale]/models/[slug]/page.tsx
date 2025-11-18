@@ -21,7 +21,10 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import { SvgIcon } from '@mui/material'
 import { mockModels } from '@/data/mockModels'
-import { Row, ChipsShort, displayValue, formatPriceDisplay } from '@/components/ModelDetailShared'
+import Link from 'next/link'
+import ModelDetailView, { ModelDetailData } from '@/components/ModelDetailView'
+import { ipfsToHttp, extractCid } from '@/config'
+import { formatPriceDisplay, Row, ChipsShort, displayValue } from '@/components/ModelDetailShared'
 
 const XIcon = (props: any) => (
   <SvgIcon {...props} viewBox="0 0 24 24">
@@ -44,7 +47,7 @@ export default function ModelDetailPage({ params }: { params: { slug: string } }
   const metadata = useMemo(() => ({
     name: m.name,
     tagline: m.valueProposition || m.summary,
-    cover: m.cover ? { cid: m.cover.replace('https://ipfs.io/ipfs/', '') } : undefined,
+    cover: m.cover ? { cid: extractCid(m.cover) } : undefined,
     businessCategory: (m.categories && m.categories[0]) || undefined,
     modelType: (m.tasks && m.tasks[0]) || undefined,
     author: {
@@ -210,7 +213,7 @@ export default function ModelDetailPage({ params }: { params: { slug: string } }
                     border:'1px solid rgba(255,255,255,0.1)'
                   }}>
                     <img
-                      src={`https://ipfs.io/ipfs/${metadata.cover.cid}`}
+                      src={ipfsToHttp(metadata.cover.cid)}
                       alt="Model cover"
                       style={{ maxWidth: '100%', width: '100%', height: 'auto', maxHeight: 200, borderRadius: 8, objectFit: 'cover', display: 'block' }}
                     />

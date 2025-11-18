@@ -18,7 +18,9 @@ import DescriptionIcon from '@mui/icons-material/Description'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import { SvgIcon } from '@mui/material'
-import { Row, ChipsShort, displayValue, formatPriceDisplay } from '@/components/ModelDetailShared'
+import Link from 'next/link'
+import { ChipsShort, Row, displayValue, formatPriceDisplay } from '@/components/ModelDetailShared'
+import { ipfsToHttp } from '@/config'
 
 const XIcon = (props: any) => (
   <SvgIcon {...props} viewBox="0 0 24 24">
@@ -180,7 +182,7 @@ export default function ModelDetailView({ data, isES, labels, onBuyLicense, onTr
     return <InsertDriveFileIcon fontSize="small" />
   }
 
-  const coverUrl = data.cover?.url || (data.cover?.cid ? `https://ipfs.io/ipfs/${data.cover.cid}` : undefined)
+  const coverUrl = data.cover?.url || (data.cover?.cid ? ipfsToHttp(data.cover.cid) : undefined)
 
   return (
     <>
