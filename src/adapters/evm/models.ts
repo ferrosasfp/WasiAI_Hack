@@ -3,8 +3,49 @@ import { createPublicClient, http, Address } from 'viem'
 import type { Abi } from 'viem'
 import MARKET_ARTIFACT from '@/abis/Marketplace.json'
 import { avalanche, avalancheFuji, base, baseSepolia } from 'viem/chains'
-import type { IModelsService } from '@/domain/models/service'
-import type { GetModelsPageParams, ModelInfo, ModelSummary } from '@/domain/models/types'
+
+// Local type definitions (domain layer removed)
+export type GetModelsPageParams = {
+  start: number
+  limit: number
+  order?: 'recent' | 'featured' | 'recent_asc'
+  listedOnly?: boolean
+  q?: string
+}
+
+export type ModelSummary = {
+  id: number
+  owner?: string
+  listed?: boolean
+  price_perpetual?: number
+  price_subscription?: number
+  default_duration_days?: number
+  version?: number
+  uri?: string
+  name?: string
+}
+
+export type ModelInfo = {
+  id: number
+  owner?: string
+  creator?: string
+  listed?: boolean
+  price_perpetual?: number
+  price_subscription?: number
+  default_duration_days?: number
+  version?: number
+  uri?: string
+  name?: string
+  royalty_bps?: number
+  delivery_rights_default?: number
+  delivery_mode_hint?: number
+  terms_hash?: string
+}
+
+export interface IModelsService {
+  getModelsPage(params: GetModelsPageParams): Promise<ModelSummary[]>
+  getModelInfo(id: number): Promise<ModelInfo | null>
+}
 
 const MARKET_ABI = (MARKET_ARTIFACT as any).abi as Abi
 
