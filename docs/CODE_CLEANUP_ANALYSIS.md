@@ -2,6 +2,7 @@
 
 **Generated**: Nov 17, 2025
 **Purpose**: Identify dead code, duplicates, and technical debt for safe removal
+**Status**: Phase 1 & 2 COMPLETED ✅
 
 ---
 
@@ -9,26 +10,30 @@
 
 After deep analysis of the codebase, identified **4 cleanup phases** organized by safety and impact:
 
-- **Phase 1**: 100% safe deletions (backup files, debug logs)
-- **Phase 2**: SUI-related code (disabled for MVP, can be removed)
-- **Phase 3**: Obsolete API routes (replaced by indexed APIs)
-- **Phase 4**: Duplicate/deprecated pages (requires careful testing)
+- **Phase 1**: ✅ COMPLETED - 100% safe deletions (backup files, debug logs)
+- **Phase 2**: ✅ COMPLETED - SUI-related code (disabled for MVP, removed)
+- **Phase 3**: PENDING - Obsolete API routes (replaced by indexed APIs)
+- **Phase 4**: PENDING - Duplicate/deprecated pages (requires careful testing)
 
-**Total estimated reduction**: ~2,000-3,000 lines of dead code
+**Progress**: 7,693 lines of dead code removed (Phase 1 & 2)
+**Total estimated reduction**: ~2,000-3,000 lines remaining
 
 ---
 
-## 📋 Phase 1: 100% Safe Deletions
+## 📋 Phase 1: 100% Safe Deletions ✅ COMPLETED
 
-### 1.1 Backup Files ✅ SAFE TO DELETE
+### Results:
+- ✅ Deleted 1 backup file (1,982 lines)
+- ✅ Removed 36 lines of debug logs from 3 files
+- ✅ Fixed Prisma schema bug (added @updatedAt)
+- **Total**: 2,018 lines removed
+- **Commit**: `556abdfd`
+
+### 1.1 Backup Files ✅ DELETED
 
 ```
-src/app/[locale]/publish/wizard/step5/page.tsx.backup
+src/app/[locale]/publish/wizard/step5/page.tsx.backup (1,982 lines)
 ```
-
-**Reason**: Backup file from refactoring. Current version is stable.
-
-**Action**: `rm src/app/[locale]/publish/wizard/step5/page.tsx.backup`
 
 ---
 
@@ -79,9 +84,18 @@ console.log('🔍 DEBUG - viewModel.step2.technical:', vm?.step2?.technical)
 
 ---
 
-## 📋 Phase 2: SUI-Related Code (MVP Disabled)
+## 📋 Phase 2: SUI-Related Code ✅ COMPLETED
 
-### 2.1 SUI Adapter & Libs 🔴 CAN BE REMOVED (MVP ONLY USES EVM)
+### Results:
+- ✅ Deleted 31 files (5,675 lines)
+- ✅ Removed all SUI blockchain integration
+- ✅ Removed obsolete pages without locale prefix
+- ✅ Removed obsolete API routes (SUI-based and replaced)
+- ✅ Updated EVM adapter with inlined types
+- **Total**: 5,675 lines removed
+- **Commit**: `252d8998`
+
+### 2.1 SUI Adapter & Libs ✅ DELETED
 
 ```
 src/adapters/sui/                    # SUI blockchain adapters
