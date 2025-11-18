@@ -24,6 +24,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility'
 import EditIcon from '@mui/icons-material/Edit'
 import { useLocale, useTranslations } from 'next-intl'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
+import { CHAIN_IDS, getChainConfig, getNativeSymbol, getMarketAddress, getRpcUrl } from '@/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,12 +84,11 @@ export default function Step4LicensesTermsLocalized() {
   const [loadedRemote, setLoadedRemote] = useState(false)
   const isResetting = () => { try { return localStorage.getItem('wizard_resetting')==='1' || sessionStorage.getItem('wizard_resetting')==='1' } catch { return false } }
 
-  const MARKET_ADDRS: Record<number, string> = useMemo(() => ({
-    84532: process.env.NEXT_PUBLIC_EVM_MARKET_84532 || '',
-    8453: process.env.NEXT_PUBLIC_EVM_MARKET_8453 || '',
-    43113: process.env.NEXT_PUBLIC_EVM_MARKET_43113 || '',
-    43114: process.env.NEXT_PUBLIC_EVM_MARKET_43114 || '',
-  }), [])
+  const MARKET_ADDRS: Record<number, string> = useMemo(() => {
+    // Use centralized chain configuration
+    const ids = [CHAIN_IDS.BASE_SEPOLIA, CHAIN_IDS.BASE_MAINNET, CHAIN_IDS.AVALANCHE_FUJI, CHAIN_IDS.AVALANCHE_MAINNET]
+    return Object.fromEntries(ids.map(id => [id, getMarketAddress(id) || '']))
+  }, [])
 
   const rightsMask = useMemo(() => {
     const r:string[] = []
@@ -471,12 +471,12 @@ export default function Step4LicensesTermsLocalized() {
     const applyByChain = (chainIdHex?: string) => {
       try {
         const id = chainIdHex ? parseInt(chainIdHex, 16) : null
-        if (id) setChainId(id)
-        // Base: mainnet 8453, sepolia 84532 -> ETH
-        // Avalanche: mainnet 43114, fuji 43113 -> AVAX
-        if (id === 43114 || id === 43113) setUnit('AVAX')
-        else if (id === 8453 || id === 84532) setUnit('ETH')
-        else setUnit('ETH')
+        if (id) {
+          setChainId(id)
+          // Use centralized chain configuration for symbol
+          const symbol = getNativeSymbol(id)
+          setUnit(symbol as 'AVAX' | 'ETH')
+        }
       } catch { setUnit('ETH') }
     }
     const init = async () => {
@@ -490,9 +490,8 @@ export default function Step4LicensesTermsLocalized() {
           const defId = Number(process.env.NEXT_PUBLIC_EVM_CHAIN_ID || 0) || null
           if (defId) {
             setChainId(defId)
-            if (defId === 43114 || defId === 43113) setUnit('AVAX')
-            else if (defId === 8453 || defId === 84532) setUnit('ETH')
-            else setUnit('ETH')
+            const symbol = getNativeSymbol(defId)
+            setUnit(symbol as 'AVAX' | 'ETH')
           }
         }
       } catch {}
@@ -521,10 +520,8 @@ export default function Step4LicensesTermsLocalized() {
         if (eth?.request) {
           provider = new BrowserProvider(eth)
         } else {
-          // Public RPC fallback by chainId
-          let url = ''
-          if (chainId === 8453 || chainId === 84532) url = process.env.RPC_BASE || 'https://sepolia.base.org'
-          if (chainId === 43114 || chainId === 43113) url = process.env.RPC_AVAX || 'https://api.avax-test.network/ext/bc/C/rpc'
+          // Public RPC fallback using centralized config
+          const url = chainId ? getRpcUrl(chainId) : null
           if (!url) { setFeeBpsOnChain(null); return }
           provider = new JsonRpcProvider(url, chainId || undefined)
         }

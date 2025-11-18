@@ -1,4 +1,5 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getPinataEndpoint } from '@/config';
 
 export const runtime = 'nodejs';
 
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
       }
       const form = new FormData();
       form.append('file', file, name);
-      const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+      const res = await fetch(getPinataEndpoint('pinFile'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${gatewayJwt}` },
         body: form as any,
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
       const bytes = new Uint8Array(b64ToBuffer(b64));
       const blob = new Blob([bytes]);
       form.append('file', blob, filename);
-      const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+      const res = await fetch(getPinataEndpoint('pinFile'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${gatewayJwt}` },
         body: form as any,
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
     // json
     const jsonObj = body?.json;
     if (!jsonObj || typeof jsonObj !== 'object') return new Response(JSON.stringify({ error: 'json object required' }), { status: 400, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
-    const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+    const res = await fetch(getPinataEndpoint('pinJson'), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${gatewayJwt}`,

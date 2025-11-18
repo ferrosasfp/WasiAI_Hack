@@ -18,6 +18,7 @@ import MARKET_ARTIFACT from '@/abis/Marketplace.json'
 import Link from 'next/link'
 import { useLocale } from 'next-intl'
 import { createViewModelFromPublished } from '@/viewmodels'
+import { getMarketAddress } from '@/config'
 
 const globalCache = globalThis as any
 globalCache.__LICENSE_STATUS_CACHE = globalCache.__LICENSE_STATUS_CACHE || new Map<string, { data: any; ts: number }>()
@@ -33,13 +34,8 @@ function useMarketAddress(chainId: number | undefined) {
   return React.useMemo(() => {
     try {
       if (typeof chainId !== 'number') return undefined
-      const map: Record<number, `0x${string}` | undefined> = {
-        43113: (process.env.NEXT_PUBLIC_EVM_MARKET_43113 as any),
-        43114: (process.env.NEXT_PUBLIC_EVM_MARKET_43114 as any),
-        84532: (process.env.NEXT_PUBLIC_EVM_MARKET_84532 as any),
-        8453: (process.env.NEXT_PUBLIC_EVM_MARKET_8453 as any),
-      }
-      return map[chainId]
+      // Use centralized chain configuration
+      return getMarketAddress(chainId) as `0x${string}` | undefined
     } catch { return undefined }
   }, [chainId])
 }

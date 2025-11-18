@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getPinataEndpoint } from '@/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,7 @@ async function pinByHash(cid: string, name?: string) {
   const body: any = { hashToPin: cid }
   if (name) body.pinataMetadata = { name }
 
-  const res = await fetch('https://api.pinata.cloud/pinning/pinByHash', {
+  const res = await fetch(getPinataEndpoint('pinCid'), {
     method: 'POST',
     headers,
     body: JSON.stringify(body),

@@ -26,6 +26,7 @@ import GitHubIcon from '@mui/icons-material/GitHub'
 import LanguageIcon from '@mui/icons-material/Language'
 import LinkedInIcon from '@mui/icons-material/LinkedIn'
 import PersonIcon from '@mui/icons-material/Person'
+import { getMarketAddress, getChainConfig } from '@/config'
 
 export type ModelPageClientProps = {
   modelId: number
@@ -479,14 +480,8 @@ export default function ModelPageClient(props: ModelPageClientProps) {
   const marketAddress = React.useMemo(() => {
     try {
       if (typeof evmChainId !== 'number') return undefined
-      // Use explicit env references so Next.js inlines them at build time
-      const map: Record<number, `0x${string}` | undefined> = {
-        43113: (process.env.NEXT_PUBLIC_EVM_MARKET_43113 as any),
-        43114: (process.env.NEXT_PUBLIC_EVM_MARKET_43114 as any),
-        84532: (process.env.NEXT_PUBLIC_EVM_MARKET_84532 as any),
-        8453: (process.env.NEXT_PUBLIC_EVM_MARKET_8453 as any),
-      }
-      return map[evmChainId]
+      // Use centralized chain configuration
+      return getMarketAddress(evmChainId) as `0x${string}` | undefined
     } catch { return undefined }
   }, [evmChainId])
 
@@ -565,10 +560,10 @@ export default function ModelPageClient(props: ModelPageClientProps) {
   }, [evmChainId, chains])
 
   const chainIconSrc = React.useMemo(() => {
-    const id = evmChainId
-    if (id === 43113 || id === 43114) return '/icons/avalanche.svg'
-    if (id === 84532 || id === 8453) return '/icons/base.svg'
-    return undefined
+    if (!evmChainId) return undefined
+    // Use centralized chain configuration
+    const config = getChainConfig(evmChainId)
+    return config?.icon
   }, [evmChainId])
 
   const truncateAddr = React.useCallback((s: any) => {
@@ -578,10 +573,9 @@ export default function ModelPageClient(props: ModelPageClientProps) {
   }, [])
 
   const ChainIcon: React.FC = React.useCallback(() => {
-    const id = evmChainId
-    const color = (id === 43113 || id === 43114) ? '#E84142' /* Avalanche */
-      : (id === 84532 || id === 8453) ? '#0052FF' /* Base */
-      : '#627EEA' /* Ethereum default */
+    // Use centralized chain configuration for color
+    const config = evmChainId ? getChainConfig(evmChainId) : null
+    const color = config?.color || '#627EEA' /* Ethereum default */
     return (
       <SvgIcon fontSize="small" sx={{ color }} viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="9" fill="currentColor" />

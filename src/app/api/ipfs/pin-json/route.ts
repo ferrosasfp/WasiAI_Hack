@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPinataEndpoint } from '@/config'
 
 async function pinJsonToPinata(payload: any): Promise<{ cid: string; uri: string }> {
   const jwt = process.env.PINATA_JWT
   const apiKey = process.env.PINATA_API_KEY
   const secret = process.env.PINATA_SECRET_KEY
-  const url = 'https://api.pinata.cloud/pinning/pinJSONToIPFS'
+  const url = getPinataEndpoint('pinJson')
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (jwt) headers['Authorization'] = `Bearer ${jwt}`
   else if (apiKey && secret) {
