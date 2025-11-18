@@ -27,6 +27,9 @@ import LanguageIcon from '@mui/icons-material/Language'
 import LinkedInIcon from '@mui/icons-material/LinkedIn'
 import PersonIcon from '@mui/icons-material/Person'
 import { getMarketAddress, getChainConfig } from '@/config'
+import { ModelEditControls } from '@/components/ModelEditControls'
+import { QuickEditDrawer } from '@/components/QuickEditDrawer'
+import { rightsBitmaskToArray } from '@/adapters/evm/write'
 
 export type ModelPageClientProps = {
   modelId: number
@@ -308,8 +311,11 @@ export default function ModelPageClient(props: ModelPageClientProps) {
   const [snkOpen, setSnkOpen] = React.useState(false)
   const [snkMsg, setSnkMsg] = React.useState<string>('')
   const [snkSev, setSnkSev] = React.useState<'success'|'error'|'info'|'warning'>('info')
-  const { isConnected, chain } = useAccount()
+  const { isConnected, chain, address: currentAddress } = useAccount()
   const { walletAddress } = useWalletAddress()
+  
+  // Edit controls state
+  const [quickEditOpen, setQuickEditOpen] = React.useState(false)
   const entitlementsKey = walletAddress && id ? ['entitlements', id, walletAddress.toLowerCase(), evmChainId || 'default'] : null
   const entitlementsFetcher = React.useCallback(async () => {
     if (!walletAddress || !id) return null
@@ -1408,6 +1414,16 @@ export default function ModelPageClient(props: ModelPageClientProps) {
               </Grid>
             </Paper>
 
+            {/* Edit controls (solo owner) */}
+            {data && evmChainId && (
+              <ModelEditControls
+                modelId={id}
+                ownerAddress={data.owner || ''}
+                currentAddress={currentAddress}
+                onQuickEdit={() => setQuickEditOpen(true)}
+              />
+            )}
+
             {/* Licenses - como Step 5 */}
             <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2, bgcolor:'rgba(255,255,255,0.02)' }}>
               <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700, mb:2 }}>
@@ -1584,6 +1600,30 @@ export default function ModelPageClient(props: ModelPageClientProps) {
           {snkMsg}
         </Alert>
       </Snackbar>
+      
+      {/* Quick Edit Drawer */}
+      {data && evmChainId && (
+        <QuickEditDrawer
+          open={quickEditOpen}
+          onClose={() => setQuickEditOpen(false)}
+          modelId={id}
+          chainId={evmChainId}
+          chainSymbol={evmSymbol}
+          initialValues={{
+            pricePerpetual: String(data.price_perpetual || '0'),
+            priceSubscription: String(data.price_subscription || '0'),
+            defaultDurationMonths: Math.floor((data.default_duration_days || 30) / 30),
+            rights: rightsBitmaskToArray(data.delivery_rights_default || 1),
+            deliveryMode: data.delivery_mode_hint === 1 ? 'API' : data.delivery_mode_hint === 2 ? 'Download' : 'Both',
+            termsHash: data.terms_hash || '',
+            listed: data.listed ?? true,
+          }}
+          onSuccess={() => {
+            // Refresh model data
+            window.location.reload()
+          }}
+        />
+      )}
     </Box>
   )
 }
