@@ -18,7 +18,7 @@ import MARKET_ARTIFACT from '@/abis/Marketplace.json'
 import Link from 'next/link'
 import { useLocale } from 'next-intl'
 import { createViewModelFromPublished } from '@/viewmodels'
-import { getMarketAddress, CACHE_TTLS } from '@/config'
+import { getMarketAddress, CACHE_TTLS, INDEXER_CONFIG } from '@/config'
 
 const globalCache = globalThis as any
 globalCache.__LICENSE_STATUS_CACHE = globalCache.__LICENSE_STATUS_CACHE || new Map<string, { data: any; ts: number }>()
@@ -209,10 +209,11 @@ function EvmLicensesPageImpl() {
         const abi: any = (MARKET_ARTIFACT as any).abi
         const event = (abi as any).find((e:any)=> e.type==='event' && e.name==='LicenseMinted')
         const latest = await publicClient.getBlockNumber()
-        const STEP = 2000n
+        // Use centralized block scanning configuration
+        const STEP = INDEXER_CONFIG.SCAN_STEP_SIZE
         let to = latest
         let found: any = null
-        for (let i = 0; i < 10000 && to > 0n; i++) {
+        for (let i = 0; i < INDEXER_CONFIG.MAX_ITERATIONS && to > 0n; i++) {
           const from = to > STEP ? (to - STEP + 1n) : 0n
           try {
             const chunk = await getLogsMemoized({ address: marketAddress as `0x${string}`, event, fromBlock: from, toBlock: to })

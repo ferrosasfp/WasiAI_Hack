@@ -2,6 +2,14 @@
 
 /**
  * Configuración y validación de variables de entorno
+ * 
+ * NOTE: Many of these values now have centralized configurations:
+ * - Image compression: See config/indexer.ts > IMAGE_CONFIG
+ * - Protected fetch: See config/indexer.ts > PROTECTED_FETCH_CONFIG
+ * - Marketplace fee: See config/fees.ts > MARKETPLACE_FEE_BPS
+ * - Zero addresses: See config/indexer.ts > ZERO_ADDRESSES
+ * 
+ * This file remains for Zod validation and legacy compatibility.
  */
 import { z } from 'zod';
 

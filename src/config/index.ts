@@ -72,3 +72,15 @@ export {
   formatAmount,
   type FeeConfig,
 } from './fees'
+
+// Indexer and blockchain configuration
+export {
+  BLOCKCHAIN_CONFIG,
+  INDEXER_CONFIG,
+  ZERO_ADDRESSES,
+  IMAGE_CONFIG,
+  PROTECTED_FETCH_CONFIG,
+  isZeroAddress,
+  getNonZeroAddress,
+  type BlockchainConfig,
+} from './indexer'

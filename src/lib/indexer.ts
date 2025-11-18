@@ -7,12 +7,12 @@
 import { createPublicClient, http } from 'viem'
 import { query, queryOne } from './db'
 import MARKET_ARTIFACT from '@/abis/Marketplace.json'
-import { CHAIN_CONFIG, getChainConfig, getMarketAddress, isSupportedChain, ipfsToHttp, createTimeoutSignal } from '@/config'
+import { CHAIN_CONFIG, getChainConfig, getMarketAddress, isSupportedChain, ipfsToHttp, createTimeoutSignal, INDEXER_CONFIG, ZERO_ADDRESSES } from '@/config'
 
 interface IndexerOptions {
   chainId: number
-  maxBlocks?: number // Max blocks to scan per run (default: 2000)
-  batchSize?: number // Blocks per batch (default: 500)
+  maxBlocks?: number // Max blocks to scan per run (default from INDEXER_CONFIG)
+  batchSize?: number // Blocks per batch (default from INDEXER_CONFIG)
 }
 
 interface IndexerResult {
@@ -29,7 +29,8 @@ interface IndexerResult {
  */
 export async function indexChain(options: IndexerOptions): Promise<IndexerResult> {
   const startTime = Date.now()
-  const { chainId, maxBlocks = 2000, batchSize = 500 } = options
+  // Use centralized indexer configuration
+  const { chainId, maxBlocks = INDEXER_CONFIG.MAX_BLOCKS_PER_RUN, batchSize = INDEXER_CONFIG.BATCH_SIZE } = options
 
   console.log(`🔍 Starting indexer for chain ${chainId}...`)
 
@@ -169,8 +170,9 @@ async function indexModels(
         args: [BigInt(modelId)],
       })
 
-      if (!modelData || modelData[0] === '0x0000000000000000000000000000000000000000') {
-        continue // Skip non-existent models
+      // Skip non-existent models (owner is zero address)
+      if (!modelData || modelData[0] === ZERO_ADDRESSES.EVM) {
+        continue
       }
 
       // Insert or update model
