@@ -24,7 +24,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility'
 import EditIcon from '@mui/icons-material/Edit'
 import { useLocale, useTranslations } from 'next-intl'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
-import { CHAIN_IDS, getChainConfig, getNativeSymbol, getMarketAddress, getRpcUrl } from '@/config'
+import { CHAIN_IDS, getChainConfig, getNativeSymbol, getMarketAddress, getRpcUrl, MARKETPLACE_FEE_BPS, ROYALTY_LIMITS, percentToBps, validateRoyaltyPercent, calculateRevenueSplit, formatAmount } from '@/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -101,9 +101,10 @@ export default function Step4LicensesTermsLocalized() {
   const pSub = Number(priceSubscription || 0)
   const dMonths = Number(defaultDurationDays || 0)
   const dDays = dMonths > 0 ? dMonths * 30 : 0
-  const feeBpsEnv = parseInt(process.env.NEXT_PUBLIC_MARKETPLACE_FEE_BPS || process.env.NEXT_PUBLIC_MARKET_FEE_BPS || '1000') || 1000
+  // Use centralized fee configuration
+  const feeBpsEnv = MARKETPLACE_FEE_BPS
   const feeBpsEff = feeBpsOnChain ?? feeBpsEnv
-  const royaltyBps = Math.max(0, Math.min(10000, Math.round(Number(royaltyPercent || '0') * 100)))
+  const royaltyBps = percentToBps(validateRoyaltyPercent(royaltyPercent))
   
   // Validation based on pricing mode
   const atLeastOnePrice = (
@@ -119,14 +120,9 @@ export default function Step4LicensesTermsLocalized() {
   const isValid = atLeastOnePrice && !invalidPerp && !invalidSub && !invalidDur && !noRights
   const subDisabled = pSub <= 0 || pricingMode === 'perpetual'
 
-  const splitFor = (amount: number) => {
-    const fee = (amount * feeBpsEff) / 10000
-    const royalty = (amount * royaltyBps) / 10000
-    const seller = Math.max(0, amount - fee - royalty)
-    return { fee, royalty, seller }
-  }
+  const splitFor = (amount: number) => calculateRevenueSplit(amount, royaltyBps, feeBpsEff)
 
-  const fmt2Up = (v:number) => (Math.ceil(v * 100) / 100).toFixed(2)
+  const fmt2Up = (v:number) => formatAmount(v)
 
   const withSelection = (fn: (value: string, start: number, end: number) => { next: string, selStart?: number, selEnd?: number }) => {
     const el = termsRef.current
@@ -396,7 +392,7 @@ export default function Step4LicensesTermsLocalized() {
           setPriceSubscription(String(sub.perMonthPriceRef ?? '0'))
           setPricePerpetual(String(perp.priceRef ?? '0'))
           const rbps = Number(lp.royaltyBps || 0)
-          const rInt = Math.max(0, Math.min(20, Math.round(rbps/100)))
+          const rInt = validateRoyaltyPercent(rbps / 100)
           setRoyaltyPercent(String(rInt))
           const dd = Number(lp.defaultDurationDays || 0)
           setDefaultDurationDays(String(Math.max(0, Math.round(dd/30))))
@@ -432,7 +428,7 @@ export default function Step4LicensesTermsLocalized() {
         setPriceSubscription(String(sub.perMonthPriceRef ?? '0'))
         setPricePerpetual(String(perp.priceRef ?? '0'))
         const rbps = Number(lp.royaltyBps || 0)
-        const rInt = Math.max(0, Math.min(20, Math.round(rbps/100)))
+        const rInt = validateRoyaltyPercent(rbps / 100)
         setRoyaltyPercent(String(rInt))
         const dd = Number(lp.defaultDurationDays || 0)
         setDefaultDurationDays(String(Math.max(0, Math.round(dd/30))))
@@ -700,16 +696,16 @@ export default function Step4LicensesTermsLocalized() {
               value={royaltyPercent}
               onChange={(e)=>{
                 const raw = (e.target.value || '').replace(/[^0-9]/g, '')
-                const n = Math.max(0, Math.min(20, raw === '' ? 0 : parseInt(raw, 10)))
+                const n = validateRoyaltyPercent(raw === '' ? 0 : parseInt(raw, 10))
                 setRoyaltyPercent(String(n))
               }}
               onBlur={()=>{
-                const n = Math.max(0, Math.min(20, parseInt(String(royaltyPercent||'0'), 10) || 0))
+                const n = validateRoyaltyPercent(parseInt(String(royaltyPercent||'0'), 10) || 0)
                 setRoyaltyPercent(String(n))
               }}
-              inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', min: 0, max: 20 }}
+              inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', min: ROYALTY_LIMITS.MIN_PERCENT, max: ROYALTY_LIMITS.MAX_PERCENT }}
               InputProps={{ endAdornment: (<InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>%</InputAdornment>) }}
-              helperText={locale==='es' ? '0–20%' : '0–20%'}
+              helperText={`${ROYALTY_LIMITS.MIN_PERCENT}–${ROYALTY_LIMITS.MAX_PERCENT}%`}
             />
           </Grid>
         </Grid>

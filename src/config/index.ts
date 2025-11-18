@@ -58,3 +58,17 @@ export {
   createTimeoutSignal,
   type TimeoutsConfig,
 } from './timeouts'
+
+// Fee and pricing configuration
+export {
+  FEE_CONFIG,
+  MARKETPLACE_FEE_BPS,
+  ROYALTY_LIMITS,
+  PRICING_LIMITS,
+  percentToBps,
+  bpsToPercent,
+  validateRoyaltyPercent,
+  calculateRevenueSplit,
+  formatAmount,
+  type FeeConfig,
+} from './fees'
