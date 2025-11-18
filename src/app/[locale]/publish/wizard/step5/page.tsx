@@ -492,17 +492,85 @@ export default function Step5ReviewPublishLocalized() {
     setPublishing(true)
     setMsg('')
     setResults([])
+    
+    // Check if we're in upgrade mode
+    let isUpgradeMode = false
+    let upgradeModelId: string | null = null
+    try {
+      isUpgradeMode = localStorage.getItem('wizard_upgrade_mode') === '1'
+      upgradeModelId = localStorage.getItem('wizard_upgrade_model_id')
+    } catch {}
+    
     try {
       let allOk = true
-      for (const tnet of targets) {
-        const r = await publishModel({ chain: tnet.chain, network: tnet.network, metadata, address: walletAddress })
-        const ok = !!r?.ok
-        if (!ok) allOk = false
-        setResults(prev=>[...prev, { chain: tnet.chain, network: tnet.network, ok, tx: r?.onchain, error: r?.error }])
+      
+      if (isUpgradeMode && upgradeModelId) {
+        // Upgrade mode: call upgrade API for each target
+        for (const tnet of targets) {
+          try {
+            const chainId = tnet.chain === 'evm' ? (tnet.network === 'avax' ? 43114 : 8453) : undefined
+            if (!chainId) {
+              setResults(prev=>[...prev, { chain: tnet.chain, network: tnet.network, ok: false, error: 'Unsupported network for upgrade' }])
+              allOk = false
+              continue
+            }
+            
+            const r = await fetch(`/api/models/evm/${upgradeModelId}/upgrade?chainId=${chainId}`, {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {})
+              },
+              body: JSON.stringify({
+                step1: metadata.step1 || {},
+                step2: metadata.step2 || {},
+                step3: metadata.step3 || {},
+                step4: metadata.step4 || {}
+              })
+            })
+            
+            const result = await r.json()
+            const ok = !!result?.ok || !!result?.tx
+            if (!ok) allOk = false
+            setResults(prev=>[...prev, { 
+              chain: tnet.chain, 
+              network: tnet.network, 
+              ok, 
+              tx: result?.tx || result?.onchain, 
+              error: result?.error 
+            }])
+          } catch (err: any) {
+            allOk = false
+            setResults(prev=>[...prev, { 
+              chain: tnet.chain, 
+              network: tnet.network, 
+              ok: false, 
+              error: err?.message || 'Upgrade failed' 
+            }])
+          }
+        }
+        setMsg(locale === 'es' ? 'Actualización completada' : 'Upgrade completed')
+      } else {
+        // Normal publish mode
+        for (const tnet of targets) {
+          const r = await publishModel({ chain: tnet.chain, network: tnet.network, metadata, address: walletAddress })
+          const ok = !!r?.ok
+          if (!ok) allOk = false
+          setResults(prev=>[...prev, { chain: tnet.chain, network: tnet.network, ok, tx: r?.onchain, error: r?.error }])
+        }
+        setMsg(t('wizard.step5.messages.publishDone'))
       }
-      setMsg(t('wizard.step5.messages.publishDone'))
+      
       if (allOk) {
         try { setResetOpen(true) } catch {}
+        // Clear upgrade flags
+        if (isUpgradeMode) {
+          try {
+            localStorage.removeItem('wizard_upgrade_mode')
+            localStorage.removeItem('wizard_upgrade_model_id')
+            localStorage.removeItem('wizard_upgrade_slug')
+          } catch {}
+        }
       }
     } catch {
       setMsg(t('wizard.step5.messages.publishError'))
@@ -620,7 +688,29 @@ export default function Step5ReviewPublishLocalized() {
           backdropFilter:'blur(10px)'
         }
       }}>
-      <Typography variant="h5" sx={{ fontWeight:700, color:'#fff' }}>{t('wizard.step5.title')}</Typography>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb:1 }}>
+        <Typography variant="h5" sx={{ fontWeight:700, color:'#fff' }}>{t('wizard.step5.title')}</Typography>
+        {(() => {
+          try {
+            const isUpgrading = localStorage.getItem('wizard_upgrade_mode') === '1'
+            if (isUpgrading) {
+              return (
+                <Chip 
+                  label={locale === 'es' ? '🔄 Modo actualización' : '🔄 Upgrade mode'} 
+                  size="small"
+                  sx={{ 
+                    bgcolor:'rgba(255,165,0,0.2)', 
+                    color:'#ffb84d', 
+                    border:'1px solid rgba(255,165,0,0.4)',
+                    fontWeight:600 
+                  }} 
+                />
+              )
+            }
+          } catch {}
+          return null
+        })()}
+      </Stack>
       <Typography variant="body2" sx={{ mt:0.5, mb:1.5, color:'#ffffffcc' }}>
         {t('wizard.step5.subtitle')}
       </Typography>

@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useRef, useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   Box,
   Stack,
@@ -77,6 +78,9 @@ export default function Step1BasicsLocalized() {
   const t = useTranslations()
   const locale = useLocale()
   const base = `/${locale}/publish/wizard`
+  const searchParams = useSearchParams()
+  const upgradeMode = searchParams.get('mode') === 'upgrade'
+  const upgradeModelId = searchParams.get('modelId')
 
   // Locale-based literals for microtexts (ES/EN)
   const isES = String(locale || '').toLowerCase().startsWith('es')
@@ -101,7 +105,9 @@ export default function Step1BasicsLocalized() {
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugTouched, setSlugTouched] = useState(false)
-  const [isUpgrade, setIsUpgrade] = useState(false)
+  const [isUpgrade, setIsUpgrade] = useState(upgradeMode)
+  const [upgradingModelId, setUpgradingModelId] = useState<string | null>(upgradeModelId)
+  const [loadingExistingModel, setLoadingExistingModel] = useState(false)
   const [slugCheckLoading, setSlugCheckLoading] = useState(false)
   const [slugCheck, setSlugCheck] = useState<{ ok?: boolean; reserved?: boolean; reason?: string; error?: string; slug?: string; ttlMs?: number } | null>(null)
   const slugCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -305,6 +311,91 @@ export default function Step1BasicsLocalized() {
     .finally(()=>{ loadingFromDraftRef.current = false; setLoadingDraft(false); setLoadedRemote(true) })
     return () => { alive = false }
   }, [walletAddress])
+
+  // Load existing model for upgrade mode
+  useEffect(() => {
+    if (!upgradeMode || !upgradeModelId || !walletAddress) return
+    
+    let alive = true
+    setLoadingExistingModel(true)
+    
+    const loadExistingModel = async () => {
+      try {
+        // Fetch model data from blockchain/API
+        const res = await fetch(`/api/models/evm/${upgradeModelId}`)
+        if (!res.ok) throw new Error('Failed to load model')
+        
+        const model = await res.json()
+        if (!alive) return
+        
+        // Fetch IPFS metadata
+        const metaRes = await fetch(`/api/ipfs/ipfs/${model.uri_cid}`)
+        if (!metaRes.ok) throw new Error('Failed to load metadata')
+        
+        const metadata = await metaRes.json()
+        if (!alive) return
+        
+        // Prefill Step 1 fields from existing model
+        setName(metadata.name || '')
+        setShortSummary(metadata.summary || metadata.tagline || '')
+        setSlug(model.slug || '')
+        setSlugTouched(true) // Don't auto-generate slug
+        
+        // Technical classification
+        if (Array.isArray(metadata.technicalCategories)) {
+          setCategoriesSel(metadata.technicalCategories)
+        }
+        if (Array.isArray(metadata.technicalTags)) {
+          setTagsSel(metadata.technicalTags)
+        }
+        
+        // Business profile
+        const customer = metadata.customer || {}
+        const listing = metadata.listing || {}
+        if (listing.businessCategory || customer.businessCategory) {
+          setBusinessCategory(listing.businessCategory || customer.businessCategory)
+        }
+        if (listing.modelType || customer.modelType) {
+          setModelType(listing.modelType || customer.modelType)
+        }
+        
+        // Author
+        const authorship = metadata.authorship || metadata.author || {}
+        if (authorship.name || authorship.displayName) {
+          setAuthorDisplay(authorship.name || authorship.displayName)
+        }
+        if (authorship.links || authorship.socials) {
+          setSocialValues(authorship.links || authorship.socials || {})
+        }
+        
+        // Cover image
+        if (metadata.cover?.cid) {
+          setCoverCid(metadata.cover.cid)
+          setCoverThumbCid(metadata.cover.thumbCid || '')
+          setCoverMime(metadata.cover.mime || '')
+          setCoverSize(Number(metadata.cover.size || 0))
+          const displayCid = metadata.cover.thumbCid || metadata.cover.cid
+          setCoverDisplayUrl(ipfsToHttp(displayCid))
+        }
+        
+        // Store upgrade context in localStorage for Step 5
+        try {
+          localStorage.setItem('wizard_upgrade_mode', '1')
+          localStorage.setItem('wizard_upgrade_model_id', upgradeModelId)
+          localStorage.setItem('wizard_upgrade_slug', model.slug || '')
+        } catch {}
+        
+      } catch (err) {
+        console.error('Failed to load existing model:', err)
+        setMsg(isES ? 'Error al cargar modelo existente' : 'Failed to load existing model')
+      } finally {
+        if (alive) setLoadingExistingModel(false)
+      }
+    }
+    
+    loadExistingModel()
+    return () => { alive = false }
+  }, [upgradeMode, upgradeModelId, walletAddress, isES])
 
   const onNameChange = (v: string) => {
     setName(v)
