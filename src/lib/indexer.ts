@@ -5,9 +5,9 @@
  */
 
 import { createPublicClient, http } from 'viem'
-import { avalancheFuji, avalanche, baseSepolia, base } from 'viem/chains'
 import { query, queryOne } from './db'
 import MARKET_ARTIFACT from '@/abis/Marketplace.json'
+import { CHAIN_CONFIG, getChainConfig, getMarketAddress, isSupportedChain, ipfsToHttp } from '@/config'
 
 interface IndexerOptions {
   chainId: number
@@ -33,27 +33,16 @@ export async function indexChain(options: IndexerOptions): Promise<IndexerResult
 
   console.log(`🔍 Starting indexer for chain ${chainId}...`)
 
-  // Build chain configuration at runtime so env vars are already loaded
-  const CHAINS = {
-    43113: { chain: avalancheFuji, rpc: process.env.NEXT_PUBLIC_AVALANCHE_FUJI_RPC || avalancheFuji.rpcUrls.default.http[0] },
-    43114: { chain: avalanche, rpc: process.env.NEXT_PUBLIC_AVALANCHE_MAINNET_RPC || avalanche.rpcUrls.default.http[0] },
-    84532: { chain: baseSepolia, rpc: process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC || baseSepolia.rpcUrls.default.http[0] },
-    8453: { chain: base, rpc: process.env.NEXT_PUBLIC_BASE_MAINNET_RPC || base.rpcUrls.default.http[0] },
-  } as const
-
-  const MARKET_ADDRESSES: Record<number, string> = {
-    43113: process.env.NEXT_PUBLIC_EVM_MARKET_43113 || '',
-    43114: process.env.NEXT_PUBLIC_EVM_MARKET_43114 || '',
-    84532: process.env.NEXT_PUBLIC_EVM_MARKET_84532 || '',
-    8453: process.env.NEXT_PUBLIC_EVM_MARKET_8453 || '',
+  // Get chain configuration from centralized config
+  if (!isSupportedChain(chainId)) {
+    throw new Error(`Chain ${chainId} not supported`)
   }
 
-  // Get chain config
-  const chainConfig = CHAINS[chainId as keyof typeof CHAINS]
-  const marketAddress = MARKET_ADDRESSES[chainId]
+  const chainConfig = getChainConfig(chainId)
+  const marketAddress = getMarketAddress(chainId)
 
   if (!chainConfig || !marketAddress) {
-    throw new Error(`Chain ${chainId} not configured`)
+    throw new Error(`Chain ${chainId} not properly configured`)
   }
 
   // Create viem client
@@ -331,13 +320,8 @@ export async function cacheModelMetadata(modelId: number): Promise<void> {
     
     if (!model?.uri) return
 
-    // Convert IPFS URI to HTTP
-    const uri = model.uri
-    const httpUrl = uri.startsWith('ipfs://')
-      ? `https://ipfs.io/ipfs/${uri.slice(7)}`
-      : uri.startsWith('Qm')
-      ? `https://ipfs.io/ipfs/${uri}`
-      : uri
+    // Convert IPFS URI to HTTP using centralized config
+    const httpUrl = ipfsToHttp(model.uri)
 
     // Fetch metadata
     const response = await fetch(httpUrl, { 
@@ -357,15 +341,11 @@ export async function cacheModelMetadata(modelId: number): Promise<void> {
     const frameworks = metadata?.technical?.architecture?.frameworks || []
     const architectures = metadata?.technical?.architecture?.architectures || []
 
-    // Extract image URL
+    // Extract image URL using centralized IPFS helper
     let imageUrl = null
     const imgCid = metadata?.image || metadata?.image_url || metadata?.thumbnail || metadata?.cover?.cid
     if (imgCid && typeof imgCid === 'string') {
-      imageUrl = imgCid.startsWith('ipfs://')
-        ? `https://ipfs.io/ipfs/${imgCid.slice(7)}`
-        : imgCid.startsWith('Qm')
-        ? `https://ipfs.io/ipfs/${imgCid}`
-        : imgCid
+      imageUrl = ipfsToHttp(imgCid)
     }
 
     // Update model name if available

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getPinataEndpoint } from '@/config'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,7 +25,7 @@ async function pinFileToIPFS(file: Blob, name?: string) {
     headers['pinata_secret_api_key'] = secret as string
   }
 
-  const url = 'https://api.pinata.cloud/pinning/pinFileToIPFS'
+  const url = getPinataEndpoint('pinFile')
   const maxAttempts = 3
   let lastErr: any = null
   for (let attempt=1; attempt<=maxAttempts; attempt++) {
@@ -78,7 +79,7 @@ export async function POST(req: Request) {
       if (jwt) headers['authorization'] = `Bearer ${jwt}`
       else { headers['pinata_api_key'] = key as string; headers['pinata_secret_api_key'] = secret as string }
 
-      const url = 'https://api.pinata.cloud/pinning/pinFileToIPFS'
+      const url = getPinataEndpoint('pinFile')
       const maxAttempts = 3
       let lastErr: any = null
       for (let attempt=1; attempt<=maxAttempts; attempt++) {

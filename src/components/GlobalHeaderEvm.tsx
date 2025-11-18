@@ -9,6 +9,7 @@ import {useTranslations, useLocale} from 'next-intl';
 import { usePathname } from 'next/navigation';
 import { useWalletEcosystem } from '@/contexts/WalletEcosystemContext';
 import { useChains, useChainId, useSwitchChain, useAccount as useEvmAccount } from 'wagmi';
+import { getChainConfig, getChainType } from '@/config';
 
 export function GlobalHeaderEvm() {
   const t = useTranslations();
@@ -124,8 +125,9 @@ export function GlobalHeaderEvm() {
                     suppressHydrationWarning
                     displayEmpty
                     renderValue={(v)=>{
-                      const kind = (v===8453||v===84532)?'base':'avax'
-                      const title = kind==='base'?'Base':'Avalanche'
+                      const config = getChainConfig(v)
+                      const kind = config?.type || 'avax'
+                      const title = config?.shortName || 'Unknown'
                       return (
                         <Box component="span" sx={{ display:'inline-flex', alignItems:'center', gap: 0.75, fontSize: 14, color: '#fff', px: 1.25, py: 0.5, bgcolor: 'rgba(17,20,28,0.95)', borderRadius: '10px', border: '1px solid oklch(0.22 0 0)' }}>
                           <LogoImg kind={kind as any} size={16} title={title} />
@@ -159,8 +161,9 @@ export function GlobalHeaderEvm() {
                     MenuProps={{ PaperProps: { sx: { bgcolor: 'rgba(14,18,26,0.98)', border: '1px solid oklch(0.22 0 0)', color: 'oklch(0.95 0 0)' } } }}
                   >
                     {chains.map(c => {
-                      const kind = (c.id === 84532 || c.id === 8453) ? 'base' : 'avax'
-                      const title = kind === 'base' ? 'Base' : 'Avalanche'
+                      const config = getChainConfig(c.id)
+                      const kind = config?.type || 'avax'
+                      const title = config?.shortName || c.name
                       return (
                         <MenuItem key={`evm-${c.id}`} value={c.id} title={title}>
                           <Box sx={{ display:'flex', alignItems:'center', gap: 0.75, color: '#fff' }}>
@@ -229,8 +232,9 @@ export function GlobalHeaderEvm() {
                     suppressHydrationWarning
                     displayEmpty
                     renderValue={(v)=>{
-                      const kind = (v===8453||v===84532)?'base':'avax'
-                      const title = kind==='base'?'Base':'Avalanche'
+                      const config = getChainConfig(v)
+                      const kind = config?.type || 'avax'
+                      const title = config?.shortName || 'Unknown'
                       return (
                         <Box component="span" sx={{ display:'inline-flex', alignItems:'center', gap: 0.75, fontSize: 14, color: '#fff', px: 1.25, py: 0.75, bgcolor: 'rgba(18,22,33,0.9)', borderRadius: '10px', border: '1px solid oklch(0.22 0 0)' }}>
                           <LogoImg kind={kind as any} size={16} title={title} />
@@ -252,8 +256,9 @@ export function GlobalHeaderEvm() {
                   MenuProps={{ PaperProps: { sx: { bgcolor: 'rgba(14,18,26,0.98)', border: '1px solid oklch(0.22 0 0)', color: 'oklch(0.95 0 0)' } } }}
                   >
                     {chains.map(c => {
-                      const kind = (c.id === 84532 || c.id === 8453) ? 'base' : 'avax'
-                      const title = kind === 'base' ? 'Base' : 'Avalanche'
+                      const config = getChainConfig(c.id)
+                      const kind = config?.type || 'avax'
+                      const title = config?.shortName || c.name
                       return (
                         <MenuItem key={`m-evm-${c.id}`} value={c.id} title={title}>
                           <Box sx={{ display:'flex', alignItems:'center', gap: 0.75, color: '#fff' }}>
