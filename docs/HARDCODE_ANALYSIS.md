@@ -529,13 +529,26 @@ NEXT_PUBLIC_BASE_MAINNET_RPC=https://mainnet.base.org
 
 ---
 
-## 🚀 Phase 1 Progress (IN PROGRESS)
+## 🚀 Phase 1 Progress (COMPLETED ✅)
 
 **Started**: November 18, 2025, 12:28am  
-**Commit**: `978492b1`  
-**Status**: Core infrastructure completed ✅
+**Completed**: November 18, 2025, 1:15am  
+**Commits**: `978492b1` → `0205942f` → `adc4d013` → `9d239d38`  
+**Status**: **Phase 1 COMPLETE - All high-priority hardcodes removed** ✅
 
-### ✅ Completed
+### 📦 Phase 1 Summary
+
+**Total commits**: 4 batches  
+**Files refactored**: 13  
+**Hardcoded values removed**: 35+  
+**Lines of duplicate code eliminated**: ~60  
+**Build status**: ✓ Compiles successfully  
+
+---
+
+### ✅ Batch 1: Infrastructure & Core Files
+
+**Commit**: `978492b1`
 
 #### 1. Created Configuration Infrastructure (3 new files)
 
@@ -585,14 +598,92 @@ NEXT_PUBLIC_BASE_MAINNET_RPC=https://mainnet.base.org
 - **Before**: `'https://api.pinata.cloud/pinning/pinFileToIPFS'`
 - **After**: `getPinataEndpoint('pinFile')`
 
-### 📊 Impact Summary
+---
+
+### ✅ Batch 2: High-Priority Files
+
+**Commit**: `0205942f`
+
+**Files refactored**: 6 (wizard/step4, ModelPageClient, licenses, 3 API routes)
+
+**`src/app/[locale]/publish/wizard/step4/page.tsx`** (8+ refs removed)
+- ✅ Replaced chain ID checks for AVAX/ETH detection with `getNativeSymbol()`
+- ✅ Market addresses from `getMarketAddress()` instead of hardcoded map
+- ✅ RPC URLs from `getRpcUrl()` instead of hardcoded strings
+- **Before**: `if (id === 43113 || id === 43114) setUnit('AVAX')`
+- **After**: `setUnit(getNativeSymbol(id) as 'AVAX' | 'ETH')`
+
+**`src/app/[locale]/evm/models/[id]/ModelPageClient.tsx`** (6+ refs removed)
+- ✅ Market address map replaced with `getMarketAddress()`
+- ✅ Chain icon/color detection using `getChainConfig()`
+- **Before**: `const kind = (id === 43113 || id === 43114) ? 'avax' : 'base'`
+- **After**: `const config = getChainConfig(id); const kind = config?.type`
+
+**`src/app/evm/licenses/page.tsx`** (4+ refs removed)
+- ✅ useMarketAddress hook simplified with `getMarketAddress()`
+
+**API Routes** (3 files - pin-cid, pin-json, upload)
+- ✅ All Pinata endpoints now use `getPinataEndpoint()`
+
+---
+
+### ✅ Batch 3: Wizard IPFS URLs
+
+**Commit**: `adc4d013`
+
+**Files refactored**: 3 wizard steps
+
+**`src/app/[locale]/publish/wizard/step1/page.tsx`** (5 refs removed)
+- ✅ Cover URL generation: `ipfsToHttp(cid)` instead of hardcoded gateway
+- ✅ Gateway failover uses `getAllGateways()` for multiple attempts
+- ✅ openCoverInIPFS button uses centralized helper
+- **Before**: ``https://ipfs.io/ipfs/${cid}``
+- **After**: `ipfsToHttp(cid)`
+
+**`src/app/[locale]/publish/wizard/step3/page.tsx`** (1 ref removed)
+- ✅ Artifact gateway open button refactored
+
+**`src/app/[locale]/publish/wizard/step5/page.tsx`** (2 refs removed)
+- ✅ Model cover image display
+- ✅ Artifact open buttons in table
+
+---
+
+### ✅ Batch 4: Components & Pages (FINAL)
+
+**Commit**: `9d239d38`
+
+**Files refactored**: 3
+
+**`src/components/ModelDetailView.tsx`** (1 ref removed)
+- ✅ Cover URL generation centralized
+- **Before**: ``https://ipfs.io/ipfs/${cid}``
+- **After**: `ipfsToHttp(cid)`
+
+**`src/app/[locale]/models/[slug]/page.tsx`** (2 refs removed)
+- ✅ Cover CID extraction using `extractCid()` helper
+- ✅ Cover image display using `ipfsToHttp()`
+- ✅ Added missing shared component imports
+
+**`src/app/[locale]/models/page.tsx`** (MAJOR - 20+ lines removed)
+- ✅ Replaced entire custom `toHttpFromIpfs()` function
+- ✅ Now uses centralized `ipfsToApiRoute()` helper
+- ✅ Eliminated 20+ lines of manual URL parsing logic
+- **Before**: Custom function with try/catch, URL parsing, hardcoded gateways
+- **After**: Single line `ipfsToApiRoute(model.imageUrl || '')`
+
+---
+
+### 📊 Phase 1 Complete - Impact Summary
 
 | Metric | Count |
 |--------|-------|
+| **Total batches** | 4 |
 | **New config files** | 3 |
 | **Lines of config code** | 450+ |
-| **Files refactored** | 4 |
-| **Hardcoded values removed** | 25+ |
+| **Files refactored** | 13 |
+| **Hardcoded values removed** | 35+ |
+| **Lines of duplicate code eliminated** | ~60 |
 | **Helper functions created** | 15+ |
 
 ### 🎯 Benefits Achieved
