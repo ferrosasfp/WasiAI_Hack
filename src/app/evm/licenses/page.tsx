@@ -18,7 +18,7 @@ import MARKET_ARTIFACT from '@/abis/Marketplace.json'
 import Link from 'next/link'
 import { useLocale } from 'next-intl'
 import { createViewModelFromPublished } from '@/viewmodels'
-import { getMarketAddress } from '@/config'
+import { getMarketAddress, CACHE_TTLS } from '@/config'
 
 const globalCache = globalThis as any
 globalCache.__LICENSE_STATUS_CACHE = globalCache.__LICENSE_STATUS_CACHE || new Map<string, { data: any; ts: number }>()
@@ -26,8 +26,9 @@ globalCache.__LICENSE_LOGS_CACHE = globalCache.__LICENSE_LOGS_CACHE || new Map<s
 const LICENSE_STATUS_CACHE = globalCache.__LICENSE_STATUS_CACHE as Map<string, { data: any; ts: number }>
 const LICENSE_LOGS_CACHE = globalCache.__LICENSE_LOGS_CACHE as Map<string, { logs: any[]; ts: number }>
 
-const STATUS_CACHE_TTL = 5 * 60 * 1000
-const LOG_CACHE_TTL = 10 * 60 * 1000
+// Use centralized cache TTL configuration
+const STATUS_CACHE_TTL = CACHE_TTLS.LICENSE_STATUS
+const LOG_CACHE_TTL = CACHE_TTLS.LICENSE_LOGS
 const MODEL_CACHE_STORAGE_KEY = 'licenseModelCache'
 
 function useMarketAddress(chainId: number | undefined) {

@@ -11,14 +11,16 @@ import dynamic from 'next/dynamic';
 import '@rainbow-me/rainbowkit/styles.css';
 import { WalletEcosystemProvider } from '@/contexts/WalletEcosystemContext';
 import theme from '@/styles/theme';
+import { CACHE_TTLS, getExponentialBackoff } from '@/config';
 
+// Use centralized cache and retry configuration
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60 * 1000,
-      gcTime: 5 * 60 * 1000,
+      staleTime: CACHE_TTLS.WAGMI_STALE,
+      gcTime: CACHE_TTLS.WAGMI_GC,
       retry: 3,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      retryDelay: (attemptIndex) => getExponentialBackoff(attemptIndex, 1000),
     },
     mutations: { retry: 1 },
   },

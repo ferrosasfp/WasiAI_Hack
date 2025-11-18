@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getPinataEndpoint } from '@/config'
+import { getPinataEndpoint, HTTP_TIMEOUTS, getLinearBackoff } from '@/config'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,8 +31,8 @@ async function pinFileToIPFS(file: Blob, name?: string) {
   for (let attempt=1; attempt<=maxAttempts; attempt++) {
     try {
       const controller = new AbortController()
-      // Aumentar timeout por intento a 10 minutos para archivos grandes
-      const tmo = setTimeout(()=>controller.abort(), 600000)
+      // Usar timeout centralizado para archivos IPFS grandes
+      const tmo = setTimeout(()=>controller.abort(), HTTP_TIMEOUTS.IPFS_UPLOAD)
       const res = await fetch(url, {
         method: 'POST',
         headers,
@@ -51,7 +51,8 @@ async function pinFileToIPFS(file: Blob, name?: string) {
     } catch (e:any) {
       lastErr = e
       if (attempt < maxAttempts) {
-        await new Promise(r=>setTimeout(r, 1000 * attempt))
+        // Usar linear backoff centralizado
+        await new Promise(r=>setTimeout(r, getLinearBackoff(attempt - 1)))
         continue
       }
       throw e

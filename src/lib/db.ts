@@ -4,6 +4,7 @@
  */
 
 import { Pool, PoolClient } from 'pg'
+import { DB_TIMEOUTS } from '@/config'
 
 // Re-export PoolClient for use in other modules
 export type { PoolClient }
@@ -32,8 +33,8 @@ export function getPool(): Pool {
     pool = new Pool({
       connectionString,
       max: 10, // Max connections (adjust for paid tier)
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: DB_TIMEOUTS.IDLE,
+      connectionTimeoutMillis: DB_TIMEOUTS.CONNECTION,
       ssl: {
         rejectUnauthorized: false, // Required for Neon
       },

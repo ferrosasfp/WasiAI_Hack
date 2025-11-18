@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { CACHE_TTLS } from '@/config';
 import { PrismaClient } from '@prisma/client';
 import { incCounter } from '@/lib/metrics';
 
@@ -24,7 +25,8 @@ const __PRISMA__: PrismaClient | undefined = (globalThis as any).__PRISMA__ || (
 type CacheEntry = { keyB64: string; ts: number };
 const __KEY_DB_CACHE__: Map<string, CacheEntry> = (globalThis as any).__KEY_DB_CACHE__ || new Map<string, CacheEntry>();
 (globalThis as any).__KEY_DB_CACHE__ = __KEY_DB_CACHE__;
-const KEYS_CACHE_TTL = Math.max(0, Number(process.env.KEYS_CACHE_TTL_MS || 60000));
+// Use centralized cache TTL configuration
+const KEYS_CACHE_TTL = CACHE_TTLS.API_KEYS;
 
 const PKG = process.env.NEXT_PUBLIC_PACKAGE_ID || '';
 const MARKET_PARENT = process.env.SUI_MARKET_PARENT || process.env.NEXT_PUBLIC_MARKET_ID || '';

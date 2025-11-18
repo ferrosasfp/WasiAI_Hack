@@ -1,4 +1,5 @@
 import { createViewModelFromPublished } from '@/viewmodels'
+import { HTTP_TIMEOUTS } from '@/config'
 
 type FetchModelOptions = {
   id: number
@@ -44,7 +45,7 @@ function toArray(x: any): any[] {
   return []
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit = {}, ms = 10000): Promise<Response> {
+async function fetchWithTimeout(url: string, init: RequestInit = {}, ms = HTTP_TIMEOUTS.DEFAULT): Promise<Response> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), ms)
   try {

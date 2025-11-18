@@ -7,7 +7,7 @@
 import { createPublicClient, http } from 'viem'
 import { query, queryOne } from './db'
 import MARKET_ARTIFACT from '@/abis/Marketplace.json'
-import { CHAIN_CONFIG, getChainConfig, getMarketAddress, isSupportedChain, ipfsToHttp } from '@/config'
+import { CHAIN_CONFIG, getChainConfig, getMarketAddress, isSupportedChain, ipfsToHttp, createTimeoutSignal } from '@/config'
 
 interface IndexerOptions {
   chainId: number
@@ -325,7 +325,7 @@ export async function cacheModelMetadata(modelId: number): Promise<void> {
 
     // Fetch metadata
     const response = await fetch(httpUrl, { 
-      signal: AbortSignal.timeout(10000),
+      signal: createTimeoutSignal(),
       headers: { 'Accept': 'application/json' }
     })
 
