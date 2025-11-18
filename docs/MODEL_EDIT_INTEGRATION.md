@@ -19,12 +19,25 @@
    - `ModelEditControls` - Botones de edición (solo para owner)
    - `QuickEditDrawer` - Drawer de edición rápida con formulario completo
 
-### 🔄 Pendiente
+4. **Integración en ModelPageClient** ✅
+   - Controles de edición insertados en la página
+   - Quick Edit Drawer implementado
+   - Prefill automático de valores actuales
+   - Cache invalidation con reload + mensaje de éxito
 
-1. **Integración en ModelPageClient**
-2. **Extensión del wizard para modo upgrade**
-3. **Cache invalidation**
-4. **Testing end-to-end**
+5. **Extensión del wizard para modo upgrade** ✅
+   - Step 1 detecta `?mode=upgrade&modelId=X`
+   - Carga automática de modelo existente desde API/IPFS
+   - Prefill completo de todos los campos
+   - Step 5 detecta modo upgrade y llama al API correcto
+   - Visual indicator de "Upgrade mode" en Step 5
+   - Limpieza automática de flags tras éxito
+
+### 🔄 Pendiente (Mejoras futuras)
+
+1. **Prefill de Steps 2, 3, 4** - Actualmente solo Step 1 está completo
+2. **Cache invalidation optimizada** - Usar SWR mutate en vez de window.reload
+3. **Testing end-to-end en testnet**
 
 ---
 

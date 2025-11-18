@@ -1618,9 +1618,22 @@ export default function ModelPageClient(props: ModelPageClientProps) {
             termsHash: data.terms_hash || '',
             listed: data.listed ?? true,
           }}
-          onSuccess={() => {
-            // Refresh model data
-            window.location.reload()
+          onSuccess={(message?: string) => {
+            // Show success message
+            const successMsg = message || (locale === 'es' 
+              ? 'Modelo actualizado exitosamente. Recargando...' 
+              : 'Model updated successfully. Reloading...')
+            setSnkSev('success')
+            setSnkMsg(successMsg)
+            setSnkOpen(true)
+            
+            // Close drawer
+            setQuickEditOpen(false)
+            
+            // Reload page after brief delay to show message
+            setTimeout(() => {
+              window.location.reload()
+            }, 1500)
           }}
         />
       )}
