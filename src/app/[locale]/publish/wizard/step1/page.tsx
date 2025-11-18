@@ -28,6 +28,7 @@ import {
 } from '@mui/material'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import { ipfsToHttp, getAllGateways } from '@/config'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
@@ -259,8 +260,8 @@ export default function Step1BasicsLocalized() {
             setCoverThumbCid(cov?.thumbCid || '')
             setCoverMime(cov?.mime || '')
             setCoverSize(Number(cov?.size||0))
-            const url = cov?.thumbCid ? `https://ipfs.io/ipfs/${cov.thumbCid}` : (cov?.cid ? `https://ipfs.io/ipfs/${cov.cid}` : '')
-            if (url) setCoverDisplayUrl(url)
+            const cid = cov?.thumbCid || cov?.cid
+            if (cid) setCoverDisplayUrl(ipfsToHttp(cid))
           }
           try { lastSavedRef.current = s1 } catch {}
           setShouldFade(false)
@@ -296,8 +297,8 @@ export default function Step1BasicsLocalized() {
         setCoverThumbCid(cov?.thumbCid || '')
         setCoverMime(cov?.mime || '')
         setCoverSize(Number(cov?.size||0))
-        const url = cov?.thumbCid ? `https://ipfs.io/ipfs/${cov.thumbCid}` : (cov?.cid ? `https://ipfs.io/ipfs/${cov.cid}` : '')
-        if (url) setCoverDisplayUrl(url)
+        const cid = cov?.thumbCid || cov?.cid
+        if (cid) setCoverDisplayUrl(ipfsToHttp(cid))
       }
       try { lastSavedRef.current = s1 } catch {}
     }).catch(()=>{})
@@ -329,10 +330,11 @@ export default function Step1BasicsLocalized() {
     const thumb = coverThumbCid
     const main = coverCid
     const ts = Date.now()
-    const gws = ['https://ipfs.io/ipfs/','https://dweb.link/ipfs/','https://cf-ipfs.com/ipfs/']
+    // Use centralized gateway configuration
+    const gws = getAllGateways().map(gw => gw.endsWith('/') ? gw : `${gw}/`)
     const candidates: string[] = []
-    if (thumb) gws.forEach(g=>candidates.push(`${g}${thumb}?t=${ts}`))
-    if (main) gws.forEach(g=>candidates.push(`${g}${main}?t=${ts}`))
+    if (thumb) gws.forEach(g=>candidates.push(`${g}ipfs/${thumb}?t=${ts}`))
+    if (main) gws.forEach(g=>candidates.push(`${g}ipfs/${main}?t=${ts}`))
     for (const url of candidates) {
       const ok = await probeImage(url)
       if (ok) {
@@ -365,7 +367,7 @@ export default function Step1BasicsLocalized() {
 
   const openCoverInIPFS = () => {
     const target = coverThumbCid || coverCid
-    if (target) window.open(`https://ipfs.io/ipfs/${target}`,'_blank')
+    if (target) window.open(ipfsToHttp(target),'_blank')
   }
 
   const handleMenuOpen = (e: React.MouseEvent<HTMLElement>) => setMenuAnchor(e.currentTarget)
@@ -569,7 +571,7 @@ export default function Step1BasicsLocalized() {
     }
   }
 
-  const coverUrl = coverDisplayUrl || coverPreview || (coverThumbCid ? `https://ipfs.io/ipfs/${coverThumbCid}` : (coverCid ? `https://ipfs.io/ipfs/${coverCid}` : ''))
+  const coverUrl = coverDisplayUrl || coverPreview || ipfsToHttp(coverThumbCid || coverCid || '')
 
   const isStepValid = () => {
     return Boolean(name.trim() && shortSummary.trim() && categoriesSel.length > 0 && coverCid)

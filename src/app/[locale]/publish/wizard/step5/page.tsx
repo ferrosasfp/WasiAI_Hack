@@ -23,6 +23,7 @@ import { useLocale, useTranslations } from 'next-intl'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
 import { useRouter } from 'next/navigation'
 import { createViewModelFromDraft, UnifiedModelViewModel } from '@/viewmodels'
+import { ipfsToHttp } from '@/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -800,7 +801,7 @@ export default function Step5ReviewPublishLocalized() {
                             border:'1px solid rgba(255,255,255,0.1)'
                           }}>
                             <img
-                              src={`https://ipfs.io/ipfs/${viewModel?.step1.cover?.thumbCid || viewModel?.step1.cover?.cid || (metadata as any).cover?.thumbCid || (metadata as any).cover?.cid}`}
+                              src={ipfsToHttp(viewModel?.step1.cover?.thumbCid || viewModel?.step1.cover?.cid || (metadata as any).cover?.thumbCid || (metadata as any).cover?.cid || '')}
                               alt="Model cover"
                               loading="lazy"
                               style={{
@@ -1827,7 +1828,7 @@ export default function Step5ReviewPublishLocalized() {
                                         <Tooltip title={t('wizard.step5.artifactsDemo.open')}>
                                           <IconButton 
                                             size="small" 
-                                            onClick={() => window.open(`https://ipfs.io/ipfs/${a.cid}`, '_blank', 'noopener,noreferrer')} 
+                                            onClick={() => window.open(ipfsToHttp(a.cid), '_blank', 'noopener,noreferrer')} 
                                             sx={{ p:0.5 }}
                                           >
                                             <OpenInNewIcon fontSize="small" />

@@ -17,6 +17,7 @@ import ContentPasteIcon from '@mui/icons-material/ContentPaste'
 import { useLocale, useTranslations } from 'next-intl'
 import WizardFooter from '@/components/WizardFooter'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
+import { ipfsToHttp } from '@/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -764,7 +765,7 @@ export default function Step3ArtifactsDemoLocalized() {
                         InputProps={{ readOnly: true, endAdornment: (
                           <InputAdornment position="end">
                             <Tooltip title={t('wizard.step3.actions.copyCid')}><IconButton size="small" onClick={()=>a.cid && copy(a.cid)}><ContentCopyIcon fontSize="inherit" /></IconButton></Tooltip>
-                            <Tooltip title={t('wizard.step3.actions.openGateway')}><span><IconButton size="small" disabled={!a.cid} onClick={()=>window.open(`https://ipfs.io/ipfs/${a.cid}`,'_blank')}><OpenInNewIcon fontSize="inherit" /></IconButton></span></Tooltip>
+                            <Tooltip title={t('wizard.step3.actions.openGateway')}><span><IconButton size="small" disabled={!a.cid} onClick={()=>window.open(ipfsToHttp(a.cid),'_blank')}><OpenInNewIcon fontSize="inherit" /></IconButton></span></Tooltip>
                           </InputAdornment>
                         ) }}
                       />
