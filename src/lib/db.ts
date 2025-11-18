@@ -29,10 +29,6 @@ export function getPool(): Pool {
       throw new Error('DATABASE_URL environment variable is not set')
     }
 
-    // DEBUG: Log the connection string to verify it's correct
-    console.log('🔍 DATABASE_URL length:', connectionString.length)
-    console.log('🔍 DATABASE_URL preview:', connectionString.substring(0, 50) + '...' + connectionString.substring(connectionString.length - 30))
-
     pool = new Pool({
       connectionString,
       max: 10, // Max connections (adjust for paid tier)

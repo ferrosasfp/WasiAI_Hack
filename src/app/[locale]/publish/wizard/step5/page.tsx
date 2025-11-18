@@ -298,9 +298,6 @@ export default function Step5ReviewPublishLocalized() {
     if (!draft) return null
     try {
       const vm = createViewModelFromDraft(draft)
-      console.log('🔍 Step5 Debug - Draft:', draft)
-      console.log('🔍 Step5 Debug - ViewModel:', vm)
-      console.log('🔍 Step5 Debug - step1:', vm?.step1)
       return vm
     } catch (err) {
       console.error('Error creating ViewModel:', err)

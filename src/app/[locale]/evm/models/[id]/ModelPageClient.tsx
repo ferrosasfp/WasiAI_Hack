@@ -227,18 +227,6 @@ function useEvmModel(options: UseEvmModelOptions) {
               const authorship = (meta as any)?.authorship || (meta as any)?.author || {}
               const authorName = typeof authorship.name === 'string' ? authorship.name : (typeof authorship.displayName === 'string' ? authorship.displayName : undefined)
               const authorLinks = (authorship.links && typeof authorship.links === 'object') ? authorship.links : (authorship.socials && typeof authorship.socials === 'object') ? authorship.socials : undefined
-              console.log('🔍 DEBUG - IPFS modelType extraction:', {
-                'cust.modelType': cust.modelType,
-                'listing.modelType': listing.modelType,
-                'meta.modelType': (meta as any)?.modelType,
-                'meta.modelTypeBusiness': (meta as any)?.modelTypeBusiness,
-                'final modelType': modelType
-              })
-              console.log('🔍 DEBUG - IPFS authorship extraction:', {
-                'authorship': authorship,
-                'authorName': authorName,
-                'authorLinks': authorLinks
-              })
               // Map Step 2 technical fields when present
               const arch = (meta as any)?.architecture || {}
               const quantization = typeof arch.quantization === 'string' ? arch.quantization : undefined
@@ -680,24 +668,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
         termsMarkdown: data.termsText
       }
       
-      console.log('🔍 DEBUG - enrichedData technical fields:', {
-        frameworks: enrichedData.frameworks,
-        architectures: enrichedData.architectures,
-        precisions: enrichedData.precisions,
-        python: enrichedData.python,
-        cuda: enrichedData.cuda,
-        pytorch: enrichedData.pytorch,
-        os: enrichedData.os,
-        vramGB: enrichedData.vramGB,
-        cpuCores: enrichedData.cpuCores,
-        ramGB: enrichedData.ramGB,
-        maxBatchSize: enrichedData.maxBatchSize,
-        contextLength: enrichedData.contextLength,
-        maxTokens: enrichedData.maxTokens
-      })
-      
       const vm = createViewModelFromPublished(enrichedData, undefined, id)
-      console.log('🔍 DEBUG - viewModel.step2.technical:', vm?.step2?.technical)
       return vm
     } catch (err) {
       console.error('Error creating ViewModel:', err)
