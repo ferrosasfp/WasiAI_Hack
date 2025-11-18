@@ -2,7 +2,7 @@
 
 **Date**: November 18, 2025
 **Purpose**: Identify hardcoded values that should be configurable
-**Status**: Analysis Complete
+**Status**: Phase 1 IN PROGRESS ✅
 
 ---
 
@@ -529,4 +529,176 @@ NEXT_PUBLIC_BASE_MAINNET_RPC=https://mainnet.base.org
 
 ---
 
-**Next Step**: Create the config files and start refactoring high-priority items?
+## 🚀 Phase 1 Progress (IN PROGRESS)
+
+**Started**: November 18, 2025, 12:28am  
+**Commit**: `978492b1`  
+**Status**: Core infrastructure completed ✅
+
+### ✅ Completed
+
+#### 1. Created Configuration Infrastructure (3 new files)
+
+**`src/config/chains.ts`** (200+ lines)
+- ✅ CHAIN_IDS constants for all supported chains
+- ✅ CHAIN_CONFIG with complete metadata (name, symbol, icon, color, RPC, market address)
+- ✅ Helper functions: `getChainConfig()`, `isSupportedChain()`, `getNativeSymbol()`, `getMarketAddress()`
+- ✅ Type-safe ChainId and ChainType
+- ✅ Legacy compatibility functions for migration
+
+**`src/config/ipfs.ts`** (180+ lines)
+- ✅ IPFS_GATEWAYS (primary, secondary, fallbacks array)
+- ✅ PINATA_CONFIG (API URL + endpoints map)
+- ✅ Utility functions: `ipfsToHttp()`, `ipfsToApiRoute()`, `extractCid()`, `isValidCid()`
+- ✅ Gateway failover support with `getAllGateways()`
+- ✅ URI normalization helpers
+
+**`src/config/rpc.ts`** (70+ lines)
+- ✅ RPC_URLS by chain ID with env var fallbacks
+- ✅ RPC_FALLBACKS for each chain (redundancy)
+- ✅ Helpers: `getRpcUrl()`, `getAllRpcUrls()`
+
+**`src/config/index.ts`**
+- ✅ Centralized export point for all config modules
+- ✅ Re-exports all types and functions
+
+#### 2. Refactored Critical Files (4 files)
+
+**`src/components/GlobalHeaderEvm.tsx`**
+- ✅ Replaced 4 hardcoded chain ID checks (lines 127, 162, 235, 258)
+- ✅ Now uses `getChainConfig()` for type-safe access
+- ✅ Both desktop and mobile menu selectors updated
+- **Before**: `const kind = (v===8453||v===84532)?'base':'avax'`
+- **After**: `const config = getChainConfig(v); const kind = config?.type || 'avax'`
+
+**`src/lib/indexer.ts`**
+- ✅ Removed 18 lines of hardcoded CHAINS map
+- ✅ Removed 5 lines of hardcoded MARKET_ADDRESSES map
+- ✅ Now uses `CHAIN_CONFIG` and helper functions
+- ✅ Replaced `ipfs.io` hardcoded URLs (2 instances) with `ipfsToHttp()`
+- **Before**: Inline chain config with hardcoded RPCs and addresses
+- **After**: Single line `getChainConfig(chainId)` and `ipfsToHttp(uri)`
+
+**`src/app/api/ipfs/pin-file/route.ts`**
+- ✅ Replaced hardcoded Pinata API URL with `getPinataEndpoint('pinFile')`
+- ✅ Added import for centralized config
+- **Before**: `'https://api.pinata.cloud/pinning/pinFileToIPFS'`
+- **After**: `getPinataEndpoint('pinFile')`
+
+### 📊 Impact Summary
+
+| Metric | Count |
+|--------|-------|
+| **New config files** | 3 |
+| **Lines of config code** | 450+ |
+| **Files refactored** | 4 |
+| **Hardcoded values removed** | 25+ |
+| **Helper functions created** | 15+ |
+
+### 🎯 Benefits Achieved
+
+✅ **Single source of truth** for chain configuration  
+✅ **Type-safe** chain ID handling (no more magic numbers)  
+✅ **Easy to add new chains** (just update CHAIN_CONFIG)  
+✅ **IPFS gateway failover** support built-in  
+✅ **Environment-configurable** all endpoints  
+✅ **Better code readability** (getChainConfig vs hardcoded checks)  
+
+### 🔨 Build Status
+
+```bash
+npm run build
+```
+
+- ✅ Compiles successfully
+- ✅ No new TypeScript errors
+- ✅ All imports resolved correctly
+- ⚠️ Pre-existing Next.js warnings (unchanged):
+  - useSearchParams without Suspense (existing issue)
+  - pino-pretty warning (cosmetic, non-blocking)
+
+### 📦 Commit Details
+
+**Branch**: `feature/locale-persistence`  
+**Commit**: `978492b1`  
+**Message**: "Phase 1: Centralize hardcoded values (chains, IPFS, RPC)"  
+**Files changed**: 7  
+**Insertions**: 513+  
+**Deletions**: 42-  
+**Pushed**: ✅ GitHub
+
+---
+
+## 🚧 Remaining Work (Phase 1 - HIGH Priority)
+
+### Files Still Using Hardcoded Chain IDs (26+ files)
+
+Priority order based on usage frequency:
+
+1. **`app/[locale]/publish/wizard/step4/page.tsx`** (8+ hardcoded references)
+   - Lines 477-478, 493-494, 526-527
+   - Functions: setUnit, RPC URL selection
+   
+2. **`app/[locale]/evm/models/[id]/ModelPageClient.tsx`** (6+ references)
+   - Lines 484-487 (market address map)
+   - Lines 569-570, 582-583 (chain icons/colors)
+
+3. **`app/evm/licenses/page.tsx`** (4+ references)
+   - Lines 37-40 (market address map)
+
+4. **`app/[locale]/landing-v2/page.tsx`** (2 references)
+   - Lines 31, 42 (token symbol detection)
+
+5. **`app/[locale]/publish/wizard/step5/page.tsx`** (2 references)
+   - Lines 260-261 (network detection)
+
+6. **`app/api/metadata/license/[chainId]/[tokenId]/route.ts`** (2 references)
+   - Lines 13-15 (RPC URL mapping)
+
+7. **`app/api/models/publish/route.ts`** (1 reference)
+   - Line 74-75 (chainId map)
+
+### Files Still Using Hardcoded IPFS URLs (15+ files)
+
+1. **`components/ModelDetailView.tsx`** (line 183)
+2. **`app/[locale]/publish/wizard/step1/page.tsx`** (lines 262, 299, 332, 368, 572)
+3. **`app/[locale]/publish/wizard/step3/page.tsx`** (line 767)
+4. **`app/[locale]/publish/wizard/step5/page.tsx`** (line 803)
+5. **`app/[locale]/models/page.tsx`** (lines 118, 126)
+6. **`app/evm/licenses/page.tsx`** (line 166)
+7. **`app/api/ipfs/pin-cid/route.ts`** (line 21)
+8. **`app/api/ipfs/upload/route.ts`** (lines 25, 51, 68)
+9. **`app/api/ipfs/pin-json/route.ts`** (line 7)
+10. **`app/api/pinata/upload/route.ts`** (lines 36, 54)
+11. **`app/api/models/publish/route.ts`** (line 18)
+
+### Estimated Remaining Effort
+
+| Task | Files | Est. Time |
+|------|-------|-----------|
+| Refactor chain ID usage | 26 | 6h |
+| Refactor IPFS URLs | 15 | 2h |
+| Testing & validation | - | 1h |
+| **TOTAL** | **41** | **9h** |
+
+---
+
+## 📝 Next Actions
+
+**Option 1**: Continue Phase 1 refactoring (recommended)
+- Focus on high-usage files first (step4, ModelPageClient, licenses)
+- Batch similar files together
+- Test after each batch
+
+**Option 2**: Pause and test current changes
+- Deploy to staging
+- Verify all flows work with new config
+- Then continue refactoring
+
+**Option 3**: Move to Phase 2 (timeouts, indexer config)
+- Come back to finish Phase 1 later
+- Less critical but still valuable
+
+---
+
+**Next Step**: Continue refactoring remaining files or pause for testing?
