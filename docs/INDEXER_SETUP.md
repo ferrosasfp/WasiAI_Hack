@@ -5,8 +5,77 @@ Esta guía te ayudará a configurar la **Opción 3 GRATIS** con Neon Postgres + 
 ## 🎯 Arquitectura
 
 ```
-Blockchain (EVM) → GitHub Actions (cada 15 min) → Neon Postgres → API Routes → Frontend
+Blockchain (EVM) → Indexer → Neon Postgres → API Routes → Frontend
 ```
+
+### Capas y responsabilidades
+
+- **Blockchain (EVM)**  
+  - Fuente de verdad.  
+  - El contrato Marketplace crea/actualiza modelos y emite eventos de licencias.  
+  - Si una transacción falla, no hay nada que indexar.
+
+- **Indexer (`src/lib/indexer.ts` + `scripts/run-indexer.ts`)**  
+  - Escanea bloques de la chain (usando `viem`).  
+  - Lee:
+    - Modelos on-chain vía `models(id)` del contrato.
+    - Eventos de licencias (`LicenseMinted`, etc.).
+    - Metadata en IPFS usando la `uri` del modelo.
+  - Transforma y normaliza la data y la guarda en Neon:
+    - Tabla `models`: datos on-chain del modelo (owner, uri, prices, listed, version, etc.).
+    - Tabla `model_metadata`: metadata enriquecida (imagen, categorías, tasks, terms, architecture, etc.).
+    - Tabla `licenses`: licencias NFT (owner, tipo, expiración, flags de API/download, tx, block, etc.).
+    - Tabla `indexer_state`: estado del escaneo (últimos bloques y ids indexados por `chain_id`).
+  - Se puede ejecutar:
+    - Localmente (`npm run indexer`).
+    - En GitHub Actions cada X minutos (auto-indexado).  
+    - En el futuro, vía un cron de Vercel.
+
+- **Neon Postgres (DB)**  
+  - Actúa como **capa de lectura rápida / caché estructurado**.  
+  - No reemplaza a la blockchain como fuente de verdad, pero guarda una vista optimizada para queries:
+    - Lecturas paginadas de modelos.
+    - Búsquedas y filtros (por chain, categoría, texto, etc.).
+    - Listado de licencias por usuario.
+  - Es ideal para:
+    - `ORDER BY`, `LIMIT/OFFSET`, filtros complejos.  
+    - KPIs, métricas, estadísticas.
+
+- **API Routes indexadas**  
+  - `GET /api/indexed/models`  
+    - Lee de `models` + `model_metadata`.  
+    - Respuesta típica: `{ models, total, page, pages }`.  
+    - Sustituye el escaneo directo de blockchain en la página de exploración de modelos.
+  - `GET /api/indexed/licenses`  
+    - Lee de `licenses` + `models` + `model_metadata`.  
+    - Devuelve las licencias de una wallet, con toda la info lista para UI.
+  - Estas rutas **solo hablan con Neon**, no con la chain → rápidas y baratas.
+
+- **Frontend (Next.js)**  
+  - `/en/models`  
+    - Llama a `/api/indexed/models` para mostrar el catálogo de modelos.  
+    - Ya no necesita hacer `readContract` ni fetchear IPFS uno por uno.
+  - `/en/evm/licenses`  
+    - Llama a `/api/indexed/licenses` para mostrar las licencias del usuario.  
+    - Reemplaza el escaneo de los últimos N IDs de licencias on-chain.
+  - Resultado:  
+    - Antes: 5–20s de espera escaneando blockchain + IPFS.  
+    - Después: 100–300ms leyendo desde Neon.
+
+### Orden lógico del flujo
+
+1. **Primero on-chain**  
+   - Se ejecuta la transacción en el contrato (crear modelo, mintear licencia).  
+   - Si no se mina, no hay cambios en la DB.
+
+2. **Luego indexer → Neon**  
+   - El indexer detecta los nuevos eventos/cambios on-chain.  
+   - Valida y enriquece la data con metadata de IPFS.  
+   - Escribe en las tablas de Neon (`models`, `model_metadata`, `licenses`, `indexer_state`).
+
+3. **Luego APIs → frontend**  
+   - Las páginas de Next.js consumen `/api/indexed/*`, que solo leen de Neon.  
+   - La UX es rápida y estable, sin depender de latencia de la chain ni de IPFS en cada request.
 
 ## 📋 Paso 1: Crear cuenta en Neon
 
