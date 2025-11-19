@@ -58,27 +58,39 @@ function useEvmModel(options: UseEvmModelOptions) {
   const [loading, setLoading] = React.useState(!initialModel)
   const [attempted, setAttempted] = React.useState(Boolean(initialModel))
   const walletChainId = useChainId() // Detect chain from connected wallet
+  const { isConnected } = useAccount()
+  
   const evmChainId = React.useMemo(() => {
-    // Priority: wallet chainId (auto-detect) > explicit URL chainId (override) > env default (fallback)
-    // ALWAYS prefer wallet chainId when available
-    if (typeof walletChainId === 'number' && Number.isFinite(walletChainId)) {
-      console.log('[ModelPageClient] Using chainId from connected wallet:', walletChainId)
+    // Priority for browsing/viewing (no wallet required):
+    // 1. ENV default (for public exploration) - Always available
+    // 2. Wallet chainId (if connected) - Can override default
+    // 3. URL param (for testing/debugging) - Manual override
+    
+    // First, get default chainId for public browsing
+    const envValue = Number(process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID || process.env.NEXT_PUBLIC_EVM_CHAIN_ID || 0)
+    const hasEnvDefault = Number.isFinite(envValue) && envValue > 0
+    
+    // If wallet is connected, use wallet's chainId (allows user to switch networks)
+    if (isConnected && typeof walletChainId === 'number' && Number.isFinite(walletChainId)) {
+      console.log('[ModelPageClient] Using chainId from connected wallet:', walletChainId, '(user can switch networks)')
       return walletChainId
     }
-    // Fallback to URL param (for testing without wallet)
+    
+    // Fallback to URL param (for testing/debugging without wallet)
     if (typeof chainId === 'number' && Number.isFinite(chainId)) {
-      console.log('[ModelPageClient] Using chainId from URL param:', chainId)
+      console.log('[ModelPageClient] Using chainId from URL param:', chainId, '(manual override)')
       return chainId
     }
-    // Last resort: env default
-    const envValue = Number(process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID || process.env.NEXT_PUBLIC_EVM_CHAIN_ID || 0)
-    if (Number.isFinite(envValue) && envValue > 0) {
-      console.log('[ModelPageClient] Using chainId from env default:', envValue)
+    
+    // Default: ENV chainId for public browsing (no wallet required)
+    if (hasEnvDefault) {
+      console.log('[ModelPageClient] Using default chainId for browsing:', envValue, '(no wallet required)')
       return envValue
     }
-    console.warn('[ModelPageClient] No chainId detected. Please connect wallet or set NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID')
+    
+    console.warn('[ModelPageClient] No chainId available. Set NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID in .env.local')
     return undefined
-  }, [walletChainId, chainId])
+  }, [isConnected, walletChainId, chainId])
 
   React.useEffect(() => {
     setData(initialModel ?? null)
@@ -538,6 +550,16 @@ export default function ModelPageClient(props: ModelPageClientProps) {
   }, [evmChainId])
 
   const handleOpenBuy = React.useCallback(() => {
+    // Check if wallet is connected before allowing purchase
+    if (!isConnected) {
+      setSnkSev('warning')
+      setSnkMsg(locale === 'es' 
+        ? '🔗 Por favor conecta tu wallet para comprar una licencia' 
+        : '🔗 Please connect your wallet to purchase a license')
+      setSnkOpen(true)
+      return
+    }
+    
     // set default months from default_duration_days rounded to months (1..12)
     const days = (data as any)?.default_duration_days
     const m = Math.max(1, Math.min(12, Math.round((typeof days === 'number' ? (days/30) : 1))))
@@ -545,7 +567,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
     setBuyKind(undefined)
     setBuyStep('select')
     setBuyOpen(true)
-  }, [data])
+  }, [data, isConnected, locale])
 
   const handlePurchase = React.useCallback(async ()=>{
     try {
@@ -761,31 +783,18 @@ export default function ModelPageClient(props: ModelPageClientProps) {
         {!evmChainId && !loading && (
           <Paper variant="outlined" sx={{ p: 3, mb: 2, borderRadius: 2, bgcolor: 'rgba(255,165,0,0.05)', borderColor: 'rgba(255,165,0,0.3)' }}>
             <Typography color="warning.main" variant="h6" sx={{ mb: 2 }}>
-              {locale === 'es' ? '🔗 Conecta tu Wallet' : '🔗 Connect Your Wallet'}
+              {locale === 'es' ? '⚙️ Configuración requerida' : '⚙️ Configuration Required'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               {locale === 'es' 
-                ? 'Para ver este modelo, necesitas conectar tu wallet. El sistema detectará automáticamente la red (Avalanche Fuji o Base Sepolia) desde tu wallet.'
-                : 'To view this model, you need to connect your wallet. The system will automatically detect the network (Avalanche Fuji or Base Sepolia) from your wallet.'}
+                ? 'No se pudo detectar una red blockchain. Por favor configura NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID en tu archivo .env.local o conecta tu wallet.'
+                : 'Could not detect a blockchain network. Please configure NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID in your .env.local file or connect your wallet.'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               {locale === 'es' 
-                ? '📍 Asegúrate de que tu wallet esté conectada a la red correcta (testnet o mainnet).'
-                : '📍 Make sure your wallet is connected to the correct network (testnet or mainnet).'}
+                ? 'Ejemplo: NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID=43113 (Avalanche Fuji)'
+                : 'Example: NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID=43113 (Avalanche Fuji)'}
             </Typography>
-            <Button 
-              variant="contained" 
-              sx={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                '&:hover': { opacity: 0.9 }
-              }}
-              onClick={() => {
-                // This will trigger the wallet connection dialog
-                document.querySelector('[data-connect-wallet]')?.dispatchEvent(new Event('click'))
-              }}
-            >
-              {locale === 'es' ? 'Conectar Wallet' : 'Connect Wallet'}
-            </Button>
           </Paper>
         )}
         {!loading && !data && attempted && evmChainId && (
@@ -834,6 +843,27 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                         <Typography variant="h6" sx={{ color:'#ffffffcc', fontWeight:400, mb:1.5, fontSize:'1.1rem' }}>
                           {viewModel.step1.tagline}
                         </Typography>
+                      )}
+                      {/* Info: browsing without wallet */}
+                      {!isConnected && evmChainId && (
+                        <Paper 
+                          variant="outlined" 
+                          sx={{ 
+                            p: 1.5, 
+                            mb: 2, 
+                            bgcolor: 'rgba(100,200,255,0.05)', 
+                            borderColor: 'rgba(100,200,255,0.2)',
+                            borderRadius: 1
+                          }}
+                        >
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="caption" sx={{ color: '#90caf9', fontSize: '0.75rem' }}>
+                              ℹ️ {locale === 'es' 
+                                ? `Navegando en: ${getChainConfig(evmChainId)?.name || `Chain ${evmChainId}`}. Conecta tu wallet para cambiar de red o realizar acciones (comprar, publicar, editar).`
+                                : `Browsing on: ${getChainConfig(evmChainId)?.name || `Chain ${evmChainId}`}. Connect your wallet to switch networks or take actions (buy, publish, edit).`}
+                            </Typography>
+                          </Stack>
+                        </Paper>
                       )}
                       {/* Summary with line clamp */}
                       {viewModel.step1.summary && (
