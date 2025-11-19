@@ -249,9 +249,12 @@ export function QuickEditDrawer({
                   fullWidth
                   value={pricePerpetual}
                   onChange={(e) => setPricePerpetual(e.target.value)}
+                  InputLabelProps={{ sx: { color: '#fff' } }}
                   InputProps={{
                     endAdornment: <InputAdornment position="end">{chainSymbol}</InputAdornment>,
+                    sx: { color: '#fff' }
                   }}
+                  FormHelperTextProps={{ sx: { color: 'rgba(255,255,255,0.6)' } }}
                   helperText={isES ? 'Precio en wei (0 para deshabilitar)' : 'Price in wei (0 to disable)'}
                 />
                 
@@ -261,9 +264,12 @@ export function QuickEditDrawer({
                   fullWidth
                   value={priceSubscription}
                   onChange={(e) => setPriceSubscription(e.target.value)}
+                  InputLabelProps={{ sx: { color: '#fff' } }}
                   InputProps={{
                     endAdornment: <InputAdornment position="end">{`${chainSymbol}/mo`}</InputAdornment>,
+                    sx: { color: '#fff' }
                   }}
+                  FormHelperTextProps={{ sx: { color: 'rgba(255,255,255,0.6)' } }}
                   helperText={isES ? 'Precio mensual en wei (0 para deshabilitar)' : 'Monthly price in wei (0 to disable)'}
                 />
                 
@@ -273,7 +279,10 @@ export function QuickEditDrawer({
                   fullWidth
                   value={durationMonths}
                   onChange={(e) => setDurationMonths(e.target.value)}
+                  InputLabelProps={{ sx: { color: '#fff' } }}
+                  InputProps={{ sx: { color: '#fff' } }}
                   inputProps={{ min: 1, max: 12 }}
+                  FormHelperTextProps={{ sx: { color: 'rgba(255,255,255,0.6)' } }}
                   helperText={isES ? 'Solo para suscripción' : 'For subscription only'}
                 />
               </Stack>
@@ -289,11 +298,13 @@ export function QuickEditDrawer({
                 <FormControlLabel
                   control={<Checkbox checked={rightsAPI} onChange={(e) => setRightsAPI(e.target.checked)} />}
                   label={isES ? 'Uso de API' : 'API usage'}
+                  sx={{ '& .MuiFormControlLabel-label': { color: '#fff' } }}
                 />
                 
                 <FormControlLabel
                   control={<Checkbox checked={rightsDownload} onChange={(e) => setRightsDownload(e.target.checked)} />}
                   label={isES ? 'Descarga del modelo' : 'Model download'}
+                  sx={{ '& .MuiFormControlLabel-label': { color: '#fff' } }}
                 />
                 
                 <TextField
@@ -302,6 +313,15 @@ export function QuickEditDrawer({
                   fullWidth
                   value={deliveryMode}
                   onChange={(e) => setDeliveryMode(e.target.value)}
+                  InputLabelProps={{ sx: { color: '#fff' } }}
+                  InputProps={{ sx: { color: '#fff' } }}
+                  SelectProps={{
+                    MenuProps: {
+                      PaperProps: {
+                        sx: { bgcolor: '#1a2332', color: '#fff' }
+                      }
+                    }
+                  }}
                 >
                   <MenuItem value="API">API</MenuItem>
                   <MenuItem value="Download">{isES ? 'Descarga' : 'Download'}</MenuItem>
@@ -316,6 +336,9 @@ export function QuickEditDrawer({
               fullWidth
               value={termsHash}
               onChange={(e) => setTermsHash(e.target.value)}
+              InputLabelProps={{ sx: { color: '#fff' } }}
+              InputProps={{ sx: { color: '#fff' } }}
+              FormHelperTextProps={{ sx: { color: 'rgba(255,255,255,0.6)' } }}
               helperText={isES ? 'Hash de los términos legales' : 'Legal terms hash'}
             />
             
@@ -329,6 +352,7 @@ export function QuickEditDrawer({
                 />
               }
               label={isES ? 'Modelo listado (visible)' : 'Model listed (visible)'}
+              sx={{ '& .MuiFormControlLabel-label': { color: '#fff' } }}
             />
             
             {/* Error */}
