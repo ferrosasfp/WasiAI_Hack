@@ -101,55 +101,62 @@ function useEvmModel(options: UseEvmModelOptions) {
   React.useEffect(() => {
     if (!id) return
     
-    // If we have initialModel from SSR (Neon) AND it's for the same chain, trust it
-    // This prevents overwriting fresh Neon data (synced after Quick Edit) with blockchain data
-    // Only skip blockchain fetch if chainIds match (or no evmChainId detected yet)
-    if (initialModel) {
-      const initialChainId = (initialModel as any)?.chainId
-      const chainsMatch = !evmChainId || !initialChainId || initialChainId === evmChainId
-      if (chainsMatch) {
-        console.log('[useEvmModel] Using SSR data from Neon (fresh after Quick Edit sync)')
-        return // Trust SSR data, skip blockchain fetch
-      }
-      console.log('[useEvmModel] Chain mismatch, fetching from blockchain:', { initialChainId, evmChainId })
-    }
-    
     let alive = true
     const load = async () => {
       setLoading(true)
+      
+      // Determine data source based on initialModel and chainId match
+      const initialChainId = (initialModel as any)?.chainId
+      const chainsMatch = !evmChainId || !initialChainId || initialChainId === evmChainId
+      const useNeonData = initialModel && chainsMatch
+      
+      // Helper for fetch with timeout (used for both blockchain API and IPFS)
+      const fetchWithTimeout = async (input: RequestInfo | URL, init: RequestInit = {}, ms = 10000): Promise<Response> => {
+        const ac = new AbortController()
+        const t = setTimeout(()=> ac.abort(), ms)
+        try {
+          return await fetch(input, { ...init, signal: ac.signal })
+        } finally {
+          clearTimeout(t)
+        }
+      }
+      
       try {
-        const qs = new URLSearchParams()
-        if (typeof evmChainId === 'number') qs.set('chainId', String(evmChainId))
-        const fetchWithTimeout = async (input: RequestInfo | URL, init: RequestInit = {}, ms = 10000): Promise<Response> => {
-          const ac = new AbortController()
-          const t = setTimeout(()=> ac.abort(), ms)
-          try {
-            return await fetch(input, { ...init, signal: ac.signal })
-          } finally {
-            clearTimeout(t)
+        let m: any = null
+        
+        // Use Neon data if available and chains match, otherwise fetch from blockchain
+        if (useNeonData) {
+          console.log('[useEvmModel] Using SSR data from Neon (fresh after Quick Edit sync)')
+          m = initialModel
+        } else {
+          if (initialModel && !chainsMatch) {
+            console.log('[useEvmModel] Chain mismatch, fetching from blockchain:', { initialChainId, evmChainId })
           }
-        }
-        const apiUrl = `/api/models/evm/${id}?${qs.toString()}`
-        console.log('[ModelPageClient] Fetching model:', { id, evmChainId, apiUrl })
-        const r = await fetchWithTimeout(apiUrl, { cache: 'no-store' }, 10000)
+          
+          const qs = new URLSearchParams()
+          if (typeof evmChainId === 'number') qs.set('chainId', String(evmChainId))
+          const apiUrl = `/api/models/evm/${id}?${qs.toString()}`
+          console.log('[ModelPageClient] Fetching model:', { id, evmChainId, apiUrl })
+          const r = await fetchWithTimeout(apiUrl, { cache: 'no-store' }, 10000)
         
-        if (!r.ok) {
-          console.error('[ModelPageClient] API error:', r.status, r.statusText)
-          const errorText = await r.text().catch(() => 'Unknown error')
-          console.error('[ModelPageClient] Error details:', errorText)
-          if (!alive) return
-          setData(null)
-          setLoading(false)
-          setAttempted(true)
-          return
+          if (!r.ok) {
+            console.error('[ModelPageClient] API error:', r.status, r.statusText)
+            const errorText = await r.text().catch(() => 'Unknown error')
+            console.error('[ModelPageClient] Error details:', errorText)
+            if (!alive) return
+            setData(null)
+            setLoading(false)
+            setAttempted(true)
+            return
+          }
+          
+          const j = await r.json().catch((e) => {
+            console.error('[ModelPageClient] JSON parse error:', e)
+            return {}
+          })
+          console.log('[ModelPageClient] API response:', j)
+          m = j?.data || null
         }
-        
-        const j = await r.json().catch((e) => {
-          console.error('[ModelPageClient] JSON parse error:', e)
-          return {}
-        })
-        console.log('[ModelPageClient] API response:', j)
-        let m = j?.data || null
         
         if (!alive) return
         if (!m) {
@@ -159,18 +166,30 @@ function useEvmModel(options: UseEvmModelOptions) {
           return
         }
         
+        // Process IPFS metadata
+        // If metadata already exists in DB (from Neon), use it; otherwise fetch from IPFS
         if (m && m.uri && typeof m.uri === 'string' && !m.uri.includes('.enc')) {
           try {
-            const uri = m.uri as string
-            const toApiFromIpfs = (u: string): string => {
-              if (!u) return ''
-              if (u.startsWith('http://') || u.startsWith('https://')) return u
-              if (u.startsWith('ipfs://')) return `/api/ipfs/ipfs/${u.replace('ipfs://','')}`
-              if (u.startsWith('/ipfs/')) return `/api/ipfs${u}`
-              return `/api/ipfs/ipfs/${u}`
+            let meta = null
+            
+            // Use cached metadata from Neon if available
+            if (m.metadata && typeof m.metadata === 'object') {
+              console.log('[useEvmModel] Using cached metadata from Neon')
+              meta = m.metadata
+            } else {
+              // Fetch from IPFS if not cached
+              const uri = m.uri as string
+              const toApiFromIpfs = (u: string): string => {
+                if (!u) return ''
+                if (u.startsWith('http://') || u.startsWith('https://')) return u
+                if (u.startsWith('ipfs://')) return `/api/ipfs/ipfs/${u.replace('ipfs://','')}`
+                if (u.startsWith('/ipfs/')) return `/api/ipfs${u}`
+                return `/api/ipfs/ipfs/${u}`
+              }
+              const httpUrl = toApiFromIpfs(uri)
+              console.log('[useEvmModel] Fetching metadata from IPFS:', httpUrl)
+              meta = await fetchWithTimeout(httpUrl, { cache: 'no-store' }, 10000).then(r=>r.json()).catch(()=>null)
             }
-            const httpUrl = toApiFromIpfs(uri)
-            const meta = await fetchWithTimeout(httpUrl, { cache: 'no-store' }, 10000).then(r=>r.json()).catch(()=>null)
             if (meta) {
               const img = meta.image || meta.image_url || meta.thumbnail || meta?.cover?.thumbCid || meta?.cover?.cid
               if (img && typeof img === 'string') {
@@ -362,6 +381,45 @@ function useEvmModel(options: UseEvmModelOptions) {
   }, [id, evmChainId, initialModel])
 
   return { data, loading, attempted, evmChainId }
+}
+
+/**
+ * Format price from wei to token display
+ * - Rounds up to 2 decimals if there are decimals
+ * - Shows as integer if no decimals
+ * @param weiValue - Price in wei (bigint or number)
+ * @returns Formatted price string (e.g., "5", "5.01", "5.67")
+ */
+function formatPrice(weiValue: number | bigint | string | undefined): string {
+  if (!weiValue) return '0'
+  
+  // Handle bigint and large string numbers
+  let num: number
+  if (typeof weiValue === 'bigint') {
+    num = Number(weiValue)
+  } else if (typeof weiValue === 'string') {
+    // For very large strings, use BigInt first to avoid precision loss
+    try {
+      num = Number(BigInt(weiValue))
+    } catch {
+      num = parseFloat(weiValue)
+    }
+  } else {
+    num = weiValue
+  }
+  
+  if (num <= 0) return '0'
+  
+  const tokens = num / 1e18
+  const hasDecimals = tokens % 1 !== 0
+  
+  if (hasDecimals) {
+    // Round up to 2 decimals
+    return (Math.ceil(tokens * 100) / 100).toFixed(2)
+  } else {
+    // Show as integer
+    return Math.floor(tokens).toString()
+  }
 }
 
 export default function ModelPageClient(props: ModelPageClientProps) {
@@ -1059,19 +1117,20 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                     )}
 
                     {/* Prices - Enhanced visual cards */}
-                    {(viewModel.step4.pricing.perpetual || viewModel.step4.pricing.subscription) && (
+                    {(viewModel?.step4?.pricing?.perpetual || viewModel?.step4?.pricing?.subscription || data?.price_perpetual || data?.price_subscription) && (
                       <Box>
                         <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1.5, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem', letterSpacing:'0.5px' }}>
                           {isES ? 'Precios y licencias' : 'Pricing & licenses'}
                         </Typography>
                         <Grid container spacing={2}>
-                          {viewModel.step4.pricing.perpetual?.available && (
-                            <Grid item xs={12} sm={viewModel.step4.pricing.subscription?.available ? 6 : 12}>
+                          {(viewModel?.step4?.pricing?.perpetual?.available || (data?.price_perpetual && data.price_perpetual > 0)) && (
+                            <Grid item xs={12} sm={(viewModel?.step4?.pricing?.subscription?.available || (data?.price_subscription && data.price_subscription > 0)) ? 6 : 12}>
                               <Box sx={{ 
                                 p:2, 
                                 borderRadius:2, 
                                 border:'2px solid #4fe1ff',
-                                bgcolor:'rgba(79,225,255,0.08)',
+                                bgcolor:'rgba(79,225,255,0.05)',
+                                cursor:'pointer',
                                 transition:'all 0.2s',
                                 '&:hover': { bgcolor:'rgba(79,225,255,0.12)', transform:'translateY(-2px)' }
                               }}>
@@ -1079,7 +1138,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                                   {isES ? '🏆 Licencia perpetua' : '🏆 Perpetual license'}
                                 </Typography>
                                 <Typography variant="h5" sx={{ color:'#4fe1ff', fontWeight:800, mb:0.5 }}>
-                                  {viewModel.step4.pricing.perpetual.priceFormatted} {evmSymbol}
+                                  {viewModel?.step4?.pricing?.perpetual?.priceFormatted || formatPrice(data?.price_perpetual)} {evmSymbol}
                                 </Typography>
                                 <Typography variant="caption" sx={{ color:'#ffffffb3', fontSize:'0.75rem' }}>
                                   {isES ? 'Pago único • Acceso de por vida' : 'One-time payment • Lifetime access'}
@@ -1087,21 +1146,22 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                               </Box>
                             </Grid>
                           )}
-                          {viewModel.step4.pricing.subscription?.available && (
-                            <Grid item xs={12} sm={viewModel.step4.pricing.perpetual?.available ? 6 : 12}>
+                          {(viewModel?.step4?.pricing?.subscription?.available || (data?.price_subscription && data.price_subscription > 0)) && (
+                            <Grid item xs={12} sm={(viewModel?.step4?.pricing?.perpetual?.available || (data?.price_perpetual && data.price_perpetual > 0)) ? 6 : 12}>
                               <Box sx={{ 
                                 p:2, 
                                 borderRadius:2, 
-                                border:'1px solid rgba(255,255,255,0.2)',
-                                bgcolor:'rgba(255,255,255,0.05)',
+                                border:'2px solid rgba(255,255,255,0.18)',
+                                bgcolor:'rgba(255,255,255,0.03)',
+                                cursor:'pointer',
                                 transition:'all 0.2s',
-                                '&:hover': { bgcolor:'rgba(255,255,255,0.08)', borderColor:'rgba(255,255,255,0.3)' }
+                                '&:hover': { bgcolor:'rgba(255,255,255,0.08)', transform:'translateY(-2px)' }
                               }}>
                                 <Typography variant="caption" sx={{ color:'#ffffffcc', fontWeight:700, fontSize:'0.7rem', textTransform:'uppercase', display:'block', mb:0.5 }}>
                                   {isES ? '📅 Suscripción mensual' : '📅 Monthly subscription'}
                                 </Typography>
                                 <Typography variant="h5" sx={{ color:'#fff', fontWeight:700, mb:0.5 }}>
-                                  {viewModel.step4.pricing.subscription.pricePerMonthFormatted} {evmSymbol}
+                                  {viewModel?.step4?.pricing?.subscription?.pricePerMonthFormatted || formatPrice(data?.price_subscription)} {evmSymbol}
                                   <Typography component="span" sx={{ fontSize:'0.9rem', color:'#ffffffb3', fontWeight:400 }}>
                                     {isES ? '/mes' : '/mo'}
                                   </Typography>
@@ -1581,16 +1641,16 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                     {isES ? 'Precios' : 'Prices'}
                   </Typography>
                   <List dense>
-                    {viewModel.step4.pricing.perpetual?.available && (
+                    {(viewModel?.step4?.pricing?.perpetual?.available || (data?.price_perpetual && data.price_perpetual > 0)) && (
                       <Row 
                         label={isES ? 'Licencia perpetua' : 'Perpetual license'} 
-                        value={`${viewModel.step4.pricing.perpetual.priceFormatted} ${evmSymbol}`}
+                        value={`${viewModel?.step4?.pricing?.perpetual?.priceFormatted || formatPrice(data?.price_perpetual)} ${evmSymbol}`}
                       />
                     )}
-                    {viewModel.step4.pricing.subscription?.available && (
+                    {(viewModel?.step4?.pricing?.subscription?.available || (data?.price_subscription && data.price_subscription > 0)) && (
                       <Row 
                         label={isES ? 'Suscripción (por mes)' : 'Subscription (per month)'} 
-                        value={`${viewModel.step4.pricing.subscription.pricePerMonthFormatted} ${evmSymbol}/mes`}
+                        value={`${viewModel?.step4?.pricing?.subscription?.pricePerMonthFormatted || formatPrice(data?.price_subscription)} ${evmSymbol}/mes`}
                       />
                     )}
                   </List>
@@ -1661,7 +1721,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                   <Card sx={{ borderRadius: 2, border:'1px solid', borderColor: buyKind==='perpetual' ? 'primary.main' : 'rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}>
                     <CardContent>
                       <Typography variant="subtitle2" fontWeight={700} sx={{ color:'#fff' }}>{L.perpetual}</Typography>
-                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{data && typeof data.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{(data && typeof data.price_perpetual === 'number' && data.price_perpetual > 0) ? `${formatPrice(data.price_perpetual)} ${evmSymbol}` : L.unspecified}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -1669,7 +1729,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                   <Card sx={{ borderRadius: 2, border:'1px solid', borderColor: buyKind==='subscription' ? 'primary.main' : 'rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}>
                     <CardContent>
                       <Typography variant="subtitle2" fontWeight={700} sx={{ color:'#fff' }}>{L.subscriptionPerMonth}</Typography>
-                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{data && typeof data.price_subscription === 'number' && data.price_subscription > 0 ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</Typography>
+                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{(data && typeof data.price_subscription === 'number' && data.price_subscription > 0) ? `${formatPrice(data.price_subscription)} ${evmSymbol}` : L.unspecified}</Typography>
                       {buyKind === 'subscription' && (
                         <Box sx={{ mt: 2 }}>
                           <TextField
@@ -1707,11 +1767,11 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                 <Divider sx={{ my: 1 }} />
                 <Typography variant="body2" sx={{ color:'#ffffffcc' }}>
                   {buyKind === 'perpetual' ? (
-                    <>{typeof data?.price_perpetual === 'number' && data.price_perpetual > 0 ? `${(data.price_perpetual/1e18).toFixed(2)} ${evmSymbol}` : L.unspecified}</>
+                    <>{(typeof data?.price_perpetual === 'number' && data.price_perpetual > 0) ? `${formatPrice(data.price_perpetual)} ${evmSymbol}` : L.unspecified}</>
                   ) : (
                     <>
-                      {typeof data?.price_subscription === 'number' && data.price_subscription > 0
-                        ? `${(data.price_subscription/1e18).toFixed(2)} ${evmSymbol} × ${buyMonths} = ${(((data.price_subscription*buyMonths)/1e18)).toFixed(2)} ${evmSymbol}`
+                      {(typeof data?.price_subscription === 'number' && data.price_subscription > 0)
+                        ? `${formatPrice(data.price_subscription)} ${evmSymbol} × ${buyMonths} = ${formatPrice(data.price_subscription * buyMonths)} ${evmSymbol}`
                         : L.unspecified}
                     </>
                   )}

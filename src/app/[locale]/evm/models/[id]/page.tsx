@@ -34,23 +34,24 @@ export default async function EvmModelDetailPage(props: PageProps) {
       const data = await res.json()
       if (data?.model) {
         // Transform indexed API response to match expected format
+        // Keep snake_case for consistency with blockchain API response
         initialModel = {
           id: data.model.model_id,
           modelId: data.model.model_id,
-          chainId: data.model.chain_id, // Include chainId for cache validation
+          chainId: data.model.chain_id,
           owner: data.model.owner,
           creator: data.model.creator,
           name: data.model.name,
           uri: data.model.uri,
           royaltyBps: data.model.royalty_bps,
           listed: data.model.listed,
-          pricePerpetual: data.model.price_perpetual,
-          priceSubscription: data.model.price_subscription,
-          defaultDurationDays: data.model.default_duration_days,
-          deliveryRightsDefault: data.model.delivery_rights_default,
-          deliveryModeHint: data.model.delivery_mode_hint,
+          price_perpetual: data.model.price_perpetual,
+          price_subscription: data.model.price_subscription,
+          default_duration_days: data.model.default_duration_days,
+          delivery_rights_default: data.model.delivery_rights_default,
+          delivery_mode_hint: data.model.delivery_mode_hint,
           version: data.model.version,
-          termsHash: data.model.terms_hash,
+          terms_hash: data.model.terms_hash,
           imageUrl: data.model.image_url,
           metadata: data.model.metadata,
           categories: data.model.categories,

@@ -35,12 +35,37 @@ function getChainSymbol(chain: string): 'AVAX' | 'ETH' | 'SUI' {
 }
 
 /**
- * Format price to 2 decimals (rounding up)
+ * Format price to 2 decimals (rounding up) if decimals exist, or as integer if no decimals
+ * - Rounds up to 2 decimals if there are decimals
+ * - Shows as integer if no decimals
+ * @param value - Price value
+ * @returns Formatted price string (e.g., "5", "5.01", "5.67")
  */
 function formatPrice(value: string | number): string {
-  const num = typeof value === 'string' ? parseFloat(value) : value
-  if (isNaN(num)) return '0.00'
-  return Math.ceil(num * 100) / 100 + ''
+  // Handle large string numbers with BigInt to avoid precision loss
+  let num: number
+  if (typeof value === 'string') {
+    try {
+      // Try parsing as BigInt first for very large numbers
+      num = Number(BigInt(value))
+    } catch {
+      num = parseFloat(value)
+    }
+  } else {
+    num = value
+  }
+  
+  if (isNaN(num) || num <= 0) return '0'
+  
+  const hasDecimals = num % 1 !== 0
+  
+  if (hasDecimals) {
+    // Round up to 2 decimals
+    return (Math.ceil(num * 100) / 100).toFixed(2)
+  } else {
+    // Show as integer
+    return Math.floor(num).toString()
+  }
 }
 
 /**
@@ -245,12 +270,19 @@ export function createStep4ViewModel(data: any): Step4ViewModel {
   const baseDuration = data.baseDurationMonths ?? data.pricing?.subscription?.baseDurationMonths ?? 1
   
   // Convert from wei if needed (if values are very large, assume wei)
-  const perpetualValue = typeof perpetualPrice === 'number' && perpetualPrice > 1000 
-    ? (perpetualPrice / 1e18).toFixed(4) 
-    : (perpetualPrice ? String(perpetualPrice) : undefined)
-  const subscriptionValue = typeof subscriptionPrice === 'number' && subscriptionPrice > 1000
-    ? (subscriptionPrice / 1e18).toFixed(4)
-    : (subscriptionPrice ? String(subscriptionPrice) : undefined)
+  const perpetualValue = (() => {
+    if (!perpetualPrice) return undefined
+    const numValue = typeof perpetualPrice === 'string' ? Number(BigInt(perpetualPrice)) : perpetualPrice
+    // If > 1000, assume it's in wei and convert to tokens
+    return numValue > 1000 ? (numValue / 1e18).toFixed(4) : String(perpetualPrice)
+  })()
+  
+  const subscriptionValue = (() => {
+    if (!subscriptionPrice) return undefined
+    const numValue = typeof subscriptionPrice === 'string' ? Number(BigInt(subscriptionPrice)) : subscriptionPrice
+    // If > 1000, assume it's in wei and convert to tokens
+    return numValue > 1000 ? (numValue / 1e18).toFixed(4) : String(subscriptionPrice)
+  })()
   
   const pricing: LicensePricing = {
     perpetual: perpetualValue ? {
