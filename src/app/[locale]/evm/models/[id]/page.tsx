@@ -37,6 +37,7 @@ export default async function EvmModelDetailPage(props: PageProps) {
         initialModel = {
           id: data.model.model_id,
           modelId: data.model.model_id,
+          chainId: data.model.chain_id, // Include chainId for cache validation
           owner: data.model.owner,
           creator: data.model.creator,
           name: data.model.name,

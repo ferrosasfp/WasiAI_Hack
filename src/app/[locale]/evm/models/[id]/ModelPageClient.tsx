@@ -15,7 +15,6 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CheckIcon from '@mui/icons-material/Check'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useWriteContract, usePublicClient, useSwitchChain, useAccount, useChainId } from 'wagmi'
 import MARKET_ARTIFACT from '@/abis/Marketplace.json'
 import { useTranslations, useLocale } from 'next-intl'
@@ -101,6 +100,20 @@ function useEvmModel(options: UseEvmModelOptions) {
 
   React.useEffect(() => {
     if (!id) return
+    
+    // If we have initialModel from SSR (Neon) AND it's for the same chain, trust it
+    // This prevents overwriting fresh Neon data (synced after Quick Edit) with blockchain data
+    // Only skip blockchain fetch if chainIds match (or no evmChainId detected yet)
+    if (initialModel) {
+      const initialChainId = (initialModel as any)?.chainId
+      const chainsMatch = !evmChainId || !initialChainId || initialChainId === evmChainId
+      if (chainsMatch) {
+        console.log('[useEvmModel] Using SSR data from Neon (fresh after Quick Edit sync)')
+        return // Trust SSR data, skip blockchain fetch
+      }
+      console.log('[useEvmModel] Chain mismatch, fetching from blockchain:', { initialChainId, evmChainId })
+    }
+    
     let alive = true
     const load = async () => {
       setLoading(true)
@@ -346,7 +359,7 @@ function useEvmModel(options: UseEvmModelOptions) {
     }
     load()
     return () => { alive = false }
-  }, [id, evmChainId])
+  }, [id, evmChainId, initialModel])
 
   return { data, loading, attempted, evmChainId }
 }
@@ -354,7 +367,6 @@ function useEvmModel(options: UseEvmModelOptions) {
 export default function ModelPageClient(props: ModelPageClientProps) {
   const { modelId, initialModel, initialEntitlements, entitlementsEndpoint, targetChainId } = props
   const id = modelId
-  const router = useRouter()
   const { data, loading, attempted, evmChainId } = useEvmModel({ modelId, chainId: targetChainId, initialModel })
   const { chains } = useConfig() as any
   const t = useTranslations('evm.detail')
@@ -1764,9 +1776,10 @@ export default function ModelPageClient(props: ModelPageClientProps) {
             // Close drawer
             setQuickEditOpen(false)
             
-            // Refresh data from server (re-fetch with revalidated cache)
+            // Reload page to fetch fresh data from Neon
             setTimeout(() => {
-              router.refresh() // Triggers new SSR with fresh data from Neon
+              // Hard reload to ensure client component remounts and fetches new data
+              window.location.reload()
             }, 1500)
           }}
         />

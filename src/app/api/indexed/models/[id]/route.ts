@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 /**
  * GET /api/indexed/models/[id]
  * Returns a single model by ID with full metadata
@@ -75,7 +79,16 @@ export async function GET(
 
     const model = results[0]
 
-    return NextResponse.json({ model })
+    return NextResponse.json(
+      { model },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'CDN-Cache-Control': 'no-store',
+          'Vercel-CDN-Cache-Control': 'no-store',
+        },
+      }
+    )
   } catch (error: any) {
     console.error('Error fetching model from database:', error)
     return NextResponse.json(

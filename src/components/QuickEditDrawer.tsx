@@ -1,12 +1,14 @@
 /**
- * Quick Edit Drawer Component
+ * Quick Edit Drawer
  * 
- * Allows model owner to quickly update licensing/listing parameters
+ * Allows model owner to quickly edit licensing parameters
  * without creating a new version. Changes:
  * - Prices (perpetual, subscription) - with smart decimal formatting
  * - Base duration (months)
- * - Rights & delivery mode
+ * - Rights & delivery (unified: API and/or Download checkboxes auto-apply to both)
  * - Listed status
+ * 
+ * After save, automatically syncs changes to Neon database and reloads page.
  * 
  * @module components/QuickEditDrawer
  */
@@ -17,7 +19,7 @@ import React from 'react'
 import {
   Drawer, Box, Typography, Stack, TextField, Button, Divider,
   FormControlLabel, Checkbox, Switch, Alert, CircularProgress,
-  InputAdornment, MenuItem, Snackbar,
+  InputAdornment, Snackbar,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import SaveIcon from '@mui/icons-material/Save'
@@ -112,7 +114,6 @@ export function QuickEditDrawer({
   const [displaySubscription, setDisplaySubscription] = React.useState(() => weiToTokenDisplay(initialValues.priceSubscription))
   const [rightsAPI, setRightsAPI] = React.useState(initialValues.rights.includes('API'))
   const [rightsDownload, setRightsDownload] = React.useState(initialValues.rights.includes('Download'))
-  const [deliveryMode, setDeliveryMode] = React.useState(initialValues.deliveryMode)
   const [termsHash, setTermsHash] = React.useState(initialValues.termsHash)
   const [listed, setListed] = React.useState(initialValues.listed)
   
@@ -135,7 +136,6 @@ export function QuickEditDrawer({
       setDurationMonths(String(initialValues.defaultDurationMonths))
       setRightsAPI(initialValues.rights.includes('API'))
       setRightsDownload(initialValues.rights.includes('Download'))
-      setDeliveryMode(initialValues.deliveryMode)
       setTermsHash(initialValues.termsHash)
       setListed(initialValues.listed)
       setError('')
@@ -169,9 +169,9 @@ export function QuickEditDrawer({
   }
   
   const handleSave = async () => {
-    const validationError = validate()
-    if (validationError) {
-      setError(validationError)
+    const errorMsg = validate()
+    if (errorMsg) {
+      setError(errorMsg)
       return
     }
     
@@ -179,10 +179,20 @@ export function QuickEditDrawer({
     setError('')
     
     try {
-      // 1. Prepare licensing update
-      const rights = []
+      // Build rights array and delivery mode based on checkboxes
+      const rights: string[] = []
       if (rightsAPI) rights.push('API')
       if (rightsDownload) rights.push('Download')
+      
+      // Auto-determine delivery mode based on selected rights
+      let deliveryMode: 'API' | 'Download' | 'Both'
+      if (rightsAPI && rightsDownload) {
+        deliveryMode = 'Both'
+      } else if (rightsAPI) {
+        deliveryMode = 'API'
+      } else {
+        deliveryMode = 'Download'
+      }
       
       const licensingRes = await fetch(`/api/models/evm/${modelId}/licensing`, {
         method: 'POST',
@@ -470,7 +480,7 @@ export function QuickEditDrawer({
                 {isES ? 'Derechos y entrega' : 'Rights & delivery'}
               </Typography>
               
-              <Stack spacing={1.5}>
+              <Stack spacing={1}>
                 <FormControlLabel
                   control={<Checkbox checked={rightsAPI} onChange={(e) => setRightsAPI(e.target.checked)} />}
                   label={isES ? 'Uso de API' : 'API usage'}
@@ -483,26 +493,11 @@ export function QuickEditDrawer({
                   sx={{ '& .MuiFormControlLabel-label': { color: '#fff' } }}
                 />
                 
-                <TextField
-                  select
-                  label={isES ? 'Modo de entrega' : 'Delivery mode'}
-                  fullWidth
-                  value={deliveryMode}
-                  onChange={(e) => setDeliveryMode(e.target.value)}
-                  InputLabelProps={{ sx: { color: '#fff' } }}
-                  InputProps={{ sx: { color: '#fff' } }}
-                  SelectProps={{
-                    MenuProps: {
-                      PaperProps: {
-                        sx: { bgcolor: '#1a2332', color: '#fff' }
-                      }
-                    }
-                  }}
-                >
-                  <MenuItem value="API">API</MenuItem>
-                  <MenuItem value="Download">{isES ? 'Descarga' : 'Download'}</MenuItem>
-                  <MenuItem value="Both">{isES ? 'Ambos' : 'Both'}</MenuItem>
-                </TextField>
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', mt: 0.5, display: 'block' }}>
+                  {isES 
+                    ? 'La selección se aplica automáticamente a derechos y modo de entrega' 
+                    : 'Selection automatically applies to rights and delivery mode'}
+                </Typography>
               </Stack>
             </Box>
             
