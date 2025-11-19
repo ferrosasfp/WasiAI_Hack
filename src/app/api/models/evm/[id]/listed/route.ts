@@ -55,9 +55,17 @@ export async function POST(
       listed: body.listed,
     })
 
+    // Convert BigInt values to strings for JSON serialization
+    const serializableTxData = {
+      ...txData,
+      args: txData.args?.map((arg: any) => 
+        typeof arg === 'bigint' ? arg.toString() : arg
+      ),
+    }
+
     return NextResponse.json({
       success: true,
-      tx: txData,
+      tx: serializableTxData,
       message: `Transaction data prepared to ${body.listed ? 'list' : 'unlist'} model.`,
     })
 

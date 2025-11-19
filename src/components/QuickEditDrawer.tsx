@@ -3,10 +3,9 @@
  * 
  * Allows model owner to quickly update licensing/listing parameters
  * without creating a new version. Changes:
- * - Prices (perpetual, subscription)
+ * - Prices (perpetual, subscription) - with smart decimal formatting
  * - Base duration (months)
  * - Rights & delivery mode
- * - Terms hash
  * - Listed status
  * 
  * @module components/QuickEditDrawer
@@ -23,7 +22,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close'
 import SaveIcon from '@mui/icons-material/Save'
 import { useLocale } from 'next-intl'
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi'
 import { formatAmount, ROYALTY_LIMITS, MARKETPLACE_FEE_BPS } from '@/config'
 import { rightsArrayToBitmask, rightsBitmaskToArray } from '@/adapters/evm/write'
 
@@ -70,10 +69,47 @@ export function QuickEditDrawer({
   const locale = useLocale()
   const isES = locale === 'es'
   
+  // Helper functions for price formatting (wei to token units, smart decimal display)
+  const weiToTokenDisplay = React.useCallback((weiValue: string): string => {
+    if (!weiValue || weiValue === '0') return '0'
+    try {
+      const wei = BigInt(weiValue)
+      const eth = Number(wei) / 1e18
+      
+      // Round up to 2 decimals (ceiling)
+      const rounded = Math.ceil(eth * 100) / 100
+      
+      // Show decimals only if they exist
+      if (rounded % 1 === 0) {
+        return rounded.toString() // Integer: "1" not "1.00"
+      } else {
+        return rounded.toFixed(2) // Decimals: "1.50"
+      }
+    } catch {
+      return weiValue
+    }
+  }, [])
+  
+  const tokenToWei = React.useCallback((tokenValue: string): string => {
+    if (!tokenValue || tokenValue === '0' || tokenValue === '0.00') return '0'
+    try {
+      const num = parseFloat(tokenValue)
+      if (isNaN(num)) return '0'
+      const wei = BigInt(Math.floor(num * 1e18))
+      return wei.toString()
+    } catch {
+      return '0'
+    }
+  }, [])
+  
   // Form state
   const [pricePerpetual, setPricePerpetual] = React.useState(initialValues.pricePerpetual)
   const [priceSubscription, setPriceSubscription] = React.useState(initialValues.priceSubscription)
   const [durationMonths, setDurationMonths] = React.useState(String(initialValues.defaultDurationMonths))
+  
+  // Display values (in token units with 2 decimals)
+  const [displayPerpetual, setDisplayPerpetual] = React.useState(() => weiToTokenDisplay(initialValues.pricePerpetual))
+  const [displaySubscription, setDisplaySubscription] = React.useState(() => weiToTokenDisplay(initialValues.priceSubscription))
   const [rightsAPI, setRightsAPI] = React.useState(initialValues.rights.includes('API'))
   const [rightsDownload, setRightsDownload] = React.useState(initialValues.rights.includes('Download'))
   const [deliveryMode, setDeliveryMode] = React.useState(initialValues.deliveryMode)
@@ -87,12 +123,15 @@ export function QuickEditDrawer({
   
   // Wagmi hooks
   const { writeContractAsync } = useWriteContract()
+  const publicClient = usePublicClient()
   
   // Reset form when drawer opens
   React.useEffect(() => {
     if (open) {
       setPricePerpetual(initialValues.pricePerpetual)
       setPriceSubscription(initialValues.priceSubscription)
+      setDisplayPerpetual(weiToTokenDisplay(initialValues.pricePerpetual))
+      setDisplaySubscription(weiToTokenDisplay(initialValues.priceSubscription))
       setDurationMonths(String(initialValues.defaultDurationMonths))
       setRightsAPI(initialValues.rights.includes('API'))
       setRightsDownload(initialValues.rights.includes('Download'))
@@ -101,7 +140,7 @@ export function QuickEditDrawer({
       setListed(initialValues.listed)
       setError('')
     }
-  }, [open, initialValues])
+  }, [open, initialValues, weiToTokenDisplay])
   
   // Validation
   const validate = () => {
@@ -166,10 +205,51 @@ export function QuickEditDrawer({
       
       const licensingData = await licensingRes.json()
       
-      // 2. Execute licensing tx
-      const licensingTxHash = await writeContractAsync(licensingData.tx)
+      // 2. Convert string args back to BigInt for wagmi
+      const txWithBigInt = {
+        ...licensingData.tx,
+        args: licensingData.tx.args?.map((arg: any) => {
+          // Try to convert string numbers to BigInt
+          if (typeof arg === 'string' && /^\d+$/.test(arg)) {
+            return BigInt(arg)
+          }
+          return arg
+        }),
+      }
       
-      // 3. If listed status changed, update it
+      // 3. Execute licensing tx
+      const licensingTxHash = await writeContractAsync(txWithBigInt)
+      console.log('[QuickEdit] Licensing tx sent:', licensingTxHash)
+      
+      // 4. Wait for licensing tx confirmation
+      if (publicClient) {
+        console.log('[QuickEdit] Waiting for licensing tx confirmation...')
+        const receipt = await publicClient.waitForTransactionReceipt({ 
+          hash: licensingTxHash,
+          confirmations: 1
+        })
+        console.log('[QuickEdit] Licensing tx confirmed:', receipt.status)
+        
+        // 4.1. Sync to Neon database immediately
+        try {
+          console.log('[QuickEdit] Syncing model to database...')
+          const indexRes = await fetch(`/api/indexer/models/${modelId}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ chainId }),
+          })
+          
+          if (indexRes.ok) {
+            console.log('[QuickEdit] Model synced to database successfully')
+          } else {
+            console.warn('[QuickEdit] Database sync failed, but blockchain update succeeded')
+          }
+        } catch (indexErr) {
+          console.warn('[QuickEdit] Database sync error (non-critical):', indexErr)
+        }
+      }
+      
+      // 5. If listed status changed, update it
       if (listed !== initialValues.listed) {
         const listedRes = await fetch(`/api/models/evm/${modelId}/listed`, {
           method: 'POST',
@@ -186,7 +266,48 @@ export function QuickEditDrawer({
         }
         
         const listedData = await listedRes.json()
-        await writeContractAsync(listedData.tx)
+        
+        // Convert string args back to BigInt for wagmi
+        const listedTxWithBigInt = {
+          ...listedData.tx,
+          args: listedData.tx.args?.map((arg: any) => {
+            if (typeof arg === 'string' && /^\d+$/.test(arg)) {
+              return BigInt(arg)
+            }
+            return arg
+          }),
+        }
+        
+        const listedTxHash = await writeContractAsync(listedTxWithBigInt)
+        console.log('[QuickEdit] Listed tx sent:', listedTxHash)
+        
+        // Wait for listed tx confirmation
+        if (publicClient) {
+          console.log('[QuickEdit] Waiting for listed tx confirmation...')
+          const receipt = await publicClient.waitForTransactionReceipt({ 
+            hash: listedTxHash,
+            confirmations: 1
+          })
+          console.log('[QuickEdit] Listed tx confirmed:', receipt.status)
+          
+          // Sync to Neon database immediately
+          try {
+            console.log('[QuickEdit] Syncing listed status to database...')
+            const indexRes = await fetch(`/api/indexer/models/${modelId}`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ chainId }),
+            })
+            
+            if (indexRes.ok) {
+              console.log('[QuickEdit] Listed status synced to database successfully')
+            } else {
+              console.warn('[QuickEdit] Database sync failed, but blockchain update succeeded')
+            }
+          } catch (indexErr) {
+            console.warn('[QuickEdit] Database sync error (non-critical):', indexErr)
+          }
+        }
       }
       
       setShowSuccess(true)
@@ -247,40 +368,95 @@ export function QuickEditDrawer({
                   label={isES ? 'Precio perpetuo' : 'Perpetual price'}
                   type="text"
                   fullWidth
-                  value={pricePerpetual}
-                  onChange={(e) => setPricePerpetual(e.target.value)}
+                  value={displayPerpetual}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    // Allow only numbers and decimal point
+                    if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+                      setDisplayPerpetual(value)
+                      setPricePerpetual(tokenToWei(value))
+                    }
+                  }}
+                  onBlur={() => {
+                    // Format intelligently on blur (integers or 2 decimals)
+                    const num = parseFloat(displayPerpetual || '0')
+                    const rounded = Math.ceil(num * 100) / 100
+                    if (rounded % 1 === 0) {
+                      setDisplayPerpetual(rounded.toString())
+                    } else {
+                      setDisplayPerpetual(rounded.toFixed(2))
+                    }
+                  }}
                   InputLabelProps={{ sx: { color: '#fff' } }}
                   InputProps={{
-                    endAdornment: <InputAdornment position="end">{chainSymbol}</InputAdornment>,
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Typography sx={{ color: '#fff', fontSize: '0.875rem' }}>
+                          {chainSymbol}
+                        </Typography>
+                      </InputAdornment>
+                    ),
                     sx: { color: '#fff' }
                   }}
                   FormHelperTextProps={{ sx: { color: 'rgba(255,255,255,0.6)' } }}
-                  helperText={isES ? 'Precio en wei (0 para deshabilitar)' : 'Price in wei (0 to disable)'}
+                  helperText={isES ? 'Precio en token (0 para deshabilitar)' : 'Price in tokens (0 to disable)'}
                 />
                 
                 <TextField
                   label={isES ? 'Precio suscripción (mensual)' : 'Subscription price (monthly)'}
                   type="text"
                   fullWidth
-                  value={priceSubscription}
-                  onChange={(e) => setPriceSubscription(e.target.value)}
+                  value={displaySubscription}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    // Allow only numbers and decimal point
+                    if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+                      setDisplaySubscription(value)
+                      setPriceSubscription(tokenToWei(value))
+                    }
+                  }}
+                  onBlur={() => {
+                    // Format intelligently on blur (integers or 2 decimals)
+                    const num = parseFloat(displaySubscription || '0')
+                    const rounded = Math.ceil(num * 100) / 100
+                    if (rounded % 1 === 0) {
+                      setDisplaySubscription(rounded.toString())
+                    } else {
+                      setDisplaySubscription(rounded.toFixed(2))
+                    }
+                  }}
                   InputLabelProps={{ sx: { color: '#fff' } }}
                   InputProps={{
-                    endAdornment: <InputAdornment position="end">{`${chainSymbol}/mo`}</InputAdornment>,
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Typography sx={{ color: '#fff', fontSize: '0.875rem' }}>
+                          {chainSymbol}/mo
+                        </Typography>
+                      </InputAdornment>
+                    ),
                     sx: { color: '#fff' }
                   }}
                   FormHelperTextProps={{ sx: { color: 'rgba(255,255,255,0.6)' } }}
-                  helperText={isES ? 'Precio mensual en wei (0 para deshabilitar)' : 'Monthly price in wei (0 to disable)'}
+                  helperText={isES ? 'Precio mensual en tokens (0 para deshabilitar)' : 'Monthly price in tokens (0 to disable)'}
                 />
                 
                 <TextField
-                  label={isES ? 'Duración base (meses)' : 'Base duration (months)'}
+                  label={isES ? 'Duración base' : 'Base duration'}
                   type="number"
                   fullWidth
                   value={durationMonths}
                   onChange={(e) => setDurationMonths(e.target.value)}
                   InputLabelProps={{ sx: { color: '#fff' } }}
-                  InputProps={{ sx: { color: '#fff' } }}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Typography sx={{ color: '#fff', fontSize: '0.875rem' }}>
+                          {isES ? 'meses' : 'months'}
+                        </Typography>
+                      </InputAdornment>
+                    ),
+                    sx: { color: '#fff' }
+                  }}
                   inputProps={{ min: 1, max: 12 }}
                   FormHelperTextProps={{ sx: { color: 'rgba(255,255,255,0.6)' } }}
                   helperText={isES ? 'Solo para suscripción' : 'For subscription only'}
@@ -329,18 +505,6 @@ export function QuickEditDrawer({
                 </TextField>
               </Stack>
             </Box>
-            
-            {/* Terms */}
-            <TextField
-              label={isES ? 'Hash de términos' : 'Terms hash'}
-              fullWidth
-              value={termsHash}
-              onChange={(e) => setTermsHash(e.target.value)}
-              InputLabelProps={{ sx: { color: '#fff' } }}
-              InputProps={{ sx: { color: '#fff' } }}
-              FormHelperTextProps={{ sx: { color: 'rgba(255,255,255,0.6)' } }}
-              helperText={isES ? 'Hash de los términos legales' : 'Legal terms hash'}
-            />
             
             {/* Listed */}
             <FormControlLabel

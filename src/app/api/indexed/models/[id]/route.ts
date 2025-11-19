@@ -52,7 +52,7 @@ export async function GET(
         mm.frameworks,
         mm.architectures
       FROM models m
-      LEFT JOIN model_metadata mm ON m.model_id = mm.model_id AND m.chain_id = mm.chain_id
+      LEFT JOIN model_metadata mm ON m.model_id = mm.model_id
       WHERE m.model_id = $1
     `
     const params_array: any[] = [modelId]

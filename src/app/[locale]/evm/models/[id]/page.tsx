@@ -27,8 +27,7 @@ export default async function EvmModelDetailPage(props: PageProps) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     const apiUrl = `${baseUrl}/api/indexed/models/${modelId}${chainId ? `?chainId=${chainId}` : ''}`
     const res = await fetch(apiUrl, { 
-      cache: 'no-store',
-      next: { revalidate: 60 } // Revalidate every 60s
+      cache: 'no-store' // Always fetch fresh data
     })
     
     if (res.ok) {

@@ -15,6 +15,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CheckIcon from '@mui/icons-material/Check'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useWriteContract, usePublicClient, useSwitchChain, useAccount, useChainId } from 'wagmi'
 import MARKET_ARTIFACT from '@/abis/Marketplace.json'
 import { useTranslations, useLocale } from 'next-intl'
@@ -353,6 +354,7 @@ function useEvmModel(options: UseEvmModelOptions) {
 export default function ModelPageClient(props: ModelPageClientProps) {
   const { modelId, initialModel, initialEntitlements, entitlementsEndpoint, targetChainId } = props
   const id = modelId
+  const router = useRouter()
   const { data, loading, attempted, evmChainId } = useEvmModel({ modelId, chainId: targetChainId, initialModel })
   const { chains } = useConfig() as any
   const t = useTranslations('evm.detail')
@@ -1762,9 +1764,9 @@ export default function ModelPageClient(props: ModelPageClientProps) {
             // Close drawer
             setQuickEditOpen(false)
             
-            // Reload page after brief delay to show message
+            // Refresh data from server (re-fetch with revalidated cache)
             setTimeout(() => {
-              window.location.reload()
+              router.refresh() // Triggers new SSR with fresh data from Neon
             }, 1500)
           }}
         />

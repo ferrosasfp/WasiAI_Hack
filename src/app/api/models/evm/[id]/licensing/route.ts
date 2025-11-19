@@ -96,9 +96,17 @@ export async function POST(
       termsHash: body.termsHash || '',
     })
 
+    // Convert BigInt values to strings for JSON serialization
+    const serializableTxData = {
+      ...txData,
+      args: txData.args?.map((arg: any) => 
+        typeof arg === 'bigint' ? arg.toString() : arg
+      ),
+    }
+
     return NextResponse.json({
       success: true,
-      tx: txData,
+      tx: serializableTxData,
       message: 'Transaction data prepared. Sign with your wallet.',
     })
 
