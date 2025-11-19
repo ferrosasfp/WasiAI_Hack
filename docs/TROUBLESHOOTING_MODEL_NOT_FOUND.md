@@ -9,40 +9,38 @@ Cuando intentas acceder a un modelo en `http://localhost:3000/en/evm/models/1`, 
 
 ## 🔍 Diagnóstico
 
-### Paso 1: Verificar ChainID
+### Paso 1: Conectar Wallet (REQUERIDO)
 
-El problema más común es que el **chainId no está configurado correctamente**.
+⚠️ **IMPORTANTE:** El sistema ahora **detecta automáticamente** el chainId desde tu wallet conectada.
+
+**Ya NO necesitas:**
+- ❌ Agregar `?chainId=43113` a la URL
+- ❌ Configurar manualmente la red
+
+**Solo necesitas:**
+- ✅ Conectar tu wallet (MetaMask, Coinbase Wallet, etc.)
+- ✅ Asegurarte de estar en la red correcta (Avalanche Fuji o Base Sepolia)
 
 **Verificar en consola del navegador:**
 
-```
-[ModelPageClient] Fetching model: { id: 1, evmChainId: undefined, apiUrl: '/api/models/evm/1?' }
+```javascript
+[ModelPageClient] Using chainId from connected wallet: 43113
+[ModelPageClient] Fetching model: { id: 1, evmChainId: 43113, apiUrl: '/api/models/evm/1?chainId=43113' }
 ```
 
-Si `evmChainId` es `undefined`, el problema es que:
-- No hay chainId en la URL
-- No hay wallet conectada
-- No hay chainId por defecto en `.env.local`
+### Si ves: "No chainId detected"
+
+Esto significa que:
+- ❌ No hay wallet conectada
+- ❌ La wallet está en una red no soportada
 
 **Solución:**
-
-1. **Opción A: Agregar chainId a la URL**
-   ```
-   http://localhost:3000/en/evm/models/1?chainId=43113
-   ```
-
-2. **Opción B: Configurar chainId por defecto**
-   
-   En `.env.local`:
-   ```bash
-   NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID=43113  # Avalanche Fuji
-   # o
-   NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID=84532  # Base Sepolia
-   ```
-
-3. **Opción C: Conectar wallet**
-   
-   Conecta tu wallet en MetaMask a la red correcta (Fuji o Base Sepolia).
+1. **Conecta tu wallet** usando el botón "Connect Wallet"
+2. **Cambia a la red correcta** en MetaMask:
+   - Avalanche Fuji (Testnet)
+   - Base Sepolia (Testnet)
+   - Avalanche Mainnet
+   - Base Mainnet
 
 ---
 
@@ -123,12 +121,12 @@ Esto indica que el servidor no puede leer el modelo del blockchain.
 
 ## ✅ Checklist de Soluciones
 
-### Problema: evmChainId es undefined
+### Problema: evmChainId es undefined (No wallet conectada)
 
-- [ ] Agregar `?chainId=43113` a la URL
-- [ ] Configurar `NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID` en `.env.local`
-- [ ] Conectar wallet a la red correcta
-- [ ] Reiniciar el servidor de desarrollo (`npm run dev`)
+- [ ] **Conectar wallet** (botón en navbar o mensaje en pantalla)
+- [ ] Verificar que la wallet esté en la red correcta (Fuji/Base Sepolia)
+- [ ] Recargar la página después de conectar
+- [ ] Verificar en consola que aparece: `Using chainId from connected wallet`
 
 ### Problema: API devuelve 404/500
 
@@ -168,8 +166,11 @@ npm run dev
 # Terminal 2: Verificar modelo on-chain
 npx tsx scripts/verify-model-ownership.ts 1 0xYourAddress
 
-# Navegador: Abrir consola y cargar página
-# URL: http://localhost:3000/en/evm/models/1?chainId=43113
+# Navegador: 
+# 1. Conectar wallet (MetaMask a Avalanche Fuji)
+# 2. Abrir consola (F12)
+# 3. Cargar página: http://localhost:3000/en/evm/models/1
+# (Ya NO necesitas agregar ?chainId=43113)
 ```
 
 ### 2. Verificar Logs
@@ -189,8 +190,10 @@ GET /api/models/evm/1?chainId=43113 200 in 2354ms
 
 | Log | Significado | Acción |
 |-----|-------------|--------|
-| `evmChainId: undefined` | No hay chainId | Agregar `?chainId=43113` a URL |
-| `API error: 404` | Modelo no encontrado | Verificar que modelo existe on-chain |
+| `Using chainId from connected wallet: 43113` | ✅ ChainId detectado correctamente | Continuar |
+| `No chainId detected` | ❌ No hay wallet conectada | Conectar wallet |
+| `Using chainId from URL param` | ⚠️ Usando fallback de URL | Conectar wallet para auto-detección |
+| `API error: 404` | Modelo no encontrado | Verificar que existe en esta red |
 | `API error: 500` | Error del servidor | Revisar contract address y RPC |
 | `IPFS metadata fetch error` | Metadata no accesible | Verificar CID en Pinata/IPFS |
 | `data: null` | No se pudo cargar | Revisar todos los pasos anteriores |
@@ -334,12 +337,25 @@ npm run dev
 
 ## ✅ Resumen
 
-**Problema más común**: ChainID no configurado
+**Cambio IMPORTANTE**: ⚡ Detección automática de chainId desde wallet
 
-**Fix rápido**: Agregar `?chainId=43113` a la URL
+**Antes:**
+- ❌ Tenías que agregar `?chainId=43113` a la URL
+- ❌ Configurar manualmente la red
 
-**Verificación**: Usar `scripts/verify-model-ownership.ts`
+**Ahora:**
+- ✅ Solo conecta tu wallet
+- ✅ El sistema detecta automáticamente la red
+- ✅ Funciona con testnet y mainnet
 
-**Logs**: Revisar consola del navegador para detalles
+**Problema más común**: No hay wallet conectada
+
+**Fix rápido**: Click en "Connect Wallet" y seleccionar red correcta
+
+**Verificación**: Revisar consola → `Using chainId from connected wallet: 43113`
+
+**Logs útiles**: 
+- Consola del navegador muestra fuente del chainId
+- Error messages son claros y bilingües (ES/EN)
 
 ¡Con estos pasos deberías poder diagnosticar y resolver el problema! 🚀
