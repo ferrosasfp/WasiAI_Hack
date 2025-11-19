@@ -59,16 +59,26 @@ function useEvmModel(options: UseEvmModelOptions) {
   const [attempted, setAttempted] = React.useState(Boolean(initialModel))
   const walletChainId = useChainId() // Detect chain from connected wallet
   const evmChainId = React.useMemo(() => {
-    // Priority: explicit chainId from URL > wallet chainId > env default
-    if (typeof chainId === 'number' && Number.isFinite(chainId)) {
-      return chainId
-    }
+    // Priority: wallet chainId (auto-detect) > explicit URL chainId (override) > env default (fallback)
+    // ALWAYS prefer wallet chainId when available
     if (typeof walletChainId === 'number' && Number.isFinite(walletChainId)) {
+      console.log('[ModelPageClient] Using chainId from connected wallet:', walletChainId)
       return walletChainId
     }
+    // Fallback to URL param (for testing without wallet)
+    if (typeof chainId === 'number' && Number.isFinite(chainId)) {
+      console.log('[ModelPageClient] Using chainId from URL param:', chainId)
+      return chainId
+    }
+    // Last resort: env default
     const envValue = Number(process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID || process.env.NEXT_PUBLIC_EVM_CHAIN_ID || 0)
-    return Number.isFinite(envValue) && envValue > 0 ? envValue : undefined
-  }, [chainId, walletChainId])
+    if (Number.isFinite(envValue) && envValue > 0) {
+      console.log('[ModelPageClient] Using chainId from env default:', envValue)
+      return envValue
+    }
+    console.warn('[ModelPageClient] No chainId detected. Please connect wallet or set NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID')
+    return undefined
+  }, [walletChainId, chainId])
 
   React.useEffect(() => {
     setData(initialModel ?? null)
@@ -93,9 +103,36 @@ function useEvmModel(options: UseEvmModelOptions) {
             clearTimeout(t)
           }
         }
-        const r = await fetchWithTimeout(`/api/models/evm/${id}?${qs.toString()}`, { cache: 'no-store' }, 10000)
-        const j = await r.json().catch(()=>({}))
+        const apiUrl = `/api/models/evm/${id}?${qs.toString()}`
+        console.log('[ModelPageClient] Fetching model:', { id, evmChainId, apiUrl })
+        const r = await fetchWithTimeout(apiUrl, { cache: 'no-store' }, 10000)
+        
+        if (!r.ok) {
+          console.error('[ModelPageClient] API error:', r.status, r.statusText)
+          const errorText = await r.text().catch(() => 'Unknown error')
+          console.error('[ModelPageClient] Error details:', errorText)
+          if (!alive) return
+          setData(null)
+          setLoading(false)
+          setAttempted(true)
+          return
+        }
+        
+        const j = await r.json().catch((e) => {
+          console.error('[ModelPageClient] JSON parse error:', e)
+          return {}
+        })
+        console.log('[ModelPageClient] API response:', j)
         let m = j?.data || null
+        
+        if (!alive) return
+        if (!m) {
+          setData(null)
+          setLoading(false)
+          setAttempted(true)
+          return
+        }
+        
         if (m && m.uri && typeof m.uri === 'string' && !m.uri.includes('.enc')) {
           try {
             const uri = m.uri as string
@@ -273,11 +310,20 @@ function useEvmModel(options: UseEvmModelOptions) {
                 authorName, authorLinks
               }
             }
-          } catch {}
+          } catch (metaErr) {
+            console.error('[ModelPageClient] IPFS metadata fetch error:', metaErr)
+            // Continue with basic model data even if metadata fetch fails
+          }
+          if (alive) setData(m)
+        } else {
+          if (alive) setData(m)
         }
-        if (alive) setData(m)
-      } catch {
-        if (alive) setData(null)
+      } catch (e) {
+        console.error('[ModelPageClient] Fetch error:', e)
+        if (!alive) return
+        setData(null)
+        setLoading(false)
+        setAttempted(true)
       } finally {
         if (alive) {
           setLoading(false)
@@ -712,8 +758,64 @@ export default function ModelPageClient(props: ModelPageClientProps) {
         {!loading && !data && !attempted && (
           <Typography color="text.secondary">{L.loadingModelBody || 'Loading model...'}</Typography>
         )}
-        {!loading && !data && attempted && (
-          <Typography color="error">{L.notFound}</Typography>
+        {!evmChainId && !loading && (
+          <Paper variant="outlined" sx={{ p: 3, mb: 2, borderRadius: 2, bgcolor: 'rgba(255,165,0,0.05)', borderColor: 'rgba(255,165,0,0.3)' }}>
+            <Typography color="warning.main" variant="h6" sx={{ mb: 2 }}>
+              {locale === 'es' ? '🔗 Conecta tu Wallet' : '🔗 Connect Your Wallet'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {locale === 'es' 
+                ? 'Para ver este modelo, necesitas conectar tu wallet. El sistema detectará automáticamente la red (Avalanche Fuji o Base Sepolia) desde tu wallet.'
+                : 'To view this model, you need to connect your wallet. The system will automatically detect the network (Avalanche Fuji or Base Sepolia) from your wallet.'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {locale === 'es' 
+                ? '📍 Asegúrate de que tu wallet esté conectada a la red correcta (testnet o mainnet).'
+                : '📍 Make sure your wallet is connected to the correct network (testnet or mainnet).'}
+            </Typography>
+            <Button 
+              variant="contained" 
+              sx={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                '&:hover': { opacity: 0.9 }
+              }}
+              onClick={() => {
+                // This will trigger the wallet connection dialog
+                document.querySelector('[data-connect-wallet]')?.dispatchEvent(new Event('click'))
+              }}
+            >
+              {locale === 'es' ? 'Conectar Wallet' : 'Connect Wallet'}
+            </Button>
+          </Paper>
+        )}
+        {!loading && !data && attempted && evmChainId && (
+          <Paper variant="outlined" sx={{ p: 3, mb: 2, borderRadius: 2, bgcolor: 'rgba(255,0,0,0.05)' }}>
+            <Typography color="error" variant="h6" sx={{ mb: 2 }}>
+              {L.notFound || 'Model not found'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {locale === 'es' ? 'Información de diagnóstico:' : 'Diagnostic information:'}
+            </Typography>
+            <Box component="ul" sx={{ pl: 2 }}>
+              <Typography component="li" variant="body2" color="text.secondary">
+                Model ID: {id}
+              </Typography>
+              <Typography component="li" variant="body2" color="text.secondary">
+                Chain ID: {evmChainId} ({getChainConfig(evmChainId)?.name || 'Unknown'})
+              </Typography>
+              <Typography component="li" variant="body2" color="text.secondary">
+                {locale === 'es' ? 'Red detectada de tu wallet' : 'Network detected from your wallet'}
+              </Typography>
+              <Typography component="li" variant="body2" color="text.secondary">
+                {locale === 'es' ? 'Revisa la consola del navegador para más detalles' : 'Check browser console for more details'}
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              {locale === 'es' 
+                ? 'Posibles causas: modelo no existe en esta red, no está publicado, o problemas de conexión. Intenta cambiar de red en tu wallet.'
+                : 'Possible causes: model does not exist on this network, not published, or connection issues. Try switching networks in your wallet.'}
+            </Typography>
+          </Paper>
         )}
         {!loading && data && viewModel && (
           <>
