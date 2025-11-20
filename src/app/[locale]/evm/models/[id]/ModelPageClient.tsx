@@ -625,21 +625,30 @@ export default function ModelPageClient(props: ModelPageClientProps) {
     // Check if wallet is connected before allowing purchase
     if (!isConnected) {
       setSnkSev('warning')
-      setSnkMsg(locale === 'es' 
-        ? '🔗 Por favor conecta tu wallet para comprar una licencia' 
-        : '🔗 Please connect your wallet to purchase a license')
+      setSnkMsg(L.connectWallet)
       setSnkOpen(true)
       return
     }
     
-    // set default months from default_duration_days rounded to months (1..12)
-    const days = (data as any)?.default_duration_days
-    const m = Math.max(1, Math.min(12, Math.round((typeof days === 'number' ? (days/30) : 1))))
+    // Decide default kind based on availability
+    let k: 'perpetual'|'subscription'|undefined = undefined
+    let m = 1
+    // Check price availability (handle both number and string)
+    const hasPerpetual = data?.price_perpetual && (typeof data.price_perpetual === 'number' ? data.price_perpetual > 0 : true)
+    const hasSubscription = data?.price_subscription && (typeof data.price_subscription === 'number' ? data.price_subscription > 0 : true)
+    
+    if (hasSubscription) {
+      k = 'subscription'
+      m = data?.default_duration_days ? Math.ceil(data.default_duration_days / 30) || 1 : 1
+    } else if (hasPerpetual) {
+      k = 'perpetual'
+    }
+
     setBuyMonths(m)
-    setBuyKind(undefined)
+    setBuyKind(k)
     setBuyStep('select')
     setBuyOpen(true)
-  }, [data, isConnected, locale])
+  }, [data, isConnected, L])
 
   const handlePurchase = React.useCallback(async ()=>{
     try {
@@ -1721,7 +1730,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                   <Card sx={{ borderRadius: 2, border:'1px solid', borderColor: buyKind==='perpetual' ? 'primary.main' : 'rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}>
                     <CardContent>
                       <Typography variant="subtitle2" fontWeight={700} sx={{ color:'#fff' }}>{L.perpetual}</Typography>
-                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{(data && typeof data.price_perpetual === 'number' && data.price_perpetual > 0) ? `${formatPrice(data.price_perpetual)} ${evmSymbol}` : L.unspecified}</Typography>
+                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{(data?.price_perpetual && (typeof data.price_perpetual === 'number' ? data.price_perpetual > 0 : true)) ? `${formatPrice(data.price_perpetual)} ${evmSymbol}` : L.unspecified}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -1729,7 +1738,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                   <Card sx={{ borderRadius: 2, border:'1px solid', borderColor: buyKind==='subscription' ? 'primary.main' : 'rgba(255,255,255,0.18)', background:'rgba(255,255,255,0.06)' }}>
                     <CardContent>
                       <Typography variant="subtitle2" fontWeight={700} sx={{ color:'#fff' }}>{L.subscriptionPerMonth}</Typography>
-                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{(data && typeof data.price_subscription === 'number' && data.price_subscription > 0) ? `${formatPrice(data.price_subscription)} ${evmSymbol}` : L.unspecified}</Typography>
+                      <Typography variant="h6" sx={{ color:'#4fe1ff' }}>{(data?.price_subscription && (typeof data.price_subscription === 'number' ? data.price_subscription > 0 : true)) ? `${formatPrice(data.price_subscription)} ${evmSymbol}` : L.unspecified}</Typography>
                       {buyKind === 'subscription' && (
                         <Box sx={{ mt: 2 }}>
                           <TextField
@@ -1767,11 +1776,14 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                 <Divider sx={{ my: 1 }} />
                 <Typography variant="body2" sx={{ color:'#ffffffcc' }}>
                   {buyKind === 'perpetual' ? (
-                    <>{(typeof data?.price_perpetual === 'number' && data.price_perpetual > 0) ? `${formatPrice(data.price_perpetual)} ${evmSymbol}` : L.unspecified}</>
+                    <>{(data?.price_perpetual && (typeof data.price_perpetual === 'number' ? data.price_perpetual > 0 : true)) ? `${formatPrice(data.price_perpetual)} ${evmSymbol}` : L.unspecified}</>
                   ) : (
                     <>
-                      {(typeof data?.price_subscription === 'number' && data.price_subscription > 0)
-                        ? `${formatPrice(data.price_subscription)} ${evmSymbol} × ${buyMonths} = ${formatPrice(data.price_subscription * buyMonths)} ${evmSymbol}`
+                      {(data?.price_subscription && (typeof data.price_subscription === 'number' ? data.price_subscription > 0 : true))
+                        ? (() => {
+                            const priceNum = typeof data.price_subscription === 'string' ? Number(BigInt(data.price_subscription)) : data.price_subscription
+                            return `${formatPrice(data.price_subscription)} ${evmSymbol} × ${buyMonths} = ${formatPrice(priceNum * buyMonths)} ${evmSymbol}`
+                          })()
                         : L.unspecified}
                     </>
                   )}
@@ -1791,7 +1803,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
               <Button onClick={()=> { setBuyOpen(false); setBuyStep('select'); setBuyKind(undefined); }} sx={{ textTransform:'none', color:'#fff' }}>{L.close}</Button>
               <Button
                 variant="contained"
-                disabled={!buyKind || (buyKind==='subscription' && (!data?.price_subscription || data.price_subscription <= 0 || buyMonths < 1 || buyMonths > 12)) || (buyKind==='perpetual' && (!data?.price_perpetual || data.price_perpetual <= 0))}
+                disabled={!buyKind || (buyKind==='subscription' && (buyMonths < 1 || buyMonths > 12)) || !data}
                 onClick={()=> setBuyStep('review')}
                 sx={{ backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color:'#fff', fontWeight:700, '&:hover': { filter:'brightness(1.05)', backgroundImage:'linear-gradient(90deg, #7c5cff, #2ea0ff)' } }}
               >

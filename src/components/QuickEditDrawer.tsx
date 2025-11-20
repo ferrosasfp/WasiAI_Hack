@@ -194,7 +194,9 @@ export function QuickEditDrawer({
         deliveryMode = 'Download'
       }
       
-      const licensingRes = await fetch(`/api/models/evm/${modelId}/licensing`, {
+      // === NEW: Use quick-edit-metadata endpoint that regenerates IPFS metadata ===
+      console.log('[QuickEdit] Calling quick-edit-metadata API...')
+      const apiRes = await fetch(`/api/models/evm/${modelId}/quick-edit-metadata`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -208,30 +210,33 @@ export function QuickEditDrawer({
         }),
       })
       
-      if (!licensingRes.ok) {
-        const errorData = await licensingRes.json()
-        throw new Error(errorData.error || 'Licensing API error')
+      if (!apiRes.ok) {
+        const errorData = await apiRes.json()
+        throw new Error(errorData.error || 'API error')
       }
       
-      const licensingData = await licensingRes.json()
+      const apiData = await apiRes.json()
+      console.log('[QuickEdit] Metadata regenerated:', apiData.newUri)
       
-      // 2. Convert string args back to BigInt for wagmi
-      const txWithBigInt = {
-        ...licensingData.tx,
-        args: licensingData.tx.args?.map((arg: any) => {
-          // Try to convert string numbers to BigInt
+      // Convert string args back to BigInt for wagmi
+      const convertArgs = (tx: any) => ({
+        ...tx,
+        args: tx.args?.map((arg: any) => {
           if (typeof arg === 'string' && /^\d+$/.test(arg)) {
             return BigInt(arg)
           }
           return arg
         }),
-      }
+      })
       
-      // 3. Execute licensing tx
-      const licensingTxHash = await writeContractAsync(txWithBigInt)
+      const licensingTxWithBigInt = convertArgs(apiData.transactions.licensing)
+      const uriTxWithBigInt = convertArgs(apiData.transactions.uri)
+      
+      // === TX 1: Update licensing params ===
+      console.log('[QuickEdit] Executing licensing tx...')
+      const licensingTxHash = await writeContractAsync(licensingTxWithBigInt)
       console.log('[QuickEdit] Licensing tx sent:', licensingTxHash)
       
-      // 4. Wait for licensing tx confirmation
       if (publicClient) {
         console.log('[QuickEdit] Waiting for licensing tx confirmation...')
         const receipt = await publicClient.waitForTransactionReceipt({ 
@@ -239,10 +244,24 @@ export function QuickEditDrawer({
           confirmations: 1
         })
         console.log('[QuickEdit] Licensing tx confirmed:', receipt.status)
+      }
+      
+      // === TX 2: Update URI with new metadata CID ===
+      console.log('[QuickEdit] Executing URI update tx...')
+      const uriTxHash = await writeContractAsync(uriTxWithBigInt)
+      console.log('[QuickEdit] URI tx sent:', uriTxHash)
+      
+      if (publicClient) {
+        console.log('[QuickEdit] Waiting for URI tx confirmation...')
+        const uriReceipt = await publicClient.waitForTransactionReceipt({ 
+          hash: uriTxHash,
+          confirmations: 1
+        })
+        console.log('[QuickEdit] URI tx confirmed:', uriReceipt.status)
         
-        // 4.1. Sync to Neon database immediately
+        // Sync to Neon database immediately (will fetch new metadata from IPFS)
         try {
-          console.log('[QuickEdit] Syncing model to database...')
+          console.log('[QuickEdit] Syncing model to database with new metadata...')
           const indexRes = await fetch(`/api/indexer/models/${modelId}`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },

@@ -311,11 +311,58 @@ export function createStep4ViewModel(data: any): Step4ViewModel {
   }
   
   // Rights & Delivery
+  // Source of truth priority:
+  // 1) Neon DB delivery_rights_default (bitmask) + delivery_mode_hint
+  // 2) Explicit rights.* flags from metadata
+  // 3) Fallback: infer from deliveryMode string
+
+  // Derive deliveryMode string, preferring DB hint when present
+  let rawDeliveryMode: string | undefined = undefined
+  if (typeof data.delivery_mode_hint === 'number') {
+    rawDeliveryMode = data.delivery_mode_hint === 1
+      ? 'api'
+      : data.delivery_mode_hint === 2
+        ? 'download'
+        : 'both'
+  }
+  if (!rawDeliveryMode) {
+    rawDeliveryMode = safeString(data.deliveryMode)
+  }
+
+  let canUseAPI = false
+  let canDownload = false
+
+  // 1) If Neon bitmask is present, use it as primary source of truth
+  if (typeof data.delivery_rights_default === 'number') {
+    const mask = data.delivery_rights_default as number
+    canUseAPI = (mask & 1) !== 0
+    canDownload = (mask & 2) !== 0
+  } else {
+    // 2) Fall back to explicit flags from metadata
+    canUseAPI = !!(data.rights?.api ?? data.canUseAPI ?? false)
+    canDownload = !!(data.rights?.download ?? data.canDownload ?? false)
+  }
+
+  const isTransferable = !!(data.rights?.transferable ?? data.isTransferable ?? false)
+
+  // 3) Fallback: infer rights from deliveryMode if both flags are still false
+  if (!canUseAPI && !canDownload && rawDeliveryMode) {
+    const dm = rawDeliveryMode.toLowerCase()
+    if (dm === 'api') {
+      canUseAPI = true
+    } else if (dm === 'download') {
+      canDownload = true
+    } else if (dm === 'both' || dm === 'api+download' || dm === 'download+api') {
+      canUseAPI = true
+      canDownload = true
+    }
+  }
+
   const rights: LicenseRightsDelivery = {
-    canUseAPI: !!(data.rights?.api ?? data.canUseAPI ?? false),
-    canDownload: !!(data.rights?.download ?? data.canDownload ?? false),
-    isTransferable: !!(data.rights?.transferable ?? data.isTransferable ?? false),
-    deliveryMode: safeString(data.deliveryMode)
+    canUseAPI,
+    canDownload,
+    isTransferable,
+    deliveryMode: rawDeliveryMode
   }
   
   // Terms

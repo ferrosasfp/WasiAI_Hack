@@ -3,6 +3,7 @@ import ModelPageClient from './ModelPageClient'
 import { fetchEvmModelWithMetadata } from '@/lib/fetchEvmModel'
 import { getUserEntitlementsEvm } from '@/adapters/evm/entitlements'
 import { cookies } from 'next/headers'
+import { queryOne } from '@/lib/db'
 
 type PageProps = {
   params?: { id?: string }
@@ -21,46 +22,64 @@ export default async function EvmModelDetailPage(props: PageProps) {
   // Get chainId from searchParams, or undefined (client will detect from wallet)
   const chainId = searchParams?.chainId ? Number(searchParams.chainId) : undefined
   
-  // SSR: Try indexed API first (fast), fallback to blockchain (slow)
+  // SSR: Query DB directly (fast), fallback to blockchain (slow)
   let initialModel = null
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const apiUrl = `${baseUrl}/api/indexed/models/${modelId}${chainId ? `?chainId=${chainId}` : ''}`
-    const res = await fetch(apiUrl, { 
-      cache: 'no-store' // Always fetch fresh data
-    })
+    const data = await queryOne<any>(
+      `SELECT 
+        m.model_id,
+        m.chain_id,
+        m.owner,
+        m.creator,
+        m.name,
+        m.uri,
+        m.royalty_bps,
+        m.listed,
+        m.price_perpetual,
+        m.price_subscription,
+        m.default_duration_days,
+        m.delivery_rights_default,
+        m.delivery_mode_hint,
+        m.terms_hash,
+        m.version,
+        mm.metadata,
+        mm.image_url,
+        mm.categories,
+        mm.tags
+      FROM models m
+      LEFT JOIN model_metadata mm ON m.model_id = mm.model_id
+      WHERE m.model_id = $1${chainId ? ' AND m.chain_id = $2' : ''}`,
+      chainId ? [modelId, chainId] : [modelId]
+    )
     
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.model) {
-        // Transform indexed API response to match expected format
-        // Keep snake_case for consistency with blockchain API response
-        initialModel = {
-          id: data.model.model_id,
-          modelId: data.model.model_id,
-          chainId: data.model.chain_id,
-          owner: data.model.owner,
-          creator: data.model.creator,
-          name: data.model.name,
-          uri: data.model.uri,
-          royaltyBps: data.model.royalty_bps,
-          listed: data.model.listed,
-          price_perpetual: data.model.price_perpetual,
-          price_subscription: data.model.price_subscription,
-          default_duration_days: data.model.default_duration_days,
-          delivery_rights_default: data.model.delivery_rights_default,
-          delivery_mode_hint: data.model.delivery_mode_hint,
-          version: data.model.version,
-          terms_hash: data.model.terms_hash,
-          imageUrl: data.model.image_url,
-          metadata: data.model.metadata,
-          categories: data.model.categories,
-          tags: data.model.tags
-        }
+    if (data) {
+      // Transform DB response to match expected format
+      // Keep snake_case for consistency with blockchain API response
+      initialModel = {
+        id: data.model_id,
+        modelId: data.model_id,
+        chainId: data.chain_id,
+        owner: data.owner,
+        creator: data.creator,
+        name: data.name,
+        uri: data.uri,
+        royaltyBps: data.royalty_bps,
+        listed: data.listed,
+        price_perpetual: data.price_perpetual,
+        price_subscription: data.price_subscription,
+        default_duration_days: data.default_duration_days,
+        delivery_rights_default: data.delivery_rights_default,
+        delivery_mode_hint: data.delivery_mode_hint,
+        version: data.version,
+        terms_hash: data.terms_hash,
+        imageUrl: data.image_url,
+        metadata: data.metadata,
+        categories: data.categories,
+        tags: data.tags
       }
     }
   } catch (error) {
-    console.log('Indexed API failed, falling back to blockchain:', error)
+    console.error('[SSR] DB query failed, falling back to blockchain:', error)
   }
   
   // Fallback: Fetch from blockchain if indexed API failed
