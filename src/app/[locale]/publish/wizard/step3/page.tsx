@@ -18,26 +18,10 @@ import { useLocale, useTranslations } from 'next-intl'
 import WizardFooter from '@/components/WizardFooter'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
 import { ipfsToHttp } from '@/config'
+import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
+import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
 
 export const dynamic = 'force-dynamic'
-
-async function saveDraft(payload: any) {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(addr ? { 'X-Wallet-Address': addr } : {}) },
-    body: JSON.stringify(addr ? { ...payload, address: addr } : payload)
-  })
-  return res.json()
-}
-
-async function loadDraft() {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft' + (addr ? `?address=${addr}` : ''), { method: 'GET', headers: addr ? { 'X-Wallet-Address': addr } : {} })
-  return res.json()
-}
 
 type FileType = 'zip' | 'gguf' | 'onnx' | 'safetensors' | 'other'
 type ArtifactRole = 'primary-weights' | 'adapter' | 'inference-code' | 'training-code' | 'tokenizer' | 'assets' | 'other'
@@ -85,6 +69,21 @@ export default function Step3ArtifactsDemoLocalized() {
   const t = useTranslations()
   const locale = useLocale()
   const base = `/${locale}/publish/wizard`
+  
+  // Helper to build URLs preserving upgrade query params
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+  const upgradeMode = searchParams?.get('mode') === 'upgrade'
+  const upgradeModelId = searchParams?.get('modelId')
+  const buildWizardUrl = (path: string) => {
+    if (upgradeMode && upgradeModelId) {
+      return `${path}?mode=upgrade&modelId=${upgradeModelId}`
+    }
+    return path
+  }
+  
+  // Use navigation guard to warn when leaving wizard
+  const { setDirty: setWizardDirty } = useWizardNavGuard(upgradeMode, upgradeModelId, true)
+  
   const isES = String(locale || '').toLowerCase().startsWith('es')
   const COMMON = {
     loadingDraft: isES ? 'Cargando borrador…' : 'Loading draft…',
@@ -110,6 +109,13 @@ export default function Step3ArtifactsDemoLocalized() {
   const lastSavedRef = useRef<any>(null)
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const anyUploading = artifacts.some(a=>a?.status==='uploading')
+  
+  // Sync dirty state with wizard guard when artifacts change
+  useEffect(() => {
+    if (loadedRemote && artifacts.some(a => a.cid || a.filename)) {
+      setWizardDirty(true)
+    }
+  }, [artifacts, loadedRemote, setWizardDirty])
   const [loadingDraft, setLoadingDraft] = useState(false)
   const uploadQueueRef = useRef<Array<{ index:number, file: File }>>([])
   const processingUploadsRef = useRef(false)
@@ -179,8 +185,70 @@ export default function Step3ArtifactsDemoLocalized() {
   }
   const writeCache = (data: any) => { try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)) } catch {} }
 
+  // Load existing model data for upgrade mode
+  useEffect(() => {
+    if (!upgradeMode || !upgradeModelId || !walletAddress) return
+    
+    let alive = true
+    setLoadingDraft(true)
+    
+    const loadExistingModel = async () => {
+      try {
+        const res = await fetch(`/api/indexed/models/${upgradeModelId}`)
+        if (!res.ok) throw new Error('Failed to load model from database')
+        
+        const data = await res.json()
+        const modelData = data?.model
+        const meta = modelData?.metadata || {}
+        
+        if (!alive) return
+        
+        // Load artifacts from metadata
+        if (meta?.artifacts && Array.isArray(meta.artifacts)) {
+          const existingArtifacts = meta.artifacts.map((a: any) => ({
+            cid: a.cid || '',
+            filename: a.filename || '',
+            sizeBytes: a.sizeBytes || a.size,
+            sha256: a.sha256,
+            fileType: a.fileType || (a.filename ? inferFileType(a.filename) : 'other'),
+            role: (a.role as ArtifactRole) || 'other',
+            notes: a.notes || '',
+            status: 'ready' as ArtifactStatus
+          }))
+          setArtifacts(existingArtifacts.length > 0 ? existingArtifacts : [{ cid: '', filename: '', role: 'other' }])
+        }
+        
+        // Load download notes
+        if (meta?.demo?.downloadNotes || meta?.downloadNotes) {
+          setDownloadNotes(meta.demo?.downloadNotes || meta.downloadNotes || '')
+        }
+        
+        // Load demo preset if exists
+        if (meta?.demoPreset) {
+          try {
+            setPresetInput(JSON.stringify(meta.demoPreset, null, 2))
+          } catch {}
+        }
+        
+      } catch (err) {
+        console.error('[Step3] Failed to load existing model:', err)
+      } finally {
+        if (alive) {
+          setLoadingDraft(false)
+          setLoadedRemote(true)
+        }
+      }
+    }
+    
+    loadExistingModel()
+    return () => { alive = false }
+  }, [upgradeMode, upgradeModelId, walletAddress])
+
   // Autoload draft on mount with cache hydration (skip server hydration if resetting)
   useEffect(() => {
+    // Skip if in upgrade mode (data loaded above)
+    if (upgradeMode && upgradeModelId) return
+    
     let alive = true
     // Hydrate from cache first to avoid empty initial render
     try {
@@ -205,7 +273,7 @@ export default function Step3ArtifactsDemoLocalized() {
     loadingFromDraftRef.current = true
     setLoadingDraft(true)
     if (isResetting()) { loadingFromDraftRef.current = false; setLoadingDraft(false); setLoadedRemote(true); return () => { alive = false } }
-    loadDraft().then((r)=>{
+    loadDraftUtil(upgradeMode, upgradeModelId).then((r)=>{
       if (!alive) return
       const s3 = r?.data?.step3
       if (!s3) return
@@ -226,7 +294,7 @@ export default function Step3ArtifactsDemoLocalized() {
       } catch {}
     }).catch(()=>{}).finally(()=>{ loadingFromDraftRef.current = false; setLoadingDraft(false); setLoadedRemote(true) })
     return () => { alive = false }
-  }, [])
+  }, [upgradeMode, upgradeModelId])
 
   // Debounced autosave on important changes (skip if resetting)
   useEffect(() => {
@@ -544,7 +612,7 @@ export default function Step3ArtifactsDemoLocalized() {
     setSaving(true)
     try { console.log('[step3] payload to save:', payload) } catch {}
     try {
-      const resp = await saveDraft(payload)
+      const resp = await saveDraftUtil('step3', payload.data, upgradeMode, upgradeModelId)
       try { console.log('[step3] saveDraft resp:', resp) } catch {}
       setMsg(t('wizard.common.saved'))
       lastSavedRef.current = payload.data
@@ -851,7 +919,7 @@ export default function Step3ArtifactsDemoLocalized() {
         currentStep={3}
         totalSteps={5}
         stepTitle={t('wizard.step3.title')}
-        onBack={() => { if (anyUploading) return; onSave().then(()=>{ window.location.href = `${base}/step2` }) }}
+        onBack={() => { if (anyUploading) return; onSave().then(()=>{ window.location.href = buildWizardUrl(`${base}/step2`) }) }}
         onSaveDraft={() => onSave('manual')}
         onNext={() => { 
           const validation = isStep3Complete()
@@ -859,7 +927,7 @@ export default function Step3ArtifactsDemoLocalized() {
             setValidationError(validation.error || '')
             return
           }
-          onSave().then(()=>{ window.location.href = `${base}/step4` }) 
+          onSave().then(()=>{ window.location.href = buildWizardUrl(`${base}/step4`) }) 
         }}
         isNextDisabled={!isStep3Complete().valid}
         isSaving={saving}

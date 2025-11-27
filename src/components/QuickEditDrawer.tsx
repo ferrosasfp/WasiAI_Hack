@@ -95,11 +95,22 @@ export function QuickEditDrawer({
   const tokenToWei = React.useCallback((tokenValue: string): string => {
     if (!tokenValue || tokenValue === '0' || tokenValue === '0.00') return '0'
     try {
-      const num = parseFloat(tokenValue)
-      if (isNaN(num)) return '0'
-      const wei = BigInt(Math.floor(num * 1e18))
+      // Split into integer and decimal parts to avoid floating point precision issues
+      const trimmed = tokenValue.trim()
+      if (!trimmed || trimmed === '0') return '0'
+      
+      const [intPart = '0', decPart = ''] = trimmed.split('.')
+      
+      // Pad decimal part to 18 digits (wei precision)
+      const decimals = decPart.padEnd(18, '0').slice(0, 18)
+      
+      // Combine integer and decimal parts as a single BigInt
+      const weiStr = intPart + decimals
+      const wei = BigInt(weiStr)
+      
       return wei.toString()
-    } catch {
+    } catch (err) {
+      console.error('[QuickEdit] tokenToWei error:', err, 'input:', tokenValue)
       return '0'
     }
   }, [])

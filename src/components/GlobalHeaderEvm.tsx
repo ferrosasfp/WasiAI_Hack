@@ -85,14 +85,45 @@ export function GlobalHeaderEvm() {
       <Toolbar sx={{ position:'relative' }}>
         <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="h6" fontWeight={800} component={Link} href={`/${locale}`} style={{ textDecoration: 'none' }} sx={{ fontSize: { xs: 18, md: 22 }, color: 'oklch(0.92 0 0)' }}>
+            <Typography 
+              variant="h6" 
+              fontWeight={800} 
+              component={Link} 
+              href={`/${locale}`}
+              prefetch={true}
+              style={{ textDecoration: 'none' }} 
+              sx={{ 
+                fontSize: { xs: 18, md: 22 }, 
+                color: 'oklch(0.92 0 0)',
+                transition: 'transform 0.2s ease',
+                '&:hover': {
+                  transform: 'scale(1.02)'
+                }
+              }}
+            >
               <Box component="span" sx={{ background: 'linear-gradient(90deg, #9b8cff, #50e1ff)', WebkitBackgroundClip: 'text', color: 'transparent' }}>
                 {t('header.brand')}
               </Box>
             </Typography>
             <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 3 }}>
               {nav.map((n) => (
-                <Button key={`${n.label}-${n.href}`} component={Link} href={n.href} color="inherit" variant="text" sx={{ textTransform: 'none', fontSize: 15, fontWeight: 600, color: 'oklch(0.92 0 0)', px: 0, '&:hover': { color: 'oklch(0.98 0 0)' } }}>
+                <Button 
+                  key={`${n.label}-${n.href}`} 
+                  component={Link} 
+                  href={n.href}
+                  prefetch={true}
+                  color="inherit" 
+                  variant="text" 
+                  sx={{ 
+                    textTransform: 'none', 
+                    fontSize: 15, 
+                    fontWeight: 600, 
+                    color: pathname === n.href ? '#4fe1ff' : 'oklch(0.92 0 0)', 
+                    px: 0, 
+                    transition: 'color 0.2s ease',
+                    '&:hover': { color: '#4fe1ff' } 
+                  }}
+                >
                   {n.label}
                 </Button>
               ))}
@@ -285,7 +316,23 @@ export function GlobalHeaderEvm() {
           <List>
             {nav.map((n) => (
               <ListItem key={`${n.label}-${n.href}`} disablePadding>
-                <ListItemButton component={Link} href={n.href} selected={pathname === n.href}>
+                <ListItemButton 
+                  component={Link} 
+                  href={n.href}
+                  prefetch={true}
+                  selected={pathname === n.href}
+                  onClick={() => setOpen(false)}
+                  sx={{
+                    '&.Mui-selected': {
+                      bgcolor: 'rgba(79, 225, 255, 0.15)',
+                      borderLeft: '3px solid #4fe1ff',
+                      '& .MuiListItemText-primary': {
+                        color: '#4fe1ff',
+                        fontWeight: 600
+                      }
+                    }
+                  }}
+                >
                   <ListItemText primary={n.label} />
                 </ListItemButton>
               </ListItem>

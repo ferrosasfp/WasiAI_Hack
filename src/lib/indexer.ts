@@ -175,6 +175,16 @@ async function indexModels(
         continue
       }
 
+      // Log model data for debugging
+      console.log(`  ├─ Model ${modelId} data:`, {
+        name: modelData[2],
+        pricePerpetual: modelData[6]?.toString(),
+        priceSubscription: modelData[7]?.toString(),
+        defaultDurationDays: Number(modelData[8]),
+        deliveryRightsDefault: Number(modelData[9]),
+        deliveryModeHint: Number(modelData[10]),
+      })
+
       // Insert or update model
       await query(
         `INSERT INTO models (
@@ -188,6 +198,9 @@ async function indexModels(
           listed = EXCLUDED.listed,
           price_perpetual = EXCLUDED.price_perpetual,
           price_subscription = EXCLUDED.price_subscription,
+          default_duration_days = EXCLUDED.default_duration_days,
+          delivery_rights_default = EXCLUDED.delivery_rights_default,
+          delivery_mode_hint = EXCLUDED.delivery_mode_hint,
           updated_at = NOW()`,
         [
           modelId,
@@ -335,13 +348,30 @@ export async function cacheModelMetadata(modelId: number): Promise<void> {
 
     const metadata = await response.json()
 
-    // Extract searchable fields
-    const categories = metadata?.technical?.categories || []
-    const tags = metadata?.technical?.tags || []
-    const industries = metadata?.business?.industries || []
-    const useCases = metadata?.business?.useCases || []
-    const frameworks = metadata?.technical?.architecture?.frameworks || []
-    const architectures = metadata?.technical?.architecture?.architectures || []
+    // Extract searchable fields from multiple possible locations
+    const categories = Array.isArray(metadata?.categories) ? metadata.categories : 
+                      Array.isArray(metadata?.technical?.categories) ? metadata.technical.categories : 
+                      Array.isArray(metadata?.businessProfile?.categories) ? metadata.businessProfile.categories : []
+    
+    const tags = Array.isArray(metadata?.tags) ? metadata.tags : 
+                Array.isArray(metadata?.technical?.tags) ? metadata.technical.tags :
+                Array.isArray(metadata?.capabilities?.tags) ? metadata.capabilities.tags : []
+    
+    const industries = Array.isArray(metadata?.industries) ? metadata.industries :
+                      Array.isArray(metadata?.business?.industries) ? metadata.business.industries :
+                      Array.isArray(metadata?.businessProfile?.industries) ? metadata.businessProfile.industries : []
+    
+    const useCases = Array.isArray(metadata?.useCases) ? metadata.useCases :
+                    Array.isArray(metadata?.business?.useCases) ? metadata.business.useCases :
+                    Array.isArray(metadata?.use_cases) ? metadata.use_cases : []
+    
+    const frameworks = Array.isArray(metadata?.frameworks) ? metadata.frameworks :
+                      Array.isArray(metadata?.technical?.architecture?.frameworks) ? metadata.technical.architecture.frameworks :
+                      Array.isArray(metadata?.architecture?.frameworks) ? metadata.architecture.frameworks : []
+    
+    const architectures = Array.isArray(metadata?.architectures) ? metadata.architectures :
+                         Array.isArray(metadata?.technical?.architecture?.architectures) ? metadata.technical.architecture.architectures :
+                         Array.isArray(metadata?.architecture?.architectures) ? metadata.architecture.architectures : []
 
     // Extract image URL using centralized IPFS helper
     let imageUrl = null
@@ -384,8 +414,17 @@ export async function cacheModelMetadata(modelId: number): Promise<void> {
       ]
     )
 
-    console.log(`✅ Cached metadata for model ${modelId}`)
-  } catch (error) {
-    console.error(`Failed to cache metadata for model ${modelId}:`, error)
+    console.log(`✅ Cached metadata for model ${modelId}:`, {
+      categories: categories.length,
+      tags: tags.length,
+      industries: industries.length,
+      useCases: useCases.length,
+      frameworks: frameworks.length,
+      architectures: architectures.length,
+      hasImage: !!imageUrl
+    })
+  } catch (error: any) {
+    console.error(`❌ Failed to cache metadata for model ${modelId}:`, error.message)
+    throw error
   }
 }

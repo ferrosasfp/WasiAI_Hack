@@ -25,31 +25,30 @@ import WizardFooter from '@/components/WizardFooter'
 import { useLocale, useTranslations } from 'next-intl'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
 import { INDUSTRIES_ES, INDUSTRIES_EN, USE_CASES_ES, USE_CASES_EN, SUPPORTED_LANGS, DEPLOY_ES, DEPLOY_EN, TASKS as TASK_OPTIONS, MODALITIES as MODALITY_OPTIONS, FRAMEWORKS as FRAMEWORK_OPTIONS, FILE_FORMATS as FILE_FORMAT_OPTIONS, OS as OS_OPTIONS, ACCELERATORS as ACCELERATOR_OPTIONS, TECHNICAL_MODEL_TYPES, TaskValue, ModalityValue, DeployValue, FrameworkValue, FileFormatValue, OsValue, AcceleratorValue, TechnicalModelType } from '@/constants/step2'
+import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
+import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
 
 export const dynamic = 'force-dynamic'
-
-async function saveDraft(payload: any) {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(addr ? { 'X-Wallet-Address': addr } : {}) },
-    body: JSON.stringify(addr ? { ...payload, address: addr } : payload)
-  })
-  return res.json()
-}
-
-async function loadDraft() {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft' + (addr ? `?address=${addr}` : ''), { method: 'GET', headers: addr ? { 'X-Wallet-Address': addr } : {} })
-  return res.json()
-}
 
 export default function Step2CompatibilityLocalized() {
   const t = useTranslations()
   const locale = useLocale()
   const base = `/${locale}/publish/wizard`
+  
+  // Helper to build URLs preserving upgrade query params
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+  const upgradeMode = searchParams?.get('mode') === 'upgrade'
+  const upgradeModelId = searchParams?.get('modelId')
+  const buildWizardUrl = (path: string) => {
+    if (upgradeMode && upgradeModelId) {
+      return `${path}?mode=upgrade&modelId=${upgradeModelId}`
+    }
+    return path
+  }
+  
+  // Use navigation guard to warn when leaving wizard
+  const { setDirty: setWizardDirty } = useWizardNavGuard(upgradeMode, upgradeModelId, true)
+  
   // Local labels for new fields (from i18n)
   const L = useMemo(() => ({
     client: {
@@ -91,6 +90,11 @@ export default function Step2CompatibilityLocalized() {
   const [shouldFade, setShouldFade] = useState(true)
   const [loadedRemote, setLoadedRemote] = useState(false)
 
+  // Sync local dirty state with wizard guard
+  useEffect(() => {
+    setWizardDirty(dirty)
+  }, [dirty, setWizardDirty])
+
   const presetsRef = useRef<HTMLDivElement>(null)
   const scrollPresets = (dir: 'prev'|'next') => {
     const el = presetsRef.current
@@ -99,8 +103,211 @@ export default function Step2CompatibilityLocalized() {
     el.scrollBy({ left: dir==='next' ? delta : -delta, behavior: 'smooth' })
   }
 
+  // Load existing model data for upgrade mode
+  useEffect(() => {
+    if (!upgradeMode || !upgradeModelId || !walletAddress) return
+    
+    let alive = true
+    setDraftLoading(true)
+    
+    const loadExistingModel = async () => {
+      try {
+        const res = await fetch(`/api/indexed/models/${upgradeModelId}`)
+        if (!res.ok) throw new Error('Failed to load model from database')
+        
+        const data = await res.json()
+        const modelData = data?.model
+        const meta = modelData?.metadata || {}
+        
+        if (!alive) return
+        
+        console.log('[Step2] Loading model data:', {
+          hasMetadata: !!meta,
+          hasCustomer: !!meta.customer,
+          hasTechnical: !!meta.technical,
+          metaKeys: Object.keys(meta).slice(0, 20)
+        })
+        
+        // Load Customer Sheet fields
+        // Try both direct access and nested in customer object
+        const customer = meta.customer || {}
+        
+        // "In one sentence, what does this model do?" - valueProp
+        // Try: customer.valueProp, shortSummary (root level), or other variations
+        if (customer.valueProp) setValueProp(customer.valueProp)
+        else if (meta.shortSummary) setValueProp(meta.shortSummary)
+        else if (meta.valueProposition) setValueProp(meta.valueProposition)
+        else if (customer.valueProposition) setValueProp(customer.valueProposition)
+        
+        // Customer description
+        if (customer.description) setCustomerDesc(customer.description)
+        else if (meta.customerDescription) setCustomerDesc(meta.customerDescription)
+        
+        // Industries and use cases
+        if (Array.isArray(customer.industries)) setIndustries(customer.industries)
+        else if (Array.isArray(meta.industries)) setIndustries(meta.industries)
+        if (Array.isArray(customer.useCases)) setUseCases(customer.useCases)
+        else if (Array.isArray(meta.useCases)) setUseCases(meta.useCases)
+        
+        // Expected impact
+        if (customer.expectedImpact) setExpectedImpact(customer.expectedImpact)
+        else if (meta.expectedImpact) setExpectedImpact(meta.expectedImpact)
+        
+        // Inputs/Outputs
+        if (customer.inputs) setInputsDesc(customer.inputs)
+        else if (meta.inputs) setInputsDesc(meta.inputs)
+        if (customer.outputs) setOutputsDesc(customer.outputs)
+        else if (meta.outputs) setOutputsDesc(meta.outputs)
+        
+        // Examples
+        if (Array.isArray(customer.examples)) setIoExamplesList(customer.examples)
+        else if (Array.isArray(meta.examples)) setIoExamplesList(meta.examples)
+        
+        // "Known limitations and risks" - risks
+        // Try: customer.risks, customer.limitations, or root level
+        if (customer.risks) setRisks(customer.risks)
+        else if (customer.limitations) setRisks(customer.limitations)
+        else if (meta.limitations) setRisks(meta.limitations)
+        else if (meta.risks) setRisks(meta.risks)
+        
+        // Prohibited uses
+        if (customer.prohibited) setProhibited(customer.prohibited)
+        else if (meta.prohibited) setProhibited(meta.prohibited)
+        
+        // Privacy
+        if (customer.privacy) setPrivacy(customer.privacy)
+        else if (meta.privacy) setPrivacy(meta.privacy)
+        
+        // Deploy options
+        if (Array.isArray(customer.deploy)) setDeployOptions(customer.deploy)
+        else if (Array.isArray(meta.deploy)) setDeployOptions(meta.deploy)
+        
+        // Support
+        if (customer.support) setSupport(customer.support)
+        else if (meta.support) setSupport(meta.support)
+        
+        // Supported languages
+        if (Array.isArray(customer.supportedLanguages)) setSupportedLangs(customer.supportedLanguages)
+        else if (Array.isArray(meta.supportedLanguages)) setSupportedLangs(meta.supportedLanguages)
+        
+        // Load Capabilities (try both meta.capabilities and meta.technical.capabilities)
+        const technical = meta.technical || {}
+        const caps = meta.capabilities || technical.capabilities || {}
+        if (Array.isArray(caps.tasks)) setTasks(caps.tasks)
+        if (Array.isArray(caps.modalities)) setModalities(caps.modalities)
+        if (caps.technicalModelType) setTechnicalModelType(caps.technicalModelType)
+        
+        // Load Architecture
+        const arch = meta.architecture || technical.architecture || {}
+        if (Array.isArray(arch.frameworks)) setFrameworks(arch.frameworks)
+        if (Array.isArray(arch.architectures)) setArchitectures(arch.architectures)
+        if (Array.isArray(arch.precisions)) setPrecisions(arch.precisions)
+        if (arch.quantization) setQuantization(arch.quantization)
+        if (arch.modelSizeParams) setModelSizeParams(String(arch.modelSizeParams))
+        if (Array.isArray(arch.modelFiles)) setModelFiles(arch.modelFiles)
+        if (arch.artifactSizeGB) setArtifactSize(arch.artifactSizeGB)
+        if (arch.embeddingDimension) setEmbedDim(String(arch.embeddingDimension))
+        
+        // Load Runtime
+        const runtime = meta.runtime || technical.runtime || {}
+        if (runtime.python) setPython(runtime.python)
+        if (runtime.cuda) setCuda(runtime.cuda)
+        if (runtime.torch) setTorch(runtime.torch)
+        if (runtime.cudnn) setCudnn(runtime.cudnn)
+        if (Array.isArray(runtime.os)) setOses(runtime.os)
+        if (Array.isArray(runtime.accelerators)) setAccelerators(runtime.accelerators)
+        if (runtime.computeCapability) setComputeCapability(runtime.computeCapability)
+        
+        // Load Dependencies (dependencies is at root level, not in technical)
+        const deps = meta.dependencies || technical.dependencies || {}
+        console.log('[Step2] Dependencies debug:', {
+          hasDeps: !!deps,
+          pipType: typeof deps.pip,
+          pipIsArray: Array.isArray(deps.pip),
+          pipLength: Array.isArray(deps.pip) ? deps.pip.length : 'N/A',
+          pipValue: deps.pip,
+          depsFullObject: deps
+        })
+        if (Array.isArray(deps.pip) && deps.pip.length > 0) {
+          setPipDeps(deps.pip.join('\n'))
+        } else if (typeof deps.pip === 'string' && deps.pip.trim()) {
+          setPipDeps(deps.pip)
+        }
+        
+        // Load Resources
+        const resources = meta.resources || technical.resources || {}
+        if (resources.vramGB != null) setVramGB(String(resources.vramGB))
+        if (resources.cpuCores != null) setCpuCores(String(resources.cpuCores))
+        if (resources.ramGB != null) setRamGB(String(resources.ramGB))
+        
+        // Load Inference
+        const inference = meta.inference || technical.inference || {}
+        if (inference.maxBatchSize != null) setMaxBatch(String(inference.maxBatchSize))
+        if (inference.contextLength != null) setContextLen(String(inference.contextLength))
+        if (inference.maxTokens != null) setMaxTokens(String(inference.maxTokens))
+        if (inference.imageResolution) setImgResolution(inference.imageResolution)
+        if (inference.sampleRate != null) setSampleRate(String(inference.sampleRate))
+        if (inference.referencePerf) setRefPerf(inference.referencePerf)
+        if (typeof inference.triton === 'boolean') setUseTriton(inference.triton)
+        
+        // Load Training fields
+        const training = meta.training || technical.training || {}
+        if (training.primaryLanguage) setPrimaryLanguage(training.primaryLanguage)
+        if (training.metrics) setMetrics(training.metrics)
+        
+        console.log('[Step2] Loaded fields:', {
+          // Customer fields
+          valueProp: !!(customer.valueProp || meta.shortSummary || meta.valueProposition),
+          valuePropValue: customer.valueProp || meta.shortSummary || meta.valueProposition || 'NOT FOUND',
+          customerDesc: !!(customer.description || meta.customerDescription),
+          industries: Array.isArray(customer.industries) || Array.isArray(meta.industries),
+          useCases: Array.isArray(customer.useCases) || Array.isArray(meta.useCases),
+          supportedLangs: Array.isArray(customer.supportedLanguages) || Array.isArray(meta.supportedLanguages),
+          inputs: !!(customer.inputs || meta.inputs),
+          outputs: !!(customer.outputs || meta.outputs),
+          examples: Array.isArray(customer.examples) || Array.isArray(meta.examples),
+          risks: !!(customer.risks || customer.limitations || meta.limitations || meta.risks),
+          prohibited: !!(customer.prohibited || meta.prohibited),
+          privacy: !!(customer.privacy || meta.privacy),
+          support: !!(customer.support || meta.support),
+          // Technical fields
+          tasks: Array.isArray(caps.tasks),
+          modalities: Array.isArray(caps.modalities),
+          frameworks: Array.isArray(arch.frameworks),
+          modelFiles: Array.isArray(arch.modelFiles),
+          python: !!runtime.python,
+          oses: Array.isArray(runtime.os),
+          accelerators: Array.isArray(runtime.accelerators),
+          vramGB: resources.vramGB,
+          cpuCores: resources.cpuCores,
+          ramGB: resources.ramGB,
+          maxBatch: inference.maxBatchSize,
+          contextLen: inference.contextLength,
+          maxTokens: inference.maxTokens,
+          // Data structure
+          customerKeys: Object.keys(customer).slice(0, 20),
+          metaKeys: Object.keys(meta).slice(0, 20)
+        })
+        
+      } catch (err) {
+        console.error('[Step2] Failed to load existing model:', err)
+      } finally {
+        if (alive) {
+          setDraftLoading(false)
+          setLoadedRemote(true)
+        }
+      }
+    }
+    
+    loadExistingModel()
+    return () => { alive = false }
+  }, [upgradeMode, upgradeModelId, walletAddress])
+
   // Autoload del borrador al montar (localizado)
   useEffect(() => {
+    // Skip if in upgrade mode (data loaded above)
+    if (upgradeMode && upgradeModelId) return
+    
     let alive = true
     // Hydrate from cache first to avoid empty initial render
     try {
@@ -176,7 +383,7 @@ export default function Step2CompatibilityLocalized() {
     } catch {}
     loadingFromDraftRef.current = true
     setDraftLoading(true)
-    loadDraft().then((r: any)=>{
+    loadDraftUtil(upgradeMode, upgradeModelId).then((r: any)=>{
       if (!alive) return
       const s2 = r?.data?.step2
       if (!s2) return
@@ -248,7 +455,7 @@ export default function Step2CompatibilityLocalized() {
     }).catch(()=>{})
     .finally(()=>{ loadingFromDraftRef.current = false; setDraftLoading(false); setLoadedRemote(true) })
     return () => { alive = false }
-  }, [])
+  }, [upgradeMode, upgradeModelId])
 
   useEffect(() => {
     if (!msg) return
@@ -258,7 +465,7 @@ export default function Step2CompatibilityLocalized() {
   const onBack = (e?: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
     try { if (e && typeof (e as any).preventDefault === 'function') (e as any).preventDefault() } catch {}
     navigatingRef.current = true
-    onSave().finally(()=>{ window.location.href = `${base}/step1` })
+    onSave().finally(()=>{ window.location.href = buildWizardUrl(`${base}/step1`) })
   }
 
   const TASKS = useMemo(() => [...TASK_OPTIONS], [])
@@ -777,38 +984,77 @@ export default function Step2CompatibilityLocalized() {
   // Removed native beforeunload guard: autosave (700ms debounce) and onSave() before navigation already protect against data loss.
 
   const hasValidExample = useMemo(()=> (ioExamplesList||[]).some(e=> (e.input||'').trim() && (e.output||'').trim() ), [ioExamplesList])
-  const isClientSheetValid = () => {
-    return Boolean(
-      valueProp.trim() &&
-      customerDesc.trim() &&
-      expectedImpact.trim() &&
-      industries.length>0 &&
-      useCases.length>0 &&
-      supportedLangs.length>0 &&
-      inputsDesc.trim() &&
-      outputsDesc.trim() &&
-      hasValidExample &&
-      risks.trim() &&
-      prohibited.trim() &&
-      privacy.trim() &&
-      support.trim()
-    )
+  
+  // Get list of missing required fields for better UX feedback
+  const getMissingClientFields = (): string[] => {
+    const missing: string[] = []
+    const isES = locale === 'es'
+    if (!valueProp.trim()) missing.push(isES ? 'Propuesta de valor' : 'Value proposition')
+    if (!customerDesc.trim()) missing.push(isES ? 'Descripción para el cliente' : 'Customer description')
+    if (!expectedImpact.trim()) missing.push(isES ? 'Impacto esperado' : 'Expected impact')
+    if (industries.length === 0) missing.push(isES ? 'Industrias' : 'Industries')
+    if (useCases.length === 0) missing.push(isES ? 'Casos de uso' : 'Use cases')
+    if (supportedLangs.length === 0) missing.push(isES ? 'Idiomas soportados' : 'Supported languages')
+    if (!inputsDesc.trim()) missing.push(isES ? 'Descripción de entradas' : 'Inputs description')
+    if (!outputsDesc.trim()) missing.push(isES ? 'Descripción de salidas' : 'Outputs description')
+    if (!hasValidExample) missing.push(isES ? 'Al menos un ejemplo válido' : 'At least one valid example')
+    if (!risks.trim()) missing.push(isES ? 'Limitaciones y riesgos' : 'Limitations and risks')
+    if (!prohibited.trim()) missing.push(isES ? 'Usos prohibidos' : 'Prohibited uses')
+    if (!privacy.trim()) missing.push(isES ? 'Privacidad' : 'Privacy')
+    if (!support.trim()) missing.push(isES ? 'Soporte' : 'Support')
+    return missing
   }
+  
+  const getMissingTechFields = (): string[] => {
+    const missing: string[] = []
+    const isES = locale === 'es'
+    if (!tasks || tasks.length === 0) missing.push(isES ? 'Tareas' : 'Tasks')
+    if (!modalities || modalities.length === 0) missing.push(isES ? 'Modalidades' : 'Modalities')
+    if (!frameworks || frameworks.length === 0) missing.push(isES ? 'Frameworks' : 'Frameworks')
+    if (!modelFiles || modelFiles.length === 0) missing.push(isES ? 'Formatos de archivo' : 'Model files')
+    if (!python.trim()) missing.push('Python')
+    if (!oses || oses.length === 0) missing.push(isES ? 'Sistemas operativos' : 'Operating systems')
+    if (!accelerators || accelerators.length === 0) missing.push(isES ? 'Aceleradores' : 'Accelerators')
+    if (Number(vramGB || 0) <= 0) missing.push('VRAM (GB)')
+    if (Number(cpuCores || 0) <= 0) missing.push(isES ? 'Núcleos CPU' : 'CPU cores')
+    if (Number(ramGB || 0) <= 0) missing.push('RAM (GB)')
+    if (Number(maxBatch || 0) <= 0) missing.push(isES ? 'Tamaño de batch máx.' : 'Max batch size')
+    if (Number(contextLen || 0) <= 0) missing.push(isES ? 'Longitud de contexto' : 'Context length')
+    if (Number(maxTokens || 0) <= 0) missing.push(isES ? 'Tokens máx.' : 'Max tokens')
+    if (tasks.includes('embedding') && (!embedDim || Number(embedDim) <= 0)) {
+      missing.push(isES ? 'Dimensión de embedding' : 'Embedding dimension')
+    }
+    return missing
+  }
+  
+  const isClientSheetValid = () => getMissingClientFields().length === 0
+  const isTechValid = () => getMissingTechFields().length === 0
   const onNext = (e?: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
     setShowErr(true)
     setNextLoading(true)
-    if (!isClientSheetValid()) {
+    const missingClient = getMissingClientFields()
+    const missingTech = getMissingTechFields()
+    
+    if (missingClient.length > 0) {
       if (e && typeof (e as any).preventDefault === 'function') (e as any).preventDefault()
-      setMsg(t('wizard.step2.validationFillClientSheet'))
+      const isES = locale === 'es'
+      const prefix = isES ? 'Campos faltantes: ' : 'Missing fields: '
+      // Show up to 3 missing fields, then "and X more"
+      const shown = missingClient.slice(0, 3).join(', ')
+      const extra = missingClient.length > 3 ? (isES ? ` y ${missingClient.length - 3} más` : ` and ${missingClient.length - 3} more`) : ''
+      setMsg(prefix + shown + extra)
       const top = document.getElementById('client-sheet-top')
       top?.scrollIntoView({ behavior:'smooth', block:'start' })
       setNextLoading(false)
       return
     }
-    if (!isTechValid()) {
+    if (missingTech.length > 0) {
       if (e && typeof (e as any).preventDefault === 'function') (e as any).preventDefault()
-      const message = locale==='es' ? 'Completa la configuración técnica mínima.' : 'Please fill the minimum technical configuration.'
-      setMsg(message)
+      const isES = locale === 'es'
+      const prefix = isES ? 'Campos técnicos faltantes: ' : 'Missing technical fields: '
+      const shown = missingTech.slice(0, 3).join(', ')
+      const extra = missingTech.length > 3 ? (isES ? ` y ${missingTech.length - 3} más` : ` and ${missingTech.length - 3} more`) : ''
+      setMsg(prefix + shown + extra)
       const el = document.querySelector('[data-step2-tech-root]') as HTMLElement | null
       el?.scrollIntoView({ behavior:'smooth', block:'start' })
       setNextLoading(false)
@@ -816,7 +1062,7 @@ export default function Step2CompatibilityLocalized() {
     }
     if (e && typeof (e as any).preventDefault === 'function') (e as any).preventDefault()
     navigatingRef.current = true
-    onSave().finally(()=>{ window.location.href = `${base}/step3` })
+    onSave().finally(()=>{ window.location.href = buildWizardUrl(`${base}/step3`) })
   }
 
   const isMeaningful = (p: any) => {
@@ -850,20 +1096,6 @@ export default function Step2CompatibilityLocalized() {
 
   const shallowEqualJSON = (a: any, b: any) => {
     try { return JSON.stringify(a) === JSON.stringify(b) } catch { return false }
-  }
-
-  // Technical minimal validation (now mandatory)
-  const isTechValid = () => {
-    const needsEmbedDim = tasks.includes('embedding')
-    const okTasks = tasks && tasks.length>0
-    const okModalities = modalities && modalities.length>0
-    const okFrameworks = frameworks && frameworks.length>0
-    const okFormats = modelFiles && modelFiles.length>0
-    const okRuntime = Boolean(python.trim()) && (oses&&oses.length>0) && (accelerators&&accelerators.length>0)
-    const okResources = Number(vramGB||0)>0 && Number(cpuCores||0)>0 && Number(ramGB||0)>0
-    const okInference = Number(maxBatch||0)>0 && Number(contextLen||0)>0 && Number(maxTokens||0)>0
-    const okEmbed = !needsEmbedDim || (embedDim && Number(embedDim)>0)
-    return Boolean(okTasks && okModalities && okFrameworks && okFormats && okRuntime && okResources && okInference && okEmbed)
   }
 
   const onSave = async (reason?: 'autosave'|'preset'|'manual') => {
@@ -950,10 +1182,11 @@ export default function Step2CompatibilityLocalized() {
     }
     try { console.log('[step2] payload to save:', payload) } catch {}
     try {
-      const r = await saveDraft(payload)
+      const r = await saveDraftUtil('step2', payload.data, upgradeMode, upgradeModelId)
       setMsg(r?.ok ? t('wizard.common.saved') : t('wizard.common.errorSaving'))
       lastSavedRef.current = payload.data
-      try { localStorage.setItem('draft_step2', JSON.stringify(payload.data)) } catch {}
+      const localStorageKey = `draft_step2_${getDraftId(upgradeMode, upgradeModelId)}`
+      try { localStorage.setItem(localStorageKey, JSON.stringify(payload.data)) } catch {}
       setDirty(false)
       return !!r?.ok
     } catch (e) {
@@ -1399,6 +1632,45 @@ export default function Step2CompatibilityLocalized() {
       )}
 
       <Box sx={{ height: { xs: 76, md: 76 } }} />
+
+      {/* Missing fields indicator - show always in upgrade mode after loading, or after showErr in normal mode */}
+      {!draftLoading && loadedRemote && (upgradeMode || showErr) && (!isClientSheetValid() || !isTechValid()) && (
+        <Paper 
+          elevation={0} 
+          sx={{ 
+            p: 2, 
+            mb: 2, 
+            bgcolor: 'rgba(255, 152, 0, 0.1)', 
+            border: '1px solid', 
+            borderColor: 'warning.main',
+            borderRadius: 2 
+          }}
+        >
+          <Typography variant="subtitle2" color="warning.main" sx={{ mb: 1, fontWeight: 600 }}>
+            {locale === 'es' ? '⚠️ Campos obligatorios faltantes:' : '⚠️ Missing required fields:'}
+          </Typography>
+          {getMissingClientFields().length > 0 && (
+            <Box sx={{ mb: 1 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                {locale === 'es' ? 'Ficha del cliente:' : 'Customer sheet:'}
+              </Typography>
+              <Typography variant="body2" color="warning.light" sx={{ ml: 1 }}>
+                {getMissingClientFields().join(', ')}
+              </Typography>
+            </Box>
+          )}
+          {getMissingTechFields().length > 0 && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                {locale === 'es' ? 'Configuración técnica:' : 'Technical configuration:'}
+              </Typography>
+              <Typography variant="body2" color="warning.light" sx={{ ml: 1 }}>
+                {getMissingTechFields().join(', ')}
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      )}
 
       <WizardFooter
         currentStep={2}

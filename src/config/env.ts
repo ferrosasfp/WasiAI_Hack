@@ -30,7 +30,10 @@ const schema = z.object({
     .catch('0x0000000000000000000000000000000000000000000000000000000000000001'),
   PINATA_API_KEY: z.string().catch(''),
   PINATA_SECRET_KEY: z.string().catch(''),
-  NEXT_PUBLIC_APP_URL: z.string().url().catch('http://localhost:3000'),
+  // Base URL for internal API calls (server-side)
+  // Use NEXT_PUBLIC_SITE_URL as primary, NEXT_PUBLIC_APP_URL as legacy fallback
+  NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   // Upload image compression params (client)
   NEXT_PUBLIC_IMG_MAX_W: z.coerce.number().catch(1280),
   NEXT_PUBLIC_IMG_MAX_H: z.coerce.number().catch(720),
@@ -51,6 +54,7 @@ const raw = {
   NEXT_PUBLIC_DEVINSPECT_SENDER: process.env.NEXT_PUBLIC_DEVINSPECT_SENDER,
   PINATA_API_KEY: process.env.PINATA_API_KEY,
   PINATA_SECRET_KEY: process.env.PINATA_SECRET_KEY,
+  NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   NEXT_PUBLIC_IMG_MAX_W: process.env.NEXT_PUBLIC_IMG_MAX_W,
   NEXT_PUBLIC_IMG_MAX_H: process.env.NEXT_PUBLIC_IMG_MAX_H,

@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { Box, Stack, Typography, Paper, Button, Grid, Chip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import {useLocale, useTranslations} from 'next-intl';
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
 const UnifiedConnectButton = NextDynamic<any>(
   () => import('@/components/UnifiedConnectButton').then(m => m.UnifiedConnectButton),
@@ -22,12 +22,21 @@ export default function WizardIndexLocalized() {
   const base = `/${locale}/publish/wizard`
   const heroSrc = React.useMemo(() => (process.env.NEXT_PUBLIC_WIZARD_HERO_SRC || '').trim(), [])
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [askConnect, setAskConnect] = React.useState(false)
   const { walletAddress } = useWalletAddress()
 
+  // Preserve query params (mode, modelId) for upgrade flow
+  const queryString = React.useMemo(() => {
+    const params = new URLSearchParams()
+    if (searchParams.get('mode')) params.set('mode', searchParams.get('mode')!)
+    if (searchParams.get('modelId')) params.set('modelId', searchParams.get('modelId')!)
+    return params.toString() ? `?${params.toString()}` : ''
+  }, [searchParams])
+
   const onStart = () => {
     if (walletAddress) {
-      router.push(`${base}/step1`)
+      router.push(`${base}/step1${queryString}`)
     } else {
       setAskConnect(true)
     }
@@ -39,14 +48,25 @@ export default function WizardIndexLocalized() {
   React.useEffect(() => {
     if (askConnect && walletAddress) {
       try { setAskConnect(false) } catch {}
-      try { router.push(`${base}/step1`) } catch {}
+      try { router.push(`${base}/step1${queryString}`) } catch {}
     }
-  }, [askConnect, walletAddress, router, base])
+  }, [askConnect, walletAddress, router, base, queryString])
 
   // Clear reset flag when landing mounts (after Step 5 reset redirect)
+  // Also clear upgrade flags if NOT in upgrade mode (prevents stale flags from previous sessions)
   React.useEffect(() => {
     try { localStorage.removeItem('wizard_resetting'); sessionStorage.removeItem('wizard_resetting') } catch {}
-  }, [])
+    
+    // Only clear upgrade flags if we're NOT in upgrade mode
+    const isUpgradeMode = searchParams.get('mode') === 'upgrade' && searchParams.get('modelId')
+    if (!isUpgradeMode) {
+      try {
+        localStorage.removeItem('wizard_upgrade_mode')
+        localStorage.removeItem('wizard_upgrade_model_id')
+        localStorage.removeItem('wizard_upgrade_slug')
+      } catch {}
+    }
+  }, [searchParams])
 
   // Prefetch del siguiente paso para navegar más rápido tras el CTA
   React.useEffect(() => {

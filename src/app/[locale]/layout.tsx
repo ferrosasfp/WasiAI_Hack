@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
 import { GlobalHeader } from '@/components/GlobalHeader';
 import { GlobalHeaderEvm } from '@/components/GlobalHeaderEvm';
+import { NavigationProgress } from '@/components/NavigationProgress';
 import EmotionRegistry from '@/app/emotion/registry'
 
 const locales = ['en', 'es'] as const;
@@ -37,6 +38,7 @@ export default async function LocaleLayout({
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
       <EmotionRegistry>
+        <NavigationProgress />
         {enableSui ? <GlobalHeader /> : <GlobalHeaderEvm />}
         {children}
       </EmotionRegistry>

@@ -165,13 +165,17 @@ export async function POST(
     newMetadata.updatedAt = new Date().toISOString()
 
     // === STEP 3: Upload new metadata to IPFS ===
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = process.env.NEXT_PUBLIC_SITE_URL
+    if (!appUrl) {
+      throw new Error('NEXT_PUBLIC_SITE_URL is not configured in environment variables')
+    }
+    
     const uploadRes = await fetch(`${appUrl}/api/ipfs/upload`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        json: newMetadata,
         type: 'json',
+        json: newMetadata,
         filename: `model-${modelId}-metadata.json`
       }),
     })

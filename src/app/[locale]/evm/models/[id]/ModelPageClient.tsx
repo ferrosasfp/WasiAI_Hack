@@ -30,6 +30,7 @@ import { getMarketAddress, getChainConfig } from '@/config'
 import { ModelEditControls } from '@/components/ModelEditControls'
 import { QuickEditDrawer } from '@/components/QuickEditDrawer'
 import { rightsBitmaskToArray } from '@/adapters/evm/write'
+import { IpfsImage } from '@/components/IpfsImage'
 
 export type ModelPageClientProps = {
   modelId: number
@@ -127,7 +128,8 @@ function useEvmModel(options: UseEvmModelOptions) {
         // Use Neon data if available and chains match, otherwise fetch from blockchain
         if (useNeonData) {
           console.log('[useEvmModel] Using SSR data from Neon (fresh after Quick Edit sync)')
-          m = initialModel
+          // Clone initialModel to avoid mutating the original
+          m = { ...initialModel }
         } else {
           if (initialModel && !chainsMatch) {
             console.log('[useEvmModel] Chain mismatch, fetching from blockchain:', { initialChainId, evmChainId })
@@ -751,71 +753,130 @@ export default function ModelPageClient(props: ModelPageClientProps) {
     if (!data) return null
     
     try {
+      // Extract from metadata if not already processed
+      const meta = data.metadata || {}
+      const customer = meta.customer || {}
+      const author = meta.author || {}
+      // Technical data is nested under meta.technical
+      const technical = meta.technical || {}
+      const arch = technical.architecture || meta.architecture || {}
+      const runtime = technical.runtime || meta.runtime || {}
+      const resources = technical.resources || meta.resources || {}
+      const inference = technical.inference || meta.inference || {}
+      const deps = technical.dependencies || meta.dependencies || {}
+      const capabilities = technical.capabilities || meta.capabilities || {}
+      const lp = meta.licensePolicy || {}
+      
+      // Determine summary and tagline (avoid duplication)
+      const taglineValue = data.tagline || meta.tagline || ''
+      const summaryValue = data.summary || meta.summary || meta.shortSummary || ''
+      // Use tagline as summary only if no separate summary exists
+      const finalSummary = summaryValue || taglineValue
+      
+      // valueProp should be different from summary (it's the "what this model does" field)
+      const valuePropValue = data.valueProposition || customer.valueProp || customer.valueProposition || ''
+      
       const enrichedData = {
         ...data,
-        name: data.name || `Model #${id}`,
+        name: data.name || meta.name || `Model #${id}`,
         chain: chainName,
         chainSymbol: evmSymbol,
-        summary: data.description || data.summary,
-        tagline: data.tagline,
-        authorName: data.authorName || (data.owner ? truncateAddr(data.owner) : undefined),
-        authorLinks: data.authorLinks,
+        summary: finalSummary,
+        tagline: taglineValue,
+        authorName: data.authorName || author.displayName || author.name || (data.owner ? truncateAddr(data.owner) : undefined),
+        authorLinks: data.authorLinks || author.links,
         cover: data.imageUrl ? { url: data.imageUrl } : undefined,
-        businessCategory: data.businessCategory,
-        modelTypeBusiness: data.modelType,
-        categories: data.categories,
-        technicalCategories: data.categories,
-        tags: data.tags,
-        technicalTags: data.tags,
-        industries: data.industries,
-        useCases: data.useCases,
-        supportedLanguages: data.supportedLanguages,
-        valueProp: data.valueProposition,
-        customerDescription: data.customerDescription,
-        expectedImpact: data.expectedImpact,
-        inputs: data.inputs,
-        outputs: data.outputs,
-        examples: data.examples,
-        risks: data.limitations,
-        prohibited: data.prohibited,
-        privacy: data.privacy,
-        deploy: data.deploy,
-        support: Array.isArray(data.support) ? data.support : (data.support ? [data.support] : undefined),
-        tasks: data.tasks,
-        modalities: data.modalities,
-        frameworks: data.frameworks,
-        architectures: data.architectures,
-        precisions: data.precision,
-        quantization: data.quantization,
-        modelFiles: data.fileFormats,
-        modelSize: data.modelSize,
-        artifactSize: data.artifactSize,
-        python: data.python,
-        cuda: data.cuda,
-        pytorch: data.pytorch,
-        cudnn: data.cudnn,
-        os: data.systems,
-        accelerators: data.accelerators,
-        computeCapability: data.computeCapability,
-        dependencies: data.dependencies,
-        pip: typeof data.dependencies === 'string' ? data.dependencies.split('\n').filter(Boolean) : undefined,
-        vramGB: data.minVram,
-        cpuCores: data.minCpu,
-        ramGB: data.recRam,
-        maxBatchSize: data.maxBatch,
-        contextLength: data.contextLength,
-        maxTokens: data.maxTokens,
-        imageResolution: data.imageResolution,
-        sampleRate: data.sampleRate,
-        triton: data.triton,
-        referenceLatency: data.gpuNotes,
-        artifacts: data.artifactsList || [],
+        businessCategory: data.businessCategory || meta.businessCategory,
+        modelTypeBusiness: data.modelType || meta.modelType,
+        categories: data.categories || meta.categories || [],
+        technicalCategories: data.categories || meta.categories || [],
+        tags: data.tags || meta.tags || [],
+        technicalTags: data.tags || meta.tags || [],
+        industries: data.industries || customer.industries || [],
+        useCases: data.useCases || customer.useCases || [],
+        supportedLanguages: data.supportedLanguages || customer.supportedLanguages || [],
+        // Customer sheet fields
+        valueProp: valuePropValue,
+        customerDescription: data.customerDescription || customer.description,
+        expectedImpact: data.expectedImpact || customer.expectedImpact || customer.expectedOutcomes,
+        inputs: data.inputs || customer.inputs,
+        outputs: data.outputs || customer.outputs,
+        examples: data.examples || customer.examples,
+        risks: data.limitations || customer.risks || customer.limitations,
+        prohibited: data.prohibited || customer.prohibited,
+        privacy: data.privacy || customer.privacy,
+        deploy: data.deploy || customer.deploy,
+        support: Array.isArray(data.support) ? data.support : (data.support ? [data.support] : (customer.support ? [customer.support] : undefined)),
+        // Technical fields - from meta.technical.* structure
+        tasks: data.tasks || capabilities.tasks || [],
+        modalities: data.modalities || capabilities.modalities || [],
+        frameworks: data.frameworks || arch.frameworks || [],
+        architectures: data.architectures || arch.architectures || [],
+        precisions: data.precision || arch.precisions || [],
+        quantization: data.quantization || arch.quantization || undefined,
+        modelFiles: data.fileFormats || arch.modelFiles || undefined,
+        modelSize: data.modelSize || arch.modelSizeParams || undefined,
+        artifactSize: data.artifactSize || arch.artifactSizeGB || undefined,
+        // Runtime
+        python: data.python || runtime.python || undefined,
+        cuda: data.cuda || runtime.cuda || undefined,
+        pytorch: data.pytorch || runtime.torch || undefined,
+        cudnn: data.cudnn || runtime.cudnn || undefined,
+        os: data.systems || runtime.os || [],
+        accelerators: data.accelerators || runtime.accelerators || [],
+        computeCapability: data.computeCapability || runtime.computeCapability || undefined,
+        // Dependencies
+        dependencies: data.dependencies || (Array.isArray(deps.pip) && deps.pip.length > 0 ? deps.pip.join('\n') : undefined),
+        pip: typeof data.dependencies === 'string' ? data.dependencies.split('\n').filter(Boolean) : (Array.isArray(deps.pip) ? deps.pip : undefined),
+        // Resources
+        vramGB: data.minVram ?? resources.vramGB ?? undefined,
+        cpuCores: data.minCpu ?? resources.cpuCores ?? undefined,
+        ramGB: data.recRam ?? resources.ramGB ?? undefined,
+        // Inference
+        maxBatchSize: data.maxBatch ?? inference.maxBatchSize ?? undefined,
+        contextLength: data.contextLength ?? inference.contextLength ?? undefined,
+        maxTokens: data.maxTokens ?? inference.maxTokens ?? undefined,
+        imageResolution: data.imageResolution || inference.imageResolution || undefined,
+        sampleRate: data.sampleRate || inference.sampleRate || undefined,
+        triton: data.triton ?? inference.triton ?? undefined,
+        referenceLatency: data.gpuNotes || inference.referencePerf || undefined,
+        artifacts: data.artifactsList || meta.artifacts || [],
         price_perpetual: data.price_perpetual,
         price_subscription: data.price_subscription,
-        rights: data.rights,
-        deliveryMode: data.deliveryMode,
-        termsMarkdown: data.termsText
+        delivery_rights_default: data.delivery_rights_default,
+        delivery_mode_hint: data.delivery_mode_hint,
+        rights: data.rights || (lp.rights ? {
+          api: lp.rights.api,
+          download: lp.rights.download,
+          transferable: lp.rights.transferable || lp.transferable
+        } : undefined),
+        deliveryMode: data.deliveryMode || lp.deliveryMode,
+        termsMarkdown: data.termsText || lp.termsText || lp.terms?.textMarkdown,
+        termsSummary: lp.terms?.summaryBullets,
+        version: (() => {
+          // Convert DB integer version to string format "v1.0.0"
+          const dbVersion = Number(data.version)
+          if (dbVersion > 0) return `v${dbVersion}.0.0`
+          // Fallback to metadata string version if present
+          if (typeof meta.version === 'string') return meta.version
+          return undefined
+        })()
       }
+      
+      console.log('[ModelPageClient] enrichedData for ViewModel:', {
+        name: enrichedData.name,
+        summary: enrichedData.summary?.substring(0, 50),
+        tagline: enrichedData.tagline?.substring(0, 50),
+        valueProp: enrichedData.valueProp?.substring(0, 50),
+        frameworks: enrichedData.frameworks,
+        architectures: enrichedData.architectures,
+        tasks: enrichedData.tasks,
+        vramGB: enrichedData.vramGB,
+        cpuCores: enrichedData.cpuCores,
+        'meta.technical': !!meta.technical,
+        'meta.architecture': !!meta.architecture,
+        'arch.frameworks': arch.frameworks,
+      })
       
       const vm = createViewModelFromPublished(enrichedData, undefined, id)
       return vm
@@ -839,8 +900,29 @@ export default function ModelPageClient(props: ModelPageClientProps) {
         '& .MuiFormLabel-root': { color:'#ffffffcc' },
         '& .MuiInputBase-root': { color:'#fff' }
       }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-          <Button component={Link} href={backHref} startIcon={<ArrowBackIcon />}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3 }}>
+          <Button 
+            component={Link} 
+            href={backHref}
+            prefetch={true}
+            startIcon={<ArrowBackIcon />}
+            sx={{
+              color: 'oklch(0.92 0 0)',
+              bgcolor: 'rgba(255,255,255,0.05)',
+              borderRadius: '10px',
+              px: 2.5,
+              py: 1,
+              fontSize: 14,
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                bgcolor: 'rgba(79,225,255,0.15)',
+                color: '#4fe1ff',
+                transform: 'translateX(-4px)',
+                boxShadow: '0 0 12px rgba(79,225,255,0.3)'
+              }
+            }}
+          >
             {L.back}
           </Button>
         </Stack>
@@ -908,7 +990,15 @@ export default function ModelPageClient(props: ModelPageClientProps) {
           </Paper>
         )}
         {!loading && data && viewModel && (
-          <>
+          <Box
+            sx={{
+              animation: 'fadeIn 0.4s ease-in',
+              '@keyframes fadeIn': {
+                from: { opacity: 0, transform: 'translateY(8px)' },
+                to: { opacity: 1, transform: 'translateY(0)' }
+              }
+            }}
+          >
             {/* Listing overview - como Step 5 */}
             <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2, bgcolor:'rgba(255,255,255,0.02)' }}>
               <Grid container spacing={3}>
@@ -917,9 +1007,25 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                   <Stack spacing={2.5}>
                     {/* Name and Tagline */}
                     <Box>
-                      <Typography variant="h4" sx={{ fontWeight:800, color:'#fff', mb:1, fontSize:{ xs:'1.75rem', md:'2rem' } }}>
-                        {viewModel.step1.name}
-                      </Typography>
+                      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb:1, flexWrap:'wrap', gap:1 }}>
+                        <Typography variant="h4" sx={{ fontWeight:800, color:'#fff', fontSize:{ xs:'1.75rem', md:'2rem' } }}>
+                          {viewModel.step1.name}
+                        </Typography>
+                        {viewModel.step1.version && (
+                          <Chip 
+                            label={viewModel.step1.version} 
+                            size="small"
+                            sx={{ 
+                              bgcolor: 'rgba(46, 160, 255, 0.15)', 
+                              color: '#4fe1ff', 
+                              border: '1px solid rgba(46, 160, 255, 0.3)',
+                              fontSize: '0.85rem',
+                              height: 28,
+                              fontWeight: 600
+                            }} 
+                          />
+                        )}
+                      </Stack>
                       {viewModel.step1.tagline && (
                         <Typography variant="h6" sx={{ color:'#ffffffcc', fontWeight:400, mb:1.5, fontSize:'1.1rem' }}>
                           {viewModel.step1.tagline}
@@ -946,8 +1052,8 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                           </Stack>
                         </Paper>
                       )}
-                      {/* Summary with line clamp */}
-                      {viewModel.step1.summary && (
+                      {/* Summary with line clamp - only show if different from tagline */}
+                      {viewModel.step1.summary && viewModel.step1.summary !== viewModel.step1.tagline && (
                         <Typography 
                           variant="body1" 
                           sx={{ 
@@ -1360,34 +1466,22 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                     {/* Cover / Hero Image */}
                     {viewModel.step1.cover?.cid || data.imageUrl ? (
                       <Box sx={{ 
-                        display:'flex', 
-                        alignItems:'center', 
-                        justifyContent:'center', 
+                        position: 'relative',
                         width:'100%', 
+                        height: 200,
                         maxWidth:'100%', 
                         overflow:'hidden',
                         borderRadius:2,
                         border:'1px solid rgba(255,255,255,0.1)'
                       }}>
-                        {(() => {
-                          const imgSrc = data.imageUrl || (viewModel.step1.cover?.cid ? `https://ipfs.io/ipfs/${viewModel.step1.cover?.cid}` : undefined)
-                          return imgSrc ? (
-                            <img
-                              src={imgSrc}
-                              alt="Model cover"
-                              loading="lazy"
-                              style={{
-                                maxWidth: '100%',
-                                width: '100%',
-                                height: 'auto',
-                                maxHeight: 200,
-                                borderRadius: 8,
-                                objectFit: 'cover',
-                                display: 'block'
-                              }}
-                            />
-                          ) : null
-                        })()}
+                        <IpfsImage
+                          cid={viewModel.step1.cover?.cid}
+                          alt="Model cover"
+                          height={200}
+                          priority={false}
+                          objectFit="cover"
+                          fallbackSrc={data.imageUrl}
+                        />
                       </Box>
                     ) : (
                       <Box sx={{
@@ -1682,7 +1776,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                 </Box>
               </Stack>
             </Paper>
-          </>
+          </Box>
         )}
       </Box>
 

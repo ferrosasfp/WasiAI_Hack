@@ -4,7 +4,7 @@ import React from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WagmiConfig, createConfig, http } from 'wagmi';
+import { WagmiConfig, createConfig, createStorage, http } from 'wagmi';
 import { base, baseSepolia, avalanche, avalancheFuji } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors';
 import dynamic from 'next/dynamic';
@@ -37,6 +37,11 @@ export function ProvidersEvm({ children }: ProvidersProps) {
     chains: [evmChainsArr[0], ...evmChainsArr.slice(1)] as any,
     transports: transports as any,
     connectors: [injected()],
+    // Enable storage for wallet persistence across page refreshes
+    ssr: false,
+    storage: createStorage({ 
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined 
+    }),
   }), [isMainnet]);
 
   const Noop: React.FC<{children: React.ReactNode}> = ({ children }) => <>{children}</>;

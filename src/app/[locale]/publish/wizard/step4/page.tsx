@@ -25,31 +25,30 @@ import EditIcon from '@mui/icons-material/Edit'
 import { useLocale, useTranslations } from 'next-intl'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
 import { CHAIN_IDS, getChainConfig, getNativeSymbol, getMarketAddress, getRpcUrl, MARKETPLACE_FEE_BPS, ROYALTY_LIMITS, percentToBps, validateRoyaltyPercent, calculateRevenueSplit, formatAmount } from '@/config'
+import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
+import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
 
 export const dynamic = 'force-dynamic'
-
-async function saveDraft(payload: any) {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(addr ? { 'X-Wallet-Address': addr } : {}) },
-    body: JSON.stringify(addr ? { ...payload, address: addr } : payload)
-  })
-  return res.json()
-}
-
-async function loadDraft() {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft' + (addr ? `?address=${addr}` : ''), { method: 'GET', headers: addr ? { 'X-Wallet-Address': addr } : {} })
-  return res.json()
-}
 
 export default function Step4LicensesTermsLocalized() {
   const t = useTranslations()
   const locale = useLocale()
   const base = `/${locale}/publish/wizard`
+  
+  // Helper to build URLs preserving upgrade query params
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+  const upgradeMode = searchParams?.get('mode') === 'upgrade'
+  const upgradeModelId = searchParams?.get('modelId')
+  const buildWizardUrl = (path: string) => {
+    if (upgradeMode && upgradeModelId) {
+      return `${path}?mode=upgrade&modelId=${upgradeModelId}`
+    }
+    return path
+  }
+  
+  // Use navigation guard to warn when leaving wizard
+  const { setDirty: setWizardDirty } = useWizardNavGuard(upgradeMode, upgradeModelId, true)
+  
   const [saving, setSaving] = useState(false)
   const [pricePerpetual, setPricePerpetual] = useState('0')
   const [priceSubscription, setPriceSubscription] = useState('0')
@@ -83,6 +82,13 @@ export default function Step4LicensesTermsLocalized() {
   const [shouldFade, setShouldFade] = useState(true)
   const [loadedRemote, setLoadedRemote] = useState(false)
   const isResetting = () => { try { return localStorage.getItem('wizard_resetting')==='1' || sessionStorage.getItem('wizard_resetting')==='1' } catch { return false } }
+  
+  // Sync dirty state with wizard guard when pricing/terms change
+  useEffect(() => {
+    if (loadedRemote && (pricePerpetual !== '0' || priceSubscription !== '0' || termsText)) {
+      setWizardDirty(true)
+    }
+  }, [pricePerpetual, priceSubscription, termsText, loadedRemote, setWizardDirty])
 
   const MARKET_ADDRS: Record<number, string> = useMemo(() => {
     // Use centralized chain configuration
@@ -337,10 +343,11 @@ export default function Step4LicensesTermsLocalized() {
     }
     setSaving(true)
     try {
-      await saveDraft(payload)
+      await saveDraftUtil('step4', payload.data, upgradeMode, upgradeModelId)
       setMsg(t('wizard.common.saved'))
       lastSavedRef.current = payload.data
-      try { localStorage.setItem('draft_step4', JSON.stringify(payload.data)) } catch {}
+      const localStorageKey = `draft_step4_${getDraftId(upgradeMode, upgradeModelId)}`
+      try { localStorage.setItem(localStorageKey, JSON.stringify(payload.data)) } catch {}
       return true
     } catch {
       setMsg(t('wizard.common.errorSaving'))
@@ -375,12 +382,15 @@ export default function Step4LicensesTermsLocalized() {
     if (text.length === 0) setMustSignError(false)
   }, [termsText])
 
+  // Load draft data (and fallback to existing model in upgrade mode if no draft)
   useEffect(() => {
     let alive = true
+    const draftId = getDraftId(upgradeMode, upgradeModelId)
+    
     // Hydrate from cache first to avoid empty initial render
     if (!isResetting()) {
       try {
-        const raw = localStorage.getItem('draft_step4')
+        const raw = localStorage.getItem(`draft_step4_${draftId}`) || localStorage.getItem('draft_step4')
         if (raw) {
           const c = JSON.parse(raw)
           const lp = c?.licensePolicy || {}
@@ -412,9 +422,108 @@ export default function Step4LicensesTermsLocalized() {
       } catch {}
     }
     loadingFromDraftRef.current = true
-    loadDraft().then((r)=>{
+    loadDraftUtil(upgradeMode, upgradeModelId).then(async (r)=>{
       if (!alive) return
       const s4 = r?.data?.step4
+      
+      // If no draft data for step4 and in upgrade mode, load from existing model
+      if (!s4 && upgradeMode && upgradeModelId) {
+        console.log('[Step4] No draft data, loading from existing model...')
+        try {
+          const res = await fetch(`/api/indexed/models/${upgradeModelId}`)
+          if (!res.ok) throw new Error('Failed to load model')
+          const data = await res.json()
+          const modelData = data?.model
+          const meta = modelData?.metadata || {}
+          
+          if (!alive) return
+          
+          // Convert wei to native
+          const weiToNative = (wei: string) => {
+            const weiBig = BigInt(wei || '0')
+            if (weiBig === 0n) return '0'
+            const weiStr = weiBig.toString().padStart(19, '0')
+            const intPart = weiStr.slice(0, -18) || '0'
+            const decPart = weiStr.slice(-18).replace(/0+$/, '')
+            if (!decPart) return intPart
+            return `${intPart}.${decPart}`
+          }
+          
+          const pricePerpWei = modelData?.price_perpetual || '0'
+          const priceSubWei = modelData?.price_subscription || '0'
+          const durationDaysValue = modelData?.default_duration_days || 0
+          
+          // Duration is stored in days in blockchain (e.g., 30 = 1 month, 90 = 3 months)
+          // Convert to months for the UI field
+          const durationMonths = durationDaysValue > 0 ? Math.max(1, Math.round(durationDaysValue / 30)) : 1
+          
+          console.log('[Step4] Loaded from existing model:', { 
+            pricePerpWei, 
+            priceSubWei, 
+            durationDaysValue,
+            durationMonths,
+            modelData 
+          })
+          
+          setPricePerpetual(weiToNative(pricePerpWei))
+          setPriceSubscription(weiToNative(priceSubWei))
+          setDefaultDurationDays(String(durationMonths))
+          
+          const royaltyBpsValue = modelData?.royalty_bps || 0
+          setRoyaltyPercent(String(validateRoyaltyPercent(royaltyBpsValue / 100)))
+          
+          const deliveryRightsMask = modelData?.delivery_rights_default || 0
+          const hasAPI = (deliveryRightsMask & 1) !== 0
+          const hasDownload = (deliveryRightsMask & 2) !== 0
+          setRightsAPI(hasAPI)
+          setRightsDownload(hasDownload)
+          
+          const deliveryModeHintValue = modelData?.delivery_mode_hint || 1
+          if (deliveryModeHintValue === 3) setDeliveryModeHint('Both')
+          else if (deliveryModeHintValue === 2) setDeliveryModeHint('Download')
+          else setDeliveryModeHint('API')
+          
+          if (typeof meta.licensePolicy?.transferable === 'boolean') {
+            setTransferable(meta.licensePolicy.transferable)
+          }
+          
+          // Load terms from licensePolicy
+          const lp = meta.licensePolicy || {}
+          const termsObj = lp.terms || {}
+          
+          console.log('[Step4] Loading terms:', {
+            'meta.licensePolicy': !!meta.licensePolicy,
+            'lp.termsText': lp.termsText,
+            'lp.terms': lp.terms,
+            'termsObj.textMarkdown': termsObj.textMarkdown,
+            'termsObj.summaryBullets': termsObj.summaryBullets,
+          })
+          
+          // termsText can be at lp.termsText (old format) or lp.terms.textMarkdown (new format)
+          const termsTextValue = lp.termsText || termsObj.textMarkdown || meta.termsText || ''
+          // termsSummary can be array (summaryBullets) or string
+          const rawSummary = termsObj.summaryBullets || lp.termsSummary || meta.termsSummary || ''
+          const termsSummaryValue = Array.isArray(rawSummary) ? rawSummary.join('\n') : String(rawSummary)
+          const termsHashValue = lp.termsHash || termsObj.termsHash || meta.termsHash || ''
+          
+          console.log('[Step4] Terms loaded:', { termsTextValue: termsTextValue?.substring(0, 50), termsSummaryValue, termsHashValue })
+          
+          if (termsTextValue) setTermsText(termsTextValue)
+          if (termsSummaryValue) setTermsSummary(termsSummaryValue)
+          if (termsHashValue) setTermsHash(termsHashValue)
+          
+          const hasPerpPrice = BigInt(pricePerpWei) > 0n
+          const hasSubPrice = BigInt(priceSubWei) > 0n
+          if (hasPerpPrice && hasSubPrice) setPricingMode('both')
+          else if (hasPerpPrice) setPricingMode('perpetual')
+          else if (hasSubPrice) setPricingMode('subscription')
+          else setPricingMode('both')
+        } catch (err) {
+          console.error('[Step4] Failed to load existing model:', err)
+        }
+        return
+      }
+      
       if (!s4) return
       try {
         const lp = s4.licensePolicy || {}
@@ -459,7 +568,7 @@ export default function Step4LicensesTermsLocalized() {
       } catch {}
     }).catch(()=>{}).finally(()=>{ loadingFromDraftRef.current = false; setLoadedRemote(true) })
     return () => { alive = false }
-  }, [])
+  }, [upgradeMode, upgradeModelId])
 
   useEffect(() => {
     let mounted = true
@@ -938,9 +1047,9 @@ export default function Step4LicensesTermsLocalized() {
         currentStep={4}
         totalSteps={5}
         stepTitle={t('wizard.step4.title')}
-        onBack={( )=>{ /* keep save before back */ navigateAfterSave({ preventDefault:()=>{} } as any, `${base}/step3`) }}
+        onBack={( )=>{ /* keep save before back */ navigateAfterSave({ preventDefault:()=>{} } as any, buildWizardUrl(`${base}/step3`)) }}
         onSaveDraft={()=> onSave('manual')}
-        onNext={( )=>{ navigateAfterSave({ preventDefault:()=>{} } as any, `${base}/step5`) }}
+        onNext={( )=>{ navigateAfterSave({ preventDefault:()=>{} } as any, buildWizardUrl(`${base}/step5`)) }}
         isNextDisabled={!isValid}
         isSaving={saving}
         isLastStep={false}

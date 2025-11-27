@@ -24,8 +24,71 @@ import { useWalletAddress } from '@/hooks/useWalletAddress'
 import { useRouter } from 'next/navigation'
 import { createViewModelFromDraft, UnifiedModelViewModel } from '@/viewmodels'
 import { ipfsToHttp } from '@/config'
+import { loadDraft as loadDraftUtil, deleteDraft as deleteDraftUtil, getDraftId } from '@/lib/draft-utils'
+import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
 
 export const dynamic = 'force-dynamic'
+
+// Session key to track if user came from within wizard
+const WIZARD_SESSION_KEY = 'wizard_active_session'
+
+// Chain configuration - centralized to avoid hardcoding chainIds throughout the file
+// These are universal blockchain constants (never change)
+const CHAIN_CONFIG = {
+  // Avalanche
+  AVAX_MAINNET: 43114,
+  AVAX_TESTNET: 43113,
+  // Base
+  BASE_MAINNET: 8453,
+  BASE_TESTNET: 84532,
+  // Ethereum
+  ETH_MAINNET: 1,
+  ETH_SEPOLIA: 11155111,
+} as const
+
+// Get default chainId from environment (what chain to use if not specified)
+const getDefaultChainId = (): number => {
+  const envChainId = process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID || process.env.NEXT_PUBLIC_EVM_CHAIN_ID
+  if (envChainId) {
+    const parsed = parseInt(envChainId, 10)
+    if (!isNaN(parsed)) return parsed
+  }
+  // Fallback: Avalanche Fuji testnet
+  return CHAIN_CONFIG.AVAX_TESTNET
+}
+
+// Check if a chainId is supported (based on env configuration)
+const isChainSupported = (chainId: number): boolean => {
+  // If SUPPORTED_CHAIN_IDS is configured in env, use it
+  const supportedChains = process.env.NEXT_PUBLIC_SUPPORTED_CHAIN_IDS
+  if (supportedChains) {
+    const chainIds = supportedChains.split(',').map(id => parseInt(id.trim(), 10)).filter(n => !isNaN(n))
+    return chainIds.includes(chainId)
+  }
+  // Default: support all chains in CHAIN_CONFIG
+  const configuredChains = Object.values(CHAIN_CONFIG) as unknown as number[]
+  return configuredChains.includes(chainId)
+}
+
+// Helper to map chainId to network name
+const getNetworkFromChainId = (chainId: number): 'base'|'avax'|'testnet'|null => {
+  if (chainId === CHAIN_CONFIG.BASE_TESTNET || chainId === CHAIN_CONFIG.BASE_MAINNET) return 'base'
+  if (chainId === CHAIN_CONFIG.AVAX_TESTNET || chainId === CHAIN_CONFIG.AVAX_MAINNET) return 'avax'
+  return 'testnet' // fallback
+}
+
+// Helper to map network name to chainId (uses env default or mainnet)
+const getChainIdFromNetwork = (network: string): number | undefined => {
+  // Try to get from env first
+  const defaultChainId = getDefaultChainId()
+  const networkFromDefault = getNetworkFromChainId(defaultChainId)
+  if (networkFromDefault === network) return defaultChainId
+  
+  // Fallback to mainnet for each network
+  if (network === 'avax') return CHAIN_CONFIG.AVAX_MAINNET
+  if (network === 'base') return CHAIN_CONFIG.BASE_MAINNET
+  return undefined
+}
 
 const XIcon = (props: any) => (
   <SvgIcon {...props} viewBox="0 0 24 24">
@@ -47,19 +110,35 @@ async function saveDraft(payload: any) {
   return res.json()
 }
 
-async function loadDraft() {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft' + (addr ? `?address=${addr}` : ''), { method: 'GET', headers: addr ? { 'X-Wallet-Address': addr } : {} })
-  return res.json()
-}
-
 export default function Step5ReviewPublishLocalized() {
   const t = useTranslations()
   const locale = useLocale()
   const base = `/${locale}/publish/wizard`
   const router = useRouter()
+  
+  // Helper to build URLs preserving upgrade query params
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+  const upgradeMode = searchParams?.get('mode') === 'upgrade'
+  const upgradeModelId = searchParams?.get('modelId')
+  const buildWizardUrl = (path: string) => {
+    if (upgradeMode && upgradeModelId) {
+      return `${path}?mode=upgrade&modelId=${upgradeModelId}`
+    }
+    return path
+  }
+  
+  // Use navigation guard to warn when leaving wizard
+  const { setDirty: setWizardDirty, clearDraftAndReset } = useWizardNavGuard(upgradeMode, upgradeModelId, true)
+  
   const [draft, setDraft] = useState<any>(null)
+  
+  // Mark as dirty when draft is loaded (user has data to publish)
+  useEffect(() => {
+    if (draft && Object.keys(draft).length > 0) {
+      setWizardDirty(true)
+    }
+  }, [draft, setWizardDirty])
+  
   const [loading, setLoading] = useState(true)
   const [targets, setTargets] = useState<Array<{chain:'evm'|'sui', network:'base'|'avax'|'testnet'}>>([])
   const [publishing, setPublishing] = useState(false)
@@ -222,11 +301,19 @@ export default function Step5ReviewPublishLocalized() {
   const draggingIdRef = useRef<string | null>(null)
   const saveOrderTmoRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Unified draft loading - Step 5 ALWAYS loads from draft (never directly from model)
+  // The draft contains data saved by steps 1-4, whether creating new or upgrading
   useEffect(() => {
+    let alive = true
     setLoading(true)
+    
+    // Determine the draftId based on mode
+    const draftId = getDraftId(upgradeMode, upgradeModelId)
+    const localStorageKey = `draft_step5_${draftId}`
+    
     // Hydration from local cache to avoid empty initial render
     try {
-      const raw = localStorage.getItem('draft_step5_draft')
+      const raw = localStorage.getItem(localStorageKey)
       if (raw) {
         const cached = JSON.parse(raw)
         if (cached && typeof cached === 'object') {
@@ -235,16 +322,44 @@ export default function Step5ReviewPublishLocalized() {
         }
       }
     } catch {}
-    loadDraft()
-      .then(r=>{
-        if (r?.ok) {
-          setDraft(r.data||{})
-          try { localStorage.setItem('draft_step5_draft', JSON.stringify(r.data||{})) } catch {}
+    
+    // Load from server draft (Redis)
+    loadDraftUtil(upgradeMode, upgradeModelId)
+      .then(r => {
+        if (!alive) return
+        
+        console.log('[Step5] Loaded draft:', {
+          draftId: r.draftId,
+          hasData: r?.ok && r.data && Object.keys(r.data).length > 0,
+          hasStep1: !!r.data?.step1,
+          hasStep2: !!r.data?.step2,
+          hasStep3: !!r.data?.step3,
+          hasStep4: !!r.data?.step4,
+          upgradeMode,
+          upgradeModelId
+        })
+        
+        if (r?.ok && r.data && Object.keys(r.data).length > 0) {
+          setDraft(r.data)
+          try { localStorage.setItem(localStorageKey, JSON.stringify(r.data)) } catch {}
+        } else {
+          // No draft found - this means user hasn't gone through steps 1-4 yet
+          console.warn('[Step5] No draft found. User should complete steps 1-4 first.')
+          setDraft({})
         }
       })
-      .catch(()=>{})
-      .finally(()=> { setLoading(false); setLoadedRemote(true) })
-  }, [])
+      .catch(err => {
+        console.error('[Step5] Failed to load draft:', err)
+      })
+      .finally(() => {
+        if (alive) {
+          setLoading(false)
+          setLoadedRemote(true)
+        }
+      })
+    
+    return () => { alive = false }
+  }, [upgradeMode, upgradeModelId])
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -257,10 +372,7 @@ export default function Step5ReviewPublishLocalized() {
         if (!eth) { setTargets([]); return }
         const chainIdHex = await eth.request?.({ method: 'eth_chainId' }).catch(()=>null)
         const chainId = chainIdHex ? parseInt(chainIdHex, 16) : null
-        let network: 'base'|'avax'|'testnet'|null = null
-        if (chainId === 84532) network = 'base' // Base Sepolia
-        else if (chainId === 43113) network = 'avax' // Avalanche Fuji
-        else network = 'testnet'
+        const network = chainId ? getNetworkFromChainId(chainId) : null
         if (!cancelled && network) setTargets([{ chain: 'evm', network }])
       } catch {
         if (!cancelled) setTargets([])
@@ -493,11 +605,11 @@ export default function Step5ReviewPublishLocalized() {
     setMsg('')
     setResults([])
     
-    // Check if we're in upgrade mode
+    // Check if we're in upgrade mode (localStorage flag + step1 draft confirmation)
     let isUpgradeMode = false
     let upgradeModelId: string | null = null
     try {
-      isUpgradeMode = localStorage.getItem('wizard_upgrade_mode') === '1'
+      isUpgradeMode = localStorage.getItem('wizard_upgrade_mode') === '1' && draft?.step1?.upgrade === true
       upgradeModelId = localStorage.getItem('wizard_upgrade_model_id')
     } catch {}
     
@@ -508,12 +620,213 @@ export default function Step5ReviewPublishLocalized() {
         // Upgrade mode: call upgrade API for each target
         for (const tnet of targets) {
           try {
-            const chainId = tnet.chain === 'evm' ? (tnet.network === 'avax' ? 43114 : 8453) : undefined
+            const chainId = tnet.chain === 'evm' ? getChainIdFromNetwork(tnet.network) : undefined
             if (!chainId) {
               setResults(prev=>[...prev, { chain: tnet.chain, network: tnet.network, ok: false, error: 'Unsupported network for upgrade' }])
               allOk = false
               continue
             }
+            
+            // Transform draft data to upgrade API format
+            // Load from draft (saved data from wizard steps)
+            // IMPORTANT: Try localStorage FIRST for each step to get most recent changes
+            let step1 = draft?.step1 || {}
+            let step2 = draft?.step2 || {}
+            let step3 = draft?.step3 || {}
+            let step4 = draft?.step4 || {}
+            
+            // Fallback: Try to load from localStorage for ALL steps (user may have edited without full backend sync)
+            try {
+              const cached1 = localStorage.getItem('draft_step1')
+              if (cached1) {
+                const parsed1 = JSON.parse(cached1)
+                step1 = { ...step1, ...parsed1 }
+                console.log('[Upgrade] Loaded Step 1 from localStorage:', Object.keys(parsed1))
+              }
+            } catch (e) {
+              console.warn('[Upgrade] Failed to load draft_step1 from localStorage:', e)
+            }
+            
+            try {
+              const cached2 = localStorage.getItem('draft_step2')
+              if (cached2) {
+                const parsed2 = JSON.parse(cached2)
+                step2 = { ...step2, ...parsed2 }
+                console.log('[Upgrade] Loaded Step 2 from localStorage:', Object.keys(parsed2))
+              }
+            } catch (e) {
+              console.warn('[Upgrade] Failed to load draft_step2 from localStorage:', e)
+            }
+            
+            try {
+              const cached3 = localStorage.getItem('draft_step3')
+              if (cached3) {
+                const parsed3 = JSON.parse(cached3)
+                step3 = { ...step3, ...parsed3 }
+                console.log('[Upgrade] Loaded Step 3 from localStorage:', Object.keys(parsed3))
+              }
+            } catch (e) {
+              console.warn('[Upgrade] Failed to load draft_step3 from localStorage:', e)
+            }
+            
+            try {
+              const cached4 = localStorage.getItem('draft_step4')
+              if (cached4) {
+                const parsed4 = JSON.parse(cached4)
+                step4 = { ...step4, ...parsed4 }
+                console.log('[Upgrade] Loaded Step 4 from localStorage:', Object.keys(parsed4))
+              }
+            } catch (e) {
+              console.warn('[Upgrade] Failed to load draft_step4 from localStorage:', e)
+            }
+            
+            const lp = step4?.licensePolicy || {}
+            
+            // Get essential fields with fallbacks
+            const slugValue = step1.slug || ''
+            const nameValue = step1.name || ''
+            
+            console.log('[Upgrade] Final payload data:', {
+              chainId,
+              slug: slugValue,
+              name: nameValue,
+              tagline: step1.shortSummary || step1.tagline,
+              hasStep1: !!step1 && Object.keys(step1).length > 0,
+              hasStep2: !!step2 && Object.keys(step2).length > 0,
+              hasStep3: !!step3 && Object.keys(step3).length > 0,
+              hasStep4: !!step4 && Object.keys(step4).length > 0,
+              step1Keys: Object.keys(step1),
+              step2Keys: Object.keys(step2)
+            })
+            
+            // Extract pricing and convert to wei
+            // priceRef might be in native format (e.g., "2.1") or already in wei
+            // If it contains a decimal point, it's native and needs conversion to wei
+            const convertToWei = (value: string | number | undefined): string => {
+              if (!value) return '0'
+              const strValue = String(value)
+              
+              // If already a large integer (wei), return as-is
+              if (!strValue.includes('.') && strValue.length > 10) {
+                return strValue
+              }
+              
+              // If contains decimal or is small number, treat as native and convert to wei
+              try {
+                const nativeValue = parseFloat(strValue)
+                if (isNaN(nativeValue) || nativeValue < 0) return '0'
+                // Convert to wei: multiply by 10^18 and round to avoid decimals
+                const weiValue = BigInt(Math.floor(nativeValue * 1e18))
+                return weiValue.toString()
+              } catch {
+                return '0'
+              }
+            }
+            
+            const pricePerpWei = convertToWei(lp?.perpetual?.priceRef)
+            const priceSubWei = convertToWei(lp?.subscription?.perMonthPriceRef)
+            // defaultDurationDays in step4 is actually stored as MONTHS (user enters months in UI)
+            // So we use it directly as months, not divide by 30
+            const durationMonths = Number(lp?.defaultDurationDays || 0) || 1
+            
+            console.log('[Upgrade] Pricing conversion:', {
+              perpetual: { original: lp?.perpetual?.priceRef, wei: pricePerpWei },
+              subscription: { original: lp?.subscription?.perMonthPriceRef, wei: priceSubWei }
+            })
+            
+            // Extract rights
+            const rights: string[] = []
+            if (lp?.delivery?.includes('API') || lp?.rights?.includes('API')) rights.push('API')
+            if (lp?.delivery?.includes('Download') || lp?.rights?.includes('Download')) rights.push('Download')
+            
+            // Extract royalty
+            const royaltyBps = Number(lp?.royaltyBps || 0)
+            const royaltyPercent = royaltyBps / 100
+            
+            // Build payload matching UpgradeParams interface
+            // IMPORTANT: Use the merged step data (draft + localStorage) for ALL fields
+            const upgradePayload = {
+              chainId,
+              slug: slugValue,
+              name: nameValue,
+              
+              // Step 1: Identity and classification
+              tagline: step1.shortSummary || step1.tagline || '', // Step1 uses shortSummary as tagline
+              summary: step1.summary || '',
+              cover: step1.cover || undefined,
+              categories: step1.technicalCategories || step1.categories || [],
+              tags: step1.technicalTags || step1.tags || [],
+              
+              // Step 1: Business classification
+              businessCategory: step1.businessCategory || undefined,
+              modelType: step1.modelType || undefined,
+              
+              // Step 1: Author info
+              author: step1.author || {},
+              
+              // Step 2: Customer sheet & technical
+              customer: step2.customer || {},
+              technical: {
+                capabilities: step2.capabilities || {},
+                architecture: step2.architecture || {},
+                runtime: step2.runtime || {},
+                dependencies: step2.dependencies || {},
+                resources: step2.resources || {},
+                inference: step2.inference || {},
+                training: step2.training || {}
+              },
+              
+              // Step 3: Artifacts & demo
+              artifacts: step3.artifacts || [],
+              demo: step3.demo || {},
+              
+              // Step 4: Pricing & licensing
+              royaltyPercent,
+              pricePerpetual: pricePerpWei,
+              priceSubscription: priceSubWei,
+              defaultDurationMonths: durationMonths,
+              rights,
+              deliveryMode: lp?.deliveryModeHint || 'API',
+              termsText: lp?.termsText || '',
+              // termsSummary can be a string (newline-separated) or array
+              termsSummary: Array.isArray(step4?.termsSummary) 
+                ? step4.termsSummary 
+                : (typeof step4?.termsSummary === 'string' && step4.termsSummary.trim()
+                    ? step4.termsSummary.split('\n').map((s: string) => s.trim()).filter(Boolean)
+                    : [])
+            }
+            
+            console.log('[Upgrade] Complete payload built:', {
+              slug: upgradePayload.slug,
+              name: upgradePayload.name,
+              tagline: upgradePayload.tagline,
+              summary: upgradePayload.summary?.substring(0, 50),
+              categoriesCount: upgradePayload.categories.length,
+              tagsCount: upgradePayload.tags.length,
+              businessCategory: upgradePayload.businessCategory,
+              modelType: upgradePayload.modelType,
+              hasAuthor: !!upgradePayload.author && Object.keys(upgradePayload.author).length > 0,
+              hasCustomer: !!upgradePayload.customer && Object.keys(upgradePayload.customer).length > 0,
+              artifactsCount: upgradePayload.artifacts.length,
+              hasDemo: !!upgradePayload.demo && Object.keys(upgradePayload.demo).length > 0
+            })
+            
+            // Helper to convert BigInt to string recursively for JSON serialization
+            const sanitizeForJSON = (obj: any): any => {
+              if (obj === null || obj === undefined) return obj
+              if (typeof obj === 'bigint') return obj.toString()
+              if (Array.isArray(obj)) return obj.map(sanitizeForJSON)
+              if (typeof obj === 'object') {
+                const sanitized: any = {}
+                for (const key in obj) {
+                  sanitized[key] = sanitizeForJSON(obj[key])
+                }
+                return sanitized
+              }
+              return obj
+            }
+            
+            const sanitizedPayload = sanitizeForJSON(upgradePayload)
             
             const r = await fetch(`/api/models/evm/${upgradeModelId}/upgrade?chainId=${chainId}`, {
               method: 'POST',
@@ -521,12 +834,7 @@ export default function Step5ReviewPublishLocalized() {
                 'content-type': 'application/json',
                 ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {})
               },
-              body: JSON.stringify({
-                step1: metadata.step1 || {},
-                step2: metadata.step2 || {},
-                step3: metadata.step3 || {},
-                step4: metadata.step4 || {}
-              })
+              body: JSON.stringify(sanitizedPayload)
             })
             
             const result = await r.json()
@@ -571,6 +879,9 @@ export default function Step5ReviewPublishLocalized() {
             localStorage.removeItem('wizard_upgrade_slug')
           } catch {}
         }
+        // Clear wizard session and draft after successful publish
+        await clearDraftAndReset()
+        console.log('[Wizard] Draft and session cleared after successful publish')
       }
     } catch {
       setMsg(t('wizard.step5.messages.publishError'))
@@ -661,7 +972,8 @@ export default function Step5ReviewPublishLocalized() {
   const navigateAfterSave = async (e: React.MouseEvent<HTMLButtonElement | HTMLAnchorElement>, url: string) => {
     e.preventDefault()
     try { await onSave() } catch {}
-    try { router.push(url) } catch { try { window.location.href = url } catch {} }
+    const finalUrl = buildWizardUrl(url)
+    try { router.push(finalUrl) } catch { try { window.location.href = finalUrl } catch {} }
   }
 
   return (
@@ -690,9 +1002,10 @@ export default function Step5ReviewPublishLocalized() {
       }}>
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb:1 }}>
         <Typography variant="h5" sx={{ fontWeight:700, color:'#fff' }}>{t('wizard.step5.title')}</Typography>
-        {(() => {
+        {mounted && (() => {
           try {
-            const isUpgrading = localStorage.getItem('wizard_upgrade_mode') === '1'
+            // Only show upgrade badge if localStorage flag is set AND draft has upgrade=true from Step 1
+            const isUpgrading = localStorage.getItem('wizard_upgrade_mode') === '1' && draft?.step1?.upgrade === true
             if (isUpgrading) {
               return (
                 <Chip 
@@ -700,10 +1013,10 @@ export default function Step5ReviewPublishLocalized() {
                   size="small"
                   sx={{ 
                     bgcolor:'rgba(255,165,0,0.2)', 
-                    color:'#ffb84d', 
-                    border:'1px solid rgba(255,165,0,0.4)',
-                    fontWeight:600 
-                  }} 
+                    borderColor:'rgba(255,165,0,0.5)',
+                    color:'orange',
+                    border: '1px solid'
+                  }}
                 />
               )
             }
@@ -756,9 +1069,9 @@ export default function Step5ReviewPublishLocalized() {
                             {viewModel?.step1.name || metadata?.name || '-'}
                           </Typography>
                           {/* Identifier (URL) */}
-                          {Boolean((metadata as any)?.slug) && (
+                          {Boolean((metadata as any)?.slug) && mounted && (
                             <Typography variant="caption" color="text.secondary" sx={{ display:'block', mt:0.5 }}>
-                              {t('wizard.step5.step1Summary.identifier')}: {(typeof window!=='undefined' ? window.location.origin : '') + `/${locale}/models/` + String((metadata as any).slug || '')}
+                              {t('wizard.step5.step1Summary.identifier')}: {window.location.origin + `/${locale}/models/` + String((metadata as any).slug || '')}
                             </Typography>
                           )}
                         </Box>
@@ -2090,7 +2403,7 @@ export default function Step5ReviewPublishLocalized() {
         currentStep={5}
         totalSteps={5}
         stepTitle={t('wizard.step5.title')}
-        onBack={() => { window.location.href = `${base}/step4` }}
+        onBack={() => { window.location.href = buildWizardUrl(`${base}/step4`) }}
         onSaveDraft={() => { /* optional on step 5; no-op */ }}
         onNext={() => { if (publishing || issues.length>0 || !accepted) return; onPublish() }}
         isNextDisabled={publishing || issues.length>0 || !accepted}

@@ -47,32 +47,19 @@ import { TECHNICAL_CATEGORIES, TECH_TAG_OPTIONS as ALL_TECH_TAGS, TECH_TAGS_BY_C
 import WizardFooter from '@/components/WizardFooter'
 import SelectField from '@/components/SelectField'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
+import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
+import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
 
 export const dynamic = 'force-dynamic'
+
+// Session key to track if user came from within wizard
+const WIZARD_SESSION_KEY = 'wizard_active_session'
 
 const XIcon = (props: any) => (
   <SvgIcon {...props} viewBox="0 0 24 24">
     <path d="M3 2l8 10-8 10h3l6.5-8L19 22h3l-8-10 8-10h-3l-6.5 8L6 2H3z" fill="currentColor" />
   </SvgIcon>
 )
-
-async function saveDraft(payload: any) {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(addr ? { 'X-Wallet-Address': addr } : {}) },
-    body: JSON.stringify(addr ? { ...payload, address: addr } : payload)
-  })
-  return res.json()
-}
-
-async function loadDraft(): Promise<any> {
-  let addr: string | null = null
-  try { addr = await (window as any)?.ethereum?.request?.({ method: 'eth_accounts' }).then((a: string[]) => a?.[0] || null) } catch {}
-  const res = await fetch('/api/models/draft' + (addr ? `?address=${addr}` : ''), { method: 'GET', headers: addr ? { 'X-Wallet-Address': addr } : {} })
-  return res.json()
-}
 
 export default function Step1BasicsLocalized() {
   const t = useTranslations()
@@ -81,6 +68,14 @@ export default function Step1BasicsLocalized() {
   const searchParams = useSearchParams()
   const upgradeMode = searchParams.get('mode') === 'upgrade'
   const upgradeModelId = searchParams.get('modelId')
+  
+  // Helper to build URLs preserving upgrade query params
+  const buildWizardUrl = (path: string) => {
+    if (upgradeMode && upgradeModelId) {
+      return `${path}?mode=upgrade&modelId=${upgradeModelId}`
+    }
+    return path
+  }
 
   // Locale-based literals for microtexts (ES/EN)
   const isES = String(locale || '').toLowerCase().startsWith('es')
@@ -239,19 +234,59 @@ export default function Step1BasicsLocalized() {
     return [...currentSuggestedModelTypes, ...rest]
   }, [MODEL_TYPES, currentSuggestedModelTypes])
 
-  // Autoload draft on mount and when wallet changes, with cache hydration (skips if resetting)
+  // Track if this is a fresh start (not coming from another wizard step)
+  const freshStartCheckedRef = useRef(false)
+  
+  // Use navigation guard to warn when leaving wizard
+  const { setDirty, clearDraftAndReset } = useWizardNavGuard(upgradeMode, upgradeModelId, true)
+  
+  // Check for fresh start and clear draft if needed (only for create mode)
+  useEffect(() => {
+    if (freshStartCheckedRef.current) return
+    freshStartCheckedRef.current = true
+    
+    // Check if we have an active wizard session
+    const hasActiveSession = sessionStorage.getItem(WIZARD_SESSION_KEY)
+    
+    if (!hasActiveSession && !upgradeMode) {
+      // Fresh start in create mode - clear any existing draft
+      console.log('[Wizard] Fresh start detected, clearing draft...')
+      clearDraftAndReset()
+    }
+    
+    // Mark session as active
+    sessionStorage.setItem(WIZARD_SESSION_KEY, '1')
+  }, [upgradeMode, clearDraftAndReset])
+  
+  // Mark as dirty when any field changes
+  useEffect(() => {
+    if (loadedRemote && (name || shortSummary || slug || categoriesSel.length > 0 || tagsSel.length > 0 || businessCategory || modelType)) {
+      setDirty(true)
+    }
+  }, [name, shortSummary, slug, categoriesSel, tagsSel, businessCategory, modelType, loadedRemote, setDirty])
+
+  // Autoload draft on mount and when wallet changes, with cache hydration (skips if resetting or fresh start)
   useEffect(() => {
     let alive = true
-    if (!isResetting()) {
+    
+    // Check if this is a fresh start - skip loading draft
+    const hasActiveSession = sessionStorage.getItem(WIZARD_SESSION_KEY)
+    const isFreshCreateMode = !hasActiveSession && !upgradeMode
+    
+    if (!isResetting() && !isFreshCreateMode) {
       // Hydrate from local cache first to avoid empty initial render
       try {
-        const raw = localStorage.getItem('draft_step1')
+        const draftId = getDraftId(upgradeMode, upgradeModelId)
+        const raw = localStorage.getItem(`draft_step1_${draftId}`) || localStorage.getItem('draft_step1')
         if (raw) {
           const s1 = JSON.parse(raw)
           setName(s1?.name || '')
           setShortSummary(s1?.shortSummary || '')
           setSlug(s1?.slug || '')
-          setIsUpgrade(Boolean(s1?.upgrade))
+          // Don't override isUpgrade if we're in upgrade mode from query param
+          if (!upgradeMode) {
+            setIsUpgrade(Boolean(s1?.upgrade))
+          }
           setCategoriesSel(Array.isArray(s1?.technicalCategories) ? (s1.technicalCategories as TechnicalCategoryValue[]) : (Array.isArray(s1?.categories) ? (s1.categories as TechnicalCategoryValue[]) : []))
           setTagsSel(Array.isArray(s1?.technicalTags) ? s1.technicalTags : (Array.isArray(s1?.tags)? s1.tags : []))
           setBusinessCategory(typeof s1?.businessCategory === 'string' ? s1.businessCategory : '')
@@ -276,19 +311,22 @@ export default function Step1BasicsLocalized() {
     }
     loadingFromDraftRef.current = true
     setLoadingDraft(true)
-    if (isResetting()) {
-      // Skip server hydration while resetting
+    if (isResetting() || isFreshCreateMode) {
+      // Skip server hydration while resetting or fresh start
       loadingFromDraftRef.current = false; setLoadingDraft(false); setLoadedRemote(true)
       return () => { alive = false }
     }
-    loadDraft().then((r)=>{
+    loadDraftUtil(upgradeMode, upgradeModelId).then((r)=>{
       if (!alive) return
       const s1 = r?.data?.step1
       if (!s1) return
       setName(s1.name || '')
       setShortSummary(s1.shortSummary || '')
       setSlug(s1.slug || '')
-      setIsUpgrade(Boolean(s1?.upgrade))
+      // Don't override isUpgrade if we're in upgrade mode from query param
+      if (!upgradeMode) {
+        setIsUpgrade(Boolean(s1?.upgrade))
+      }
       setCategoriesSel(Array.isArray(s1.technicalCategories) ? (s1.technicalCategories as TechnicalCategoryValue[]) : (Array.isArray(s1.categories)? (s1.categories as TechnicalCategoryValue[]) : []))
       setTagsSel(Array.isArray(s1.technicalTags) ? s1.technicalTags : (Array.isArray(s1.tags)? s1.tags : []))
       setBusinessCategory(typeof s1?.businessCategory === 'string' ? s1.businessCategory : '')
@@ -310,9 +348,9 @@ export default function Step1BasicsLocalized() {
     }).catch(()=>{})
     .finally(()=>{ loadingFromDraftRef.current = false; setLoadingDraft(false); setLoadedRemote(true) })
     return () => { alive = false }
-  }, [walletAddress])
+  }, [walletAddress, upgradeMode])
 
-  // Load existing model for upgrade mode
+  // Load existing model for upgrade mode and initialize draft if needed
   useEffect(() => {
     if (!upgradeMode || !upgradeModelId || !walletAddress) return
     
@@ -321,72 +359,196 @@ export default function Step1BasicsLocalized() {
     
     const loadExistingModel = async () => {
       try {
-        // Fetch model data from blockchain/API
-        const res = await fetch(`/api/models/evm/${upgradeModelId}`)
-        if (!res.ok) throw new Error('Failed to load model')
+        // First check if we already have a draft for this upgrade
+        const existingDraft = await loadDraftUtil(true, upgradeModelId)
         
-        const model = await res.json()
+        // If draft already has data, don't reload from model (user has made edits)
+        if (existingDraft?.ok && existingDraft.data && Object.keys(existingDraft.data).length > 0 && existingDraft.data.step1) {
+          console.log('[Wizard Upgrade] Using existing draft, skipping model load')
+          if (alive) setLoadingExistingModel(false)
+          return
+        }
+        
+        // No draft exists - load from model and initialize all steps
+        console.log('[Wizard Upgrade] No draft found, loading from model:', upgradeModelId)
+        
+        const res = await fetch(`/api/indexed/models/${upgradeModelId}`)
+        if (!res.ok) throw new Error('Failed to load model from database')
+        
+        const data = await res.json()
         if (!alive) return
         
-        // Fetch IPFS metadata
-        const metaRes = await fetch(`/api/ipfs/ipfs/${model.uri_cid}`)
-        if (!metaRes.ok) throw new Error('Failed to load metadata')
+        const model = data?.model
+        const metadata = model?.metadata || {}
         
-        const metadata = await metaRes.json()
-        if (!alive) return
-        
-        // Prefill Step 1 fields from existing model
-        setName(metadata.name || '')
-        setShortSummary(metadata.summary || metadata.tagline || '')
-        setSlug(model.slug || '')
-        setSlugTouched(true) // Don't auto-generate slug
-        
-        // Technical classification
-        if (Array.isArray(metadata.technicalCategories)) {
-          setCategoriesSel(metadata.technicalCategories)
-        }
-        if (Array.isArray(metadata.technicalTags)) {
-          setTagsSel(metadata.technicalTags)
+        if (!model) {
+          throw new Error('Model not found in database')
         }
         
-        // Business profile
-        const customer = metadata.customer || {}
-        const listing = metadata.listing || {}
-        if (listing.businessCategory || customer.businessCategory) {
-          setBusinessCategory(listing.businessCategory || customer.businessCategory)
-        }
-        if (listing.modelType || customer.modelType) {
-          setModelType(listing.modelType || customer.modelType)
-        }
+        console.log('[Wizard Upgrade] Loaded model from Neon:', { 
+          modelId: model.model_id, 
+          name: model.name,
+          hasMetadata: !!metadata 
+        })
         
-        // Author
+        // Extract data for all steps from metadata
+        const customer = metadata.customer || metadata.customerSheet || {}
+        const listing = metadata.listing || metadata.businessProfile || {}
+        const technical = metadata.technical || {}
+        const caps = metadata.capabilities || technical.capabilities || {}
+        const arch = metadata.architecture || technical.architecture || {}
+        const runtime = metadata.runtime || technical.runtime || {}
+        const resources = metadata.resources || technical.resources || {}
+        const inference = metadata.inference || technical.inference || {}
+        const deps = metadata.dependencies || technical.dependencies || {}
         const authorship = metadata.authorship || metadata.author || {}
-        if (authorship.name || authorship.displayName) {
-          setAuthorDisplay(authorship.name || authorship.displayName)
-        }
-        if (authorship.links || authorship.socials) {
-          setSocialValues(authorship.links || authorship.socials || {})
+        const cover = metadata.cover || metadata.coverImage || {}
+        const licensePolicy = metadata.licensePolicy || {}
+        
+        const slugFromMetadata = metadata.slug || metadata.name?.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-') || `model-${model.model_id}`
+        
+        // Build step1 data
+        const step1Data = {
+          name: model.name || metadata.name || '',
+          shortSummary: metadata.summary || metadata.tagline || metadata.shortSummary || '',
+          slug: slugFromMetadata,
+          upgrade: true,
+          businessCategory: listing.businessCategory || customer.businessCategory || metadata.businessCategory || '',
+          modelType: listing.modelType || customer.modelType || metadata.modelType || '',
+          technicalCategories: metadata.technicalCategories || metadata.categories || [],
+          technicalTags: metadata.technicalTags || metadata.tags || [],
+          categories: metadata.technicalCategories || metadata.categories || [],
+          tags: metadata.technicalTags || metadata.tags || [],
+          author: {
+            displayName: authorship.name || authorship.displayName || model.creator || '',
+            links: authorship.links || authorship.socials || {}
+          },
+          cover: cover.cid ? { cid: cover.cid, thumbCid: cover.thumbCid || '', mime: cover.mime || '', size: cover.size || 0 } : undefined
         }
         
-        // Cover image
-        if (metadata.cover?.cid) {
-          setCoverCid(metadata.cover.cid)
-          setCoverThumbCid(metadata.cover.thumbCid || '')
-          setCoverMime(metadata.cover.mime || '')
-          setCoverSize(Number(metadata.cover.size || 0))
-          const displayCid = metadata.cover.thumbCid || metadata.cover.cid
-          setCoverDisplayUrl(ipfsToHttp(displayCid))
+        // Build step2 data
+        const step2Data = {
+          capabilities: {
+            tasks: caps.tasks || [],
+            modalities: caps.modalities || [],
+            technicalModelType: caps.technicalModelType || ''
+          },
+          architecture: {
+            frameworks: arch.frameworks || [],
+            architectures: arch.architectures || [],
+            precisions: arch.precisions || [],
+            quantization: arch.quantization || '',
+            modelSizeParams: arch.modelSizeParams || '',
+            modelFiles: arch.modelFiles || [],
+            artifactSizeGB: arch.artifactSizeGB || '',
+            embeddingDimension: arch.embeddingDimension || ''
+          },
+          runtime: {
+            python: runtime.python || '',
+            cuda: runtime.cuda || '',
+            torch: runtime.torch || '',
+            cudnn: runtime.cudnn || '',
+            os: runtime.os || [],
+            accelerators: runtime.accelerators || [],
+            computeCapability: runtime.computeCapability || ''
+          },
+          dependencies: { pip: deps.pip || [] },
+          resources: {
+            vramGB: resources.vramGB || '',
+            cpuCores: resources.cpuCores || '',
+            ramGB: resources.ramGB || ''
+          },
+          inference: {
+            maxBatchSize: inference.maxBatchSize || '',
+            contextLength: inference.contextLength || '',
+            maxTokens: inference.maxTokens || '',
+            imageResolution: inference.imageResolution || '',
+            sampleRate: inference.sampleRate || '',
+            triton: inference.triton || false,
+            referencePerf: inference.referencePerf || ''
+          },
+          customer: {
+            valueProp: customer.valueProp || metadata.shortSummary || '',
+            description: customer.description || metadata.customerDescription || '',
+            expectedImpact: customer.expectedImpact || metadata.expectedImpact || '',
+            industries: customer.industries || metadata.industries || [],
+            useCases: customer.useCases || metadata.useCases || [],
+            supportedLanguages: customer.supportedLanguages || metadata.supportedLanguages || [],
+            inputs: customer.inputs || metadata.inputs || '',
+            outputs: customer.outputs || metadata.outputs || '',
+            examples: customer.examples || metadata.examples || [],
+            risks: customer.risks || customer.limitations || metadata.limitations || '',
+            prohibited: customer.prohibited || metadata.prohibited || '',
+            privacy: customer.privacy || metadata.privacy || '',
+            support: customer.support || metadata.support || '',
+            deploy: customer.deploy || metadata.deploy || []
+          }
         }
         
-        // Store upgrade context in localStorage for Step 5
+        // Build step3 data
+        const step3Data = {
+          artifacts: metadata.artifacts || [],
+          demoPreset: metadata.demoPreset || metadata.demo?.preset || '',
+          downloadNotes: metadata.downloadNotes || metadata.demo?.downloadNotes || ''
+        }
+        
+        // Build step4 data
+        const step4Data = {
+          licensePolicy: {
+            perpetual: {
+              priceRef: model.price_perpetual || licensePolicy.perpetual?.price || '0'
+            },
+            subscription: {
+              perMonthPriceRef: model.price_subscription || licensePolicy.subscription?.pricePerMonth || '0',
+              baseDurationDays: model.default_duration_days || licensePolicy.subscription?.baseDurationMonths * 30 || 30
+            },
+            rights: licensePolicy.rights ? [
+              ...(licensePolicy.rights.api ? ['API'] : []),
+              ...(licensePolicy.rights.download ? ['Download'] : [])
+            ] : ['API'],
+            royaltyPct: (model.royalty_bps || 0) / 100,
+            termsMarkdown: licensePolicy.termsText || ''
+          }
+        }
+        
+        // Save all steps to draft
+        console.log('[Wizard Upgrade] Initializing draft with model data...')
+        await Promise.all([
+          saveDraftUtil('step1', step1Data, true, upgradeModelId),
+          saveDraftUtil('step2', step2Data, true, upgradeModelId),
+          saveDraftUtil('step3', step3Data, true, upgradeModelId),
+          saveDraftUtil('step4', step4Data, true, upgradeModelId)
+        ])
+        console.log('[Wizard Upgrade] Draft initialized successfully')
+        
+        // Now set local state for Step 1
+        setName(step1Data.name)
+        setShortSummary(step1Data.shortSummary)
+        setSlug(step1Data.slug)
+        setSlugTouched(true)
+        setCategoriesSel(step1Data.technicalCategories as TechnicalCategoryValue[])
+        setTagsSel(step1Data.technicalTags)
+        if (step1Data.businessCategory) setBusinessCategory(step1Data.businessCategory)
+        if (step1Data.modelType) setModelType(step1Data.modelType)
+        if (step1Data.author.displayName) setAuthorDisplay(step1Data.author.displayName)
+        if (Object.keys(step1Data.author.links).length > 0) setSocialValues(step1Data.author.links)
+        if (step1Data.cover?.cid) {
+          setCoverCid(step1Data.cover.cid)
+          setCoverThumbCid(step1Data.cover.thumbCid || '')
+          setCoverMime(step1Data.cover.mime || '')
+          setCoverSize(Number(step1Data.cover.size || 0))
+          setCoverDisplayUrl(ipfsToHttp(step1Data.cover.thumbCid || step1Data.cover.cid))
+        }
+        
+        // Store upgrade context in localStorage
         try {
           localStorage.setItem('wizard_upgrade_mode', '1')
           localStorage.setItem('wizard_upgrade_model_id', upgradeModelId)
-          localStorage.setItem('wizard_upgrade_slug', model.slug || '')
+          localStorage.setItem('wizard_upgrade_slug', slugFromMetadata)
         } catch {}
         
       } catch (err) {
-        console.error('Failed to load existing model:', err)
+        console.error('[Wizard Upgrade] Failed to load existing model:', err)
         setMsg(isES ? 'Error al cargar modelo existente' : 'Failed to load existing model')
       } finally {
         if (alive) setLoadingExistingModel(false)
@@ -512,10 +674,13 @@ export default function Step1BasicsLocalized() {
   }, [slug, slugCheck])
 
   useEffect(() => {
+    // Don't auto-toggle upgrade off if we came from ?mode=upgrade query param
+    if (upgradeMode) return
+    
     if (slugIsAvailable && isUpgrade) {
       setIsUpgrade(false)
     }
-  }, [slugIsAvailable])
+  }, [slugIsAvailable, upgradeMode, isUpgrade])
 
   const toggleFrom = (arr: string[], val: string) => arr.includes(val) ? arr.filter(x=>x!==val) : [...arr, val]
 
@@ -651,10 +816,11 @@ export default function Step1BasicsLocalized() {
       if (lastSavedRef.current && shallowEqualJSON(lastSavedRef.current, payload.data)) { setSaving(false); return }
     }
     try {
-      await saveDraft(payload)
+      await saveDraftUtil('step1', payload.data, upgradeMode, upgradeModelId)
       setMsg(t('wizard.common.saved'))
       lastSavedRef.current = payload.data
-      try { localStorage.setItem('draft_step1', JSON.stringify(payload.data)) } catch {}
+      const localStorageKey = `draft_step1_${getDraftId(upgradeMode, upgradeModelId)}`
+      try { localStorage.setItem(localStorageKey, JSON.stringify(payload.data)) } catch {}
     } catch (e: any) {
       setMsg(t('wizard.common.errorSaving'))
     } finally {
@@ -749,7 +915,7 @@ export default function Step1BasicsLocalized() {
             />
 
             <FormControlLabel
-              control={<Switch checked={isUpgrade} onChange={(e)=>setIsUpgrade(e.target.checked)} disabled={slugIsAvailable} />}
+              control={<Switch checked={isUpgrade} onChange={(e)=>setIsUpgrade(e.target.checked)} disabled={upgradeMode || slugIsAvailable} />}
               label={isUpgrade ? TXT.upgradeOn : TXT.upgradeOff}
               sx={{
                 '&.Mui-disabled .MuiFormControlLabel-label': { color: 'common.white' },
@@ -1140,7 +1306,7 @@ export default function Step1BasicsLocalized() {
         stepTitle={t('wizard.step1.title')}
         onBack={() => { if (!coverUploading) window.location.href = base }}
         onSaveDraft={() => onSave('manual')}
-        onNext={() => { if (!isStepValid() || coverUploading) return; window.location.href = `${base}/step2` }}
+        onNext={() => { if (!isStepValid() || coverUploading) return; window.location.href = buildWizardUrl(`${base}/step2`) }}
         isNextDisabled={!isStepValid() || coverUploading}
         isSaving={saving}
         isLastStep={false}

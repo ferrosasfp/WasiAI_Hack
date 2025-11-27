@@ -32,16 +32,17 @@ async function redisCmd<T = any>(args: string[]): Promise<T | null> {
 
 export async function DELETE(req: Request) {
   const wallet = walletFromReq(req)
+  const draftId = draftIdFromReq(req, {})
   const id = wallet ? `wallet:${wallet}` : identify(req)
-  const key = draftKey(id)
+  const key = draftKey(id, draftId)
   if (HAS_REDIS) {
     try {
       await redisCmd(['DEL', key])
     } catch {}
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, draftId })
   } else {
-    store.delete(id)
-    return NextResponse.json({ ok: true, note: 'memory_fallback' })
+    store.delete(key)
+    return NextResponse.json({ ok: true, draftId, note: 'memory_fallback' })
   }
 }
 
@@ -51,8 +52,11 @@ function identify(req: Request) {
   return `${ip||'unknown'}:${ua}`
 }
 
-function draftKey(id: string) {
-  return `draft:${id}`
+function draftKey(id: string, draftId?: string) {
+  // If draftId is provided (e.g., "upgrade:8" for upgrading model 8), use it
+  // Otherwise, use default "create" for new model creation
+  const suffix = draftId || 'create'
+  return `draft:${id}:${suffix}`
 }
 
 function walletFromReq(req: Request, body?: any): string | null {
@@ -71,11 +75,29 @@ function walletFromReq(req: Request, body?: any): string | null {
   return null
 }
 
+// Extract draftId from request (body or query param)
+// draftId format: "create" for new models, "upgrade:{modelId}" for upgrades
+function draftIdFromReq(req: Request, body?: any): string {
+  // 1) body.draftId (POST)
+  if (typeof body?.draftId === 'string' && body.draftId.trim()) {
+    return body.draftId.trim()
+  }
+  // 2) query ?draftId= (GET)
+  try {
+    const url = new URL(req.url)
+    const qDraftId = url.searchParams.get('draftId')?.trim()
+    if (qDraftId) return qDraftId
+  } catch {}
+  // Default to "create" for backward compatibility
+  return 'create'
+}
+
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({})) as any
   const wallet = walletFromReq(req, body)
+  const draftId = draftIdFromReq(req, body)
   const id = wallet ? `wallet:${wallet}` : identify(req)
-  const key = draftKey(id)
+  const key = draftKey(id, draftId)
   const step = String(body?.step || '')
   const data = body?.data || null
   if (!step || !data) {
@@ -86,27 +108,28 @@ export async function POST(req: Request) {
     // Leer previo
     const prevRaw = await redisCmd<string>(['GET', key]).catch(()=>null)
     const prev = prevRaw ? (JSON.parse(prevRaw) as DraftData) : {}
-    const next = { ...prev, [step]: data, updatedAt: Date.now() }
+    const next = { ...prev, [step]: data, updatedAt: Date.now(), draftId }
     await redisCmd(['SET', key, JSON.stringify(next), 'EX', String(TTL_SECONDS)])
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, draftId })
   } else {
-    const prev = store.get(id) || {}
-    const next = { ...prev, [step]: data, updatedAt: Date.now() }
-    store.set(id, next)
-    return NextResponse.json({ ok: true, note: 'memory_fallback' })
+    const prev = store.get(key) || {}
+    const next = { ...prev, [step]: data, updatedAt: Date.now(), draftId }
+    store.set(key, next)
+    return NextResponse.json({ ok: true, draftId, note: 'memory_fallback' })
   }
 }
 
 export async function GET(req: Request) {
   const wallet = walletFromReq(req)
+  const draftId = draftIdFromReq(req, {})
   const id = wallet ? `wallet:${wallet}` : identify(req)
-  const key = draftKey(id)
+  const key = draftKey(id, draftId)
   if (HAS_REDIS) {
     const raw = await redisCmd<string>(['GET', key]).catch(()=>null)
     const data = raw ? (JSON.parse(raw) as DraftData) : {}
-    return NextResponse.json({ ok: true, data })
+    return NextResponse.json({ ok: true, data, draftId })
   } else {
-    const data = store.get(id) || {}
-    return NextResponse.json({ ok: true, data, note: 'memory_fallback' })
+    const data = store.get(key) || {}
+    return NextResponse.json({ ok: true, data, draftId, note: 'memory_fallback' })
   }
 }

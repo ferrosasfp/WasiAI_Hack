@@ -38,12 +38,29 @@ const nextConfig = {
     
     // Optimización de imágenes
     images: {
-      domains: [
-        'gateway.pinata.cloud',
-        'ipfs.io',
-        'cloudflare-ipfs.com',
+      remotePatterns: [
+        {
+          protocol: 'https',
+          hostname: 'gateway.pinata.cloud',
+          pathname: '/ipfs/**',
+        },
+        {
+          protocol: 'https',
+          hostname: 'ipfs.io',
+          pathname: '/ipfs/**',
+        },
+        {
+          protocol: 'https',
+          hostname: 'cloudflare-ipfs.com',
+          pathname: '/ipfs/**',
+        },
       ],
       formats: ['image/avif', 'image/webp'],
+      deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+      imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+      minimumCacheTTL: 60 * 60 * 24 * 7, // 7 days
+      dangerouslyAllowSVG: true,
+      contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     },
     
     // Variables de entorno públicas

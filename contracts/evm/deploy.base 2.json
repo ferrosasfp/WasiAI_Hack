@@ -1,0 +1,9 @@
+{
+  "network": "base",
+  "chainId": 84532,
+  "marketplace": "0x97D1115402ab854a6C31aDcDae9CF58D2471eaBb",
+  "licenseNFT": "0xbd8974C89c45B9A8bbed0c90deedFc2B6b5A8a3d",
+  "feeBps": 2000,
+  "feeRecipient": "0xfb652f4506731aC58E51b39DCa4F5ECDcb2C1543",
+  "modelsLimit": 0
+}

@@ -35,24 +35,24 @@ export function TopProgressBar() {
     clearTimers()
     startedRef.current = false
 
-    // Start progress bar after 150ms (threshold). If navigation is faster, it won't show.
+    // Start progress bar immediately (0ms threshold for instant feedback)
     startTimerRef.current = setTimeout(() => {
       startedRef.current = true
       displayStartRef.current = performance.now()
       setLoading(true)
-      setProgress(0)
+      setProgress(10) // Start at 10% for immediate visual feedback
 
       // Simulate progress up to 90%
-      let current = 0
+      let current = 10
       tickTimerRef.current = setInterval(() => {
-        current = Math.min(current + Math.random() * 15, 90)
+        current = Math.min(current + Math.random() * 20, 90)
         setProgress(current)
         if (current >= 90 && tickTimerRef.current) {
           clearInterval(tickTimerRef.current)
           tickTimerRef.current = null
         }
-      }, 200)
-    }, 150)
+      }, 150) // Faster ticks (150ms vs 200ms)
+    }, 0) // Instant start (0ms vs 150ms)
 
     // Complete and cleanup on route change
     return () => {

@@ -21,7 +21,7 @@ type ApiModel = {
   uri?: string
   imageUrl?: string
   owner?: string
-  version?: number
+  version?: string
   price_perpetual?: number
   price_subscription?: number
   author?: string
@@ -32,6 +32,8 @@ type ApiModel = {
   architectures?: string[]
   frameworks?: string[]
   precision?: string[]
+  industries?: string[]
+  useCases?: string[]
   rights?: { api?: boolean; download?: boolean; transferable?: boolean }
   demoPreset?: boolean
   artifacts?: boolean
@@ -74,7 +76,7 @@ export default function ExploreModelsPage() {
   const [cats, setCats] = useState<string[]>([]) // placeholder for future taxonomy
   const [tasks, setTasks] = useState<string[]>([])
   const [items, setItems] = useState<ApiModel[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true) // Start as true for immediate skeleton
   const [loadingMore, setLoadingMore] = useState(false)
   const [start, setStart] = useState(0)
   const [limit] = useState(6)
@@ -123,34 +125,81 @@ export default function ExploreModelsPage() {
         // Transform indexed API response (already has metadata cached!)
         const withImages: ApiModel[] = hydrated.map((m: any) => {
           const meta = m.metadata || {}
+          const customer = meta?.customer || {}
+          const author = meta?.author || {}
           return {
             objectId: String(m?.model_id || ''),
             modelId: Number(m?.model_id),
             name: m?.name || meta?.name,
-            description: meta?.shortSummary || meta?.description,
+            // Priority: tagline > shortSummary > summary > description
+            description: meta?.tagline || meta?.shortSummary || meta?.summary || meta?.description || '',
             listed: Boolean(m?.listed),
             uri: m?.uri,
             owner: m?.owner,
-            version: Number(m?.version || meta?.version),
+            // Author from metadata
+            author: author?.displayName || author?.name || m?.creator || '',
+            // Value proposition from customer sheet
+            valueProposition: customer?.valueProp || customer?.valueProposition || '',
+            version: (() => {
+              // Convert DB integer version to string format "v1.0.0"
+              const dbVersion = Number(m?.version)
+              if (dbVersion > 0) return `v${dbVersion}.0.0`
+              // Fallback to metadata string version if present
+              if (typeof meta?.version === 'string') return meta.version
+              return undefined
+            })(),
             price_perpetual: Number(m?.price_perpetual || 0),
             price_subscription: Number(m?.price_subscription || 0),
             imageUrl: m?.image_url,
-            // Extract from cached metadata
-            categories: m?.categories || meta?.categories || [],
+            // Extract from cached metadata (prioritize DB columns over nested metadata)
+            categories: m?.categories || meta?.categories || meta?.technicalCategories || [],
             tasks: meta?.capabilities?.tasks || [],
-            tags: m?.tags || meta?.tags || [],
-            architectures: meta?.architecture?.architectures || [],
-            frameworks: meta?.architecture?.frameworks || [],
+            tags: m?.tags || meta?.tags || meta?.technicalTags || [],
+            architectures: m?.architectures || meta?.architecture?.architectures || [],
+            frameworks: m?.frameworks || meta?.architecture?.frameworks || [],
             precision: meta?.architecture?.precisions || [],
-            rights: meta?.licensePolicy?.rights ? {
-              api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.includes('API') : false,
-              download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.includes('Download') : false,
-              transferable: Boolean(meta.licensePolicy.transferable)
-            } : undefined,
-            deliveryMode: Array.isArray(meta?.licensePolicy?.delivery) ? 
-              (meta.licensePolicy.delivery.includes('API') && meta.licensePolicy.delivery.includes('Download') ? 'both' : 
-               meta.licensePolicy.delivery.includes('API') ? 'api' : 
-               meta.licensePolicy.delivery.includes('Download') ? 'download' : undefined) : undefined,
+            // Industries and use cases from customer sheet
+            industries: customer?.industries || [],
+            useCases: customer?.useCases || [],
+            // PRIORITY: Use Neon DB fields (delivery_rights_default, delivery_mode_hint) over IPFS metadata
+            // This ensures Quick Edit changes are immediately reflected in listings
+            rights: (() => {
+              // delivery_rights_default: 1=API, 2=Download, 3=Both
+              const rightsBitmask = typeof m?.delivery_rights_default === 'number' ? m.delivery_rights_default : null
+              if (rightsBitmask !== null) {
+                return {
+                  api: (rightsBitmask & 1) !== 0,
+                  download: (rightsBitmask & 2) !== 0,
+                  transferable: Boolean(meta?.licensePolicy?.transferable || meta?.licensePolicy?.rights?.transferable)
+                }
+              }
+              // Fallback to metadata if DB field missing
+              if (meta?.licensePolicy?.rights) {
+                return {
+                  api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.includes('API') : Boolean(meta.licensePolicy.rights.api),
+                  download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.includes('Download') : Boolean(meta.licensePolicy.rights.download),
+                  transferable: Boolean(meta.licensePolicy.transferable || meta.licensePolicy.rights.transferable)
+                }
+              }
+              return undefined
+            })(),
+            deliveryMode: (() => {
+              // delivery_mode_hint: 1=API, 2=Download, 3=Both
+              const modeHint = typeof m?.delivery_mode_hint === 'number' ? m.delivery_mode_hint : null
+              if (modeHint !== null) {
+                return modeHint === 1 ? 'api' : modeHint === 2 ? 'download' : 'both'
+              }
+              // Fallback to metadata if DB field missing
+              if (Array.isArray(meta?.licensePolicy?.delivery)) {
+                return (meta.licensePolicy.delivery.includes('API') && meta.licensePolicy.delivery.includes('Download') ? 'both' : 
+                        meta.licensePolicy.delivery.includes('API') ? 'api' : 
+                        meta.licensePolicy.delivery.includes('Download') ? 'download' : undefined)
+              }
+              if (typeof meta?.licensePolicy?.deliveryMode === 'string') {
+                return meta.licensePolicy.deliveryMode.toLowerCase()
+              }
+              return undefined
+            })(),
             __preMeta: meta
           } as ApiModel
         }).filter(Boolean)
@@ -271,33 +320,63 @@ export default function ExploreModelsPage() {
                 const arr = Array.isArray(j?.models) ? j.models as any[] : []
                 const withImages: ApiModel[] = arr.map((m: any) => {
                   const meta = m.metadata || {}
+                  const customer = meta?.customer || {}
+                  const authorMeta = meta?.author || {}
                   return {
                     objectId: String(m?.model_id || ''),
                     modelId: Number(m?.model_id),
                     name: m?.name || meta?.name,
-                    description: meta?.shortSummary || meta?.description,
+                    description: meta?.tagline || meta?.shortSummary || meta?.summary || meta?.description || '',
                     listed: Boolean(m?.listed),
                     uri: m?.uri,
                     owner: m?.owner,
-                    version: Number(m?.version || meta?.version),
+                    author: authorMeta?.displayName || authorMeta?.name || m?.creator || '',
+                    valueProposition: customer?.valueProp || customer?.valueProposition || '',
+                    version: (() => {
+                      const dbVersion = Number(m?.version)
+                      if (dbVersion > 0) return `v${dbVersion}.0.0`
+                      if (typeof meta?.version === 'string') return meta.version
+                      return undefined
+                    })(),
                     price_perpetual: Number(m?.price_perpetual || 0),
                     price_subscription: Number(m?.price_subscription || 0),
                     imageUrl: m?.image_url,
-                    categories: m?.categories || meta?.categories || [],
+                    categories: m?.categories || meta?.categories || meta?.technicalCategories || [],
                     tasks: meta?.capabilities?.tasks || [],
-                    tags: m?.tags || meta?.tags || [],
-                    architectures: meta?.architecture?.architectures || [],
-                    frameworks: meta?.architecture?.frameworks || [],
+                    tags: m?.tags || meta?.tags || meta?.technicalTags || [],
+                    architectures: m?.architectures || meta?.architecture?.architectures || [],
+                    frameworks: m?.frameworks || meta?.architecture?.frameworks || [],
                     precision: meta?.architecture?.precisions || [],
-                    rights: meta?.licensePolicy?.rights ? {
-                      api: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.includes('API') : false,
-                      download: Array.isArray(meta.licensePolicy.rights) ? meta.licensePolicy.rights.includes('Download') : false,
-                      transferable: Boolean(meta.licensePolicy.transferable)
-                    } : undefined,
-                    deliveryMode: Array.isArray(meta?.licensePolicy?.delivery) ? 
-                      (meta.licensePolicy.delivery.includes('API') && meta.licensePolicy.delivery.includes('Download') ? 'both' : 
-                       meta.licensePolicy.delivery.includes('API') ? 'api' : 
-                       meta.licensePolicy.delivery.includes('Download') ? 'download' : undefined) : undefined,
+                    industries: customer?.industries || [],
+                    useCases: customer?.useCases || [],
+                    rights: (() => {
+                      const rightsBitmask = typeof m?.delivery_rights_default === 'number' ? m.delivery_rights_default : null
+                      if (rightsBitmask !== null) {
+                        return {
+                          api: (rightsBitmask & 1) !== 0,
+                          download: (rightsBitmask & 2) !== 0,
+                          transferable: Boolean(meta?.licensePolicy?.transferable || meta?.licensePolicy?.rights?.transferable)
+                        }
+                      }
+                      if (meta?.licensePolicy?.rights) {
+                        return {
+                          api: typeof meta.licensePolicy.rights.api === 'boolean' ? meta.licensePolicy.rights.api : false,
+                          download: typeof meta.licensePolicy.rights.download === 'boolean' ? meta.licensePolicy.rights.download : false,
+                          transferable: Boolean(meta.licensePolicy.transferable || meta.licensePolicy.rights.transferable)
+                        }
+                      }
+                      return undefined
+                    })(),
+                    deliveryMode: (() => {
+                      const modeHint = typeof m?.delivery_mode_hint === 'number' ? m.delivery_mode_hint : null
+                      if (modeHint !== null) {
+                        return modeHint === 1 ? 'api' : modeHint === 2 ? 'download' : 'both'
+                      }
+                      if (typeof meta?.licensePolicy?.deliveryMode === 'string') {
+                        return meta.licensePolicy.deliveryMode.toLowerCase()
+                      }
+                      return undefined
+                    })(),
                     __preMeta: meta
                   } as ApiModel
                 }).filter(Boolean)
@@ -469,18 +548,15 @@ export default function ExploreModelsPage() {
                   architectures: m.architectures,
                   frameworks: m.frameworks,
                   precision: m.precision,
-                  rights: m.rights || (m.licensePolicy ? {
-                    api: Array.isArray(m.licensePolicy.rights) ? m.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('api') : undefined,
-                    download: Array.isArray(m.licensePolicy.rights) ? m.licensePolicy.rights.map((x:any)=> String(x).toLowerCase()).includes('download') : undefined,
-                    transferable: Boolean(m.licensePolicy.transferable)
-                  } : undefined),
+                  industries: m.industries,
+                  useCases: m.useCases,
+                  rights: m.rights,
                   demoPreset: m.demoPreset,
                   artifacts: m.artifacts,
-                  deliveryMode: m.deliveryMode || (Array.isArray(m?.licensePolicy?.delivery) ?
-                    (()=>{ const d = m.licensePolicy.delivery.map((x:any)=> String(x).toLowerCase()); return d.includes('api') && d.includes('download') ? 'both' : d.includes('api') ? 'api' : d.includes('download') ? 'download' : undefined })()
-                  : undefined),
+                  deliveryMode: m.deliveryMode,
                   pricePerpetual: m.price_perpetual ? (ecosystem==='sui' ? `${(m.price_perpetual/1_000_000_000).toFixed(2)} SUI` : `${(m.price_perpetual/1e18).toFixed(4)} ${evmSymbol}`) : undefined,
                   priceSubscription: m.price_subscription ? (ecosystem==='sui' ? `${(m.price_subscription/1_000_000_000).toFixed(2)} SUI/${isES?'mes':'mo'}` : `${(m.price_subscription/1e18).toFixed(4)} ${evmSymbol}/${isES?'mes':'mo'}`) : undefined,
+                  version: m.version || undefined,
                 }} href={ecosystem==='sui' ? `/models/${m.modelId ?? ''}` : (m.modelId ? `/${locale}/evm/models/${m.modelId}` : undefined)} priority={idx < 3} onMeta={onCardMeta} preMeta={(m as any).__preMeta} />
               </Grid>
             ))}

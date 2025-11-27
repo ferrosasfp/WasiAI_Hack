@@ -4,7 +4,7 @@ import React from 'react'
 import { useTranslations } from 'next-intl'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import Link from 'next/link'
-import Image from 'next/image'
+import { IpfsImage } from './IpfsImage'
 import { Card, CardActionArea, CardContent, CardMedia, Stack, Typography, Chip, Box, Button, Tooltip, IconButton, Snackbar } from '@mui/material'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import ScienceIcon from '@mui/icons-material/Science'
@@ -66,6 +66,7 @@ export type ModelCardData = {
   supportedLanguages?: string[]
   rating?: number
   numRuns?: number
+  version?: string
 }
 
 function ConnectWalletInline({ }: { locale: string }) {
@@ -103,6 +104,7 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
   const [supportedLanguages, setSupportedLanguages] = React.useState<string[]>(Array.isArray(data.supportedLanguages) ? data.supportedLanguages : [])
   const [rating, setRating] = React.useState<number | undefined>(data.rating)
   const [numRuns, setNumRuns] = React.useState<number | undefined>(data.numRuns)
+  const [version, setVersion] = React.useState<string | undefined>(data.version)
   const [showCopied, setShowCopied] = React.useState(false)
   const strMeta = React.useCallback((v: any): string => {
     if (v == null) return ''
@@ -231,6 +233,7 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
   }, [href])
 
   React.useEffect(() => {
+    // Only load cover image if missing
     if (coverSrc) return
     const el = rootRef.current
     if (!el) return
@@ -335,6 +338,7 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
           setDeliveryMode(mode)
           setDemoPreset(Boolean(meta?.demoPreset))
           setArtifacts(Boolean(meta?.artifacts))
+          if (meta?.version && typeof meta.version === 'string') setVersion(meta.version)
         }
       } catch {}
       io.disconnect()
@@ -412,8 +416,26 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
         sx={{ alignItems:'stretch', display:'flex', flexDirection:'column', height:'100%', position:'relative' }}
       >
         {coverSrc ? (
-          <Box sx={{ position:'relative', width:'100%', height: { xs: 160, sm: 180 }, overflow:'hidden', bgcolor:'#0a111c', p: 1 }}>
-            <Image src={(coverSrc && (coverSrc.startsWith('http') || coverSrc.startsWith('/'))) ? coverSrc : toHttpFromIpfs(String(coverSrc||''))} alt={data.name} fill sizes="(max-width: 600px) 100vw, (max-width: 1200px) 50vw, 33vw" style={{ objectFit:'contain', objectPosition: 'center' }} loading={priority ? undefined : 'lazy'} priority={!!priority} unoptimized />
+          <Box sx={{ 
+            width:'100%', 
+            height: { xs: 160, sm: 180 }, 
+            bgcolor:'#0a111c', 
+            p: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden'
+          }}>
+            <Box sx={{ width: '100%', height: '100%', maxHeight: '100%' }}>
+              <IpfsImage 
+                cid={coverSrc}
+                alt={data.name}
+                aspectRatio={16/9}
+                priority={!!priority}
+                objectFit="contain"
+                fallbackSrc={(coverSrc && (coverSrc.startsWith('http') || coverSrc.startsWith('/'))) ? coverSrc : undefined}
+              />
+            </Box>
           </Box>
         ) : (
           <Box sx={{ width:'100%', height: { xs: 160, sm: 180 }, bgcolor:'#0a111c', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -460,8 +482,23 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
             </Box>
 
             {/* Business chips (Línea 1) */}
-            {businessChips.length > 0 && (
+            {(businessChips.length > 0 || version) && (
               <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                {version && (
+                  <Chip 
+                    key="version" 
+                    size="small" 
+                    label={version} 
+                    sx={{ 
+                      bgcolor: 'rgba(46, 160, 255, 0.15)', 
+                      color: '#4fe1ff', 
+                      border: '1px solid rgba(46, 160, 255, 0.3)',
+                      fontSize: '0.7rem',
+                      height: 22,
+                      fontWeight: 600
+                    }} 
+                  />
+                )}
                 {businessChips.map((c, i) => (
                   <Chip 
                     key={`bus-${c}-${i}`} 

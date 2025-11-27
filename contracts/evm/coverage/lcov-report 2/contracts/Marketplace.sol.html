@@ -1,0 +1,2156 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Code coverage report for contracts/Marketplace.sol</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../prettify.css" />
+    <link rel="stylesheet" href="../base.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+<body>
+<div class='wrapper'>
+  <div class='pad1'>
+    <h1>
+      <a href="../index.html">all files</a> / <a href="index.html">contracts/</a> Marketplace.sol
+    </h1>
+    <div class='clearfix'>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">83.62% </span>
+        <span class="quiet">Statements</span>
+        <span class='fraction'>97/116</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">56.9% </span>
+        <span class="quiet">Branches</span>
+        <span class='fraction'>66/116</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">87.5% </span>
+        <span class="quiet">Functions</span>
+        <span class='fraction'>21/24</span>
+      </div>
+      <div class='fl pad1y space-right2'>
+        <span class="strong">82.53% </span>
+        <span class="quiet">Lines</span>
+        <span class='fraction'>137/166</span>
+      </div>
+    </div>
+  </div>
+  <div class='status-line high'></div>
+<pre><table class="coverage">
+<tr><td class="line-count quiet">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186
+187
+188
+189
+190
+191
+192
+193
+194
+195
+196
+197
+198
+199
+200
+201
+202
+203
+204
+205
+206
+207
+208
+209
+210
+211
+212
+213
+214
+215
+216
+217
+218
+219
+220
+221
+222
+223
+224
+225
+226
+227
+228
+229
+230
+231
+232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+249
+250
+251
+252
+253
+254
+255
+256
+257
+258
+259
+260
+261
+262
+263
+264
+265
+266
+267
+268
+269
+270
+271
+272
+273
+274
+275
+276
+277
+278
+279
+280
+281
+282
+283
+284
+285
+286
+287
+288
+289
+290
+291
+292
+293
+294
+295
+296
+297
+298
+299
+300
+301
+302
+303
+304
+305
+306
+307
+308
+309
+310
+311
+312
+313
+314
+315
+316
+317
+318
+319
+320
+321
+322
+323
+324
+325
+326
+327
+328
+329
+330
+331
+332
+333
+334
+335
+336
+337
+338
+339
+340
+341
+342
+343
+344
+345
+346
+347
+348
+349
+350
+351
+352
+353
+354
+355
+356
+357
+358
+359
+360
+361
+362
+363
+364
+365
+366
+367
+368
+369
+370
+371
+372
+373
+374
+375
+376
+377
+378
+379
+380
+381
+382
+383
+384
+385
+386
+387
+388
+389
+390
+391
+392
+393
+394
+395
+396
+397
+398
+399
+400
+401
+402
+403
+404
+405
+406
+407
+408
+409
+410
+411
+412
+413
+414
+415
+416
+417
+418
+419
+420
+421
+422
+423
+424
+425
+426
+427
+428
+429
+430
+431
+432
+433
+434
+435
+436
+437
+438
+439
+440
+441
+442
+443
+444
+445
+446
+447
+448
+449
+450
+451
+452
+453
+454
+455
+456
+457
+458
+459
+460
+461
+462
+463
+464
+465
+466
+467
+468
+469
+470
+471
+472
+473
+474
+475
+476
+477
+478
+479
+480
+481
+482
+483
+484
+485
+486
+487
+488
+489
+490
+491
+492
+493
+494
+495
+496
+497
+498
+499
+500
+501
+502
+503
+504
+505
+506
+507
+508
+509
+510
+511
+512
+513
+514
+515
+516
+517
+518
+519
+520
+521
+522
+523
+524
+525
+526
+527
+528
+529
+530
+531
+532
+533
+534
+535
+536
+537
+538
+539
+540
+541
+542
+543
+544
+545
+546
+547
+548
+549
+550
+551
+552
+553
+554
+555
+556
+557
+558
+559
+560
+561
+562
+563
+564
+565
+566
+567
+568
+569
+570
+571
+572
+573
+574
+575
+576
+577
+578
+579
+580
+581
+582
+583
+584
+585
+586
+587
+588
+589
+590
+591
+592
+593
+594
+595
+596
+597
+598
+599
+600
+601
+602
+603
+604
+605
+606
+607
+608
+609
+610
+611
+612
+613
+614
+615
+616
+617
+618
+619
+620
+621
+622
+623
+624
+625
+626
+627
+628
+629
+630
+631
+632
+633
+634
+635
+636
+637
+638
+639
+640
+641
+642
+643
+644
+645
+646
+647
+648
+649
+650
+651
+652
+653
+654
+655
+656
+657
+658
+659
+660
+661
+662
+663
+664
+665
+666
+667
+668
+669
+670
+671
+672
+673
+674
+675
+676
+677
+678
+679
+680
+681
+682
+683
+684
+685
+686
+687
+688
+689
+690
+691
+692
+693
+694
+695
+696
+697
+698</td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">53×</span>
+<span class="cline-any cline-yes">52×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">35×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">49×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">47×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">6×</span>
+<span class="cline-any cline-yes">5×</span>
+<span class="cline-any cline-yes">4×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4×</span>
+<span class="cline-any cline-yes">4×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">17×</span>
+<span class="cline-any cline-yes">17×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">18×</span>
+<span class="cline-any cline-yes">18×</span>
+<span class="cline-any cline-yes">17×</span>
+<span class="cline-any cline-yes">17×</span>
+<span class="cline-any cline-yes">17×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16×</span>
+<span class="cline-any cline-yes">16×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16×</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-yes">15×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">90×</span>
+<span class="cline-any cline-yes">86×</span>
+<span class="cline-any cline-yes">86×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">31×</span>
+<span class="cline-any cline-yes">5×</span>
+<span class="cline-any cline-yes">5×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">26×</span>
+<span class="cline-any cline-yes">26×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">26×</span>
+<span class="cline-any cline-yes">26×</span>
+<span class="cline-any cline-yes">25×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">30×</span>
+<span class="cline-any cline-yes">29×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">29×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">29×</span>
+<span class="cline-any cline-yes">29×</span>
+<span class="cline-any cline-yes">24×</span>
+<span class="cline-any cline-yes">24×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">29×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">29×</span>
+<span class="cline-any cline-yes">29×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">29×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-yes">2×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4×</span>
+<span class="cline-any cline-yes">4×</span>
+<span class="cline-any cline-yes">4×</span>
+<span class="cline-any cline-yes">4×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3×</span>
+<span class="cline-any cline-yes">3×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+&nbsp;
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {LicenseNFT} from "./LicenseNFT.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+&nbsp;
+/// @title MarketplaceAI License Marketplace
+/// @notice Marketplace para listar modelos de IA y vender licencias (perpetuas o por suscripción) como NFTs.
+/// @dev Separa claramente: metadatos del modelo (on-chain) y licencias (ERC721 en LicenseNFT).
+contract Marketplace is Ownable, ReentrancyGuard {
+    // ===== Constants =====
+&nbsp;
+    /// @notice 10_000 basis points = 100%
+    uint256 public constant MAX_BPS = 10_000; // 100%
+&nbsp;
+    /// @notice Tope duro para la comisión del marketplace: 2_000 bps = 20%
+    uint256 public constant MAX_FEE_BPS_CAP = 2_000; // 20%
+&nbsp;
+    /// @notice Guardrail UX para precios (máx ~100,000 ETH por operación)
+    uint256 public constant MAX_PRICE_CAP = 1e23; // 100,000 ETH (UX guardrail)
+&nbsp;
+    /// @notice Derechos de uso de la licencia: permiso para usar vía API/servicio
+    uint8 public constant RIGHTS_API = 1;
+    /// @notice Derechos de uso de la licencia: permiso para descargas controladas
+    uint8 public constant RIGHTS_DOWNLOAD = 2;
+&nbsp;
+    /// @notice Tipo de licencia: pago único, sin vencimiento
+    uint8 public constant KIND_PERPETUAL = 0;
+    /// @notice Tipo de licencia: suscripción por meses, con vencimiento
+    uint8 public constant KIND_SUBSCRIPTION = 1;
+&nbsp;
+    // ===== Errors =====
+    // Errores específicos para hacer revert más legible y manejable desde el front.
+&nbsp;
+    error NotOwner();                 // Operación restringida al owner
+    error NotListed();                // Modelo no está listado
+    error InvalidBps();               // Bps &gt; MAX_BPS
+    error FeeOverCap();               // feeBps &gt; MAX_FEE_BPS_CAP
+    error FeePlusRoyaltyOver100();    // feeBps + royaltyBps &gt; 100%
+    error InvalidRights();            // Bitmask de derechos inválido
+    error InvalidDelivery();          // deliveryMode inválido
+    error InvalidKind();              // Tipo de licencia desconocido
+    error InvalidDuration();          // Duración inválida (0 o inconsistente)
+    error InsufficientFunds();        // msg.value no coincide con el precio esperado
+    error ModelsLimitReached();       // Se alcanzó el límite de modelos listados
+    error PriceNotConfigured();       // No hay precio configurado para este tipo de licencia
+    error PriceTooHigh();             // Precio supera MAX_PRICE_CAP
+    error MarketIsPaused();           // Marketplace pausado
+    error TransferFailed();           // Falló envío de ETH vía call
+    error ZeroAddress();              // Dirección cero no permitida
+    error LicenseRevokedError();      // Licencia revocada
+    error InvalidVersion();           // version == uint16.max
+&nbsp;
+    // ===== Types =====
+&nbsp;
+    /// @notice Información de un modelo listado en el marketplace.
+    /// @dev No contiene el slug; el "family" se maneja en el mapping families.
+    struct Model {
+        /// @notice Owner actual del modelo (puede ser distinto del creador original)
+        address owner;
+        /// @notice Creador original (para royalties)
+        address creator;
+        /// @notice Nombre legible del modelo (p.ej. "Llama-3 Finetuned Spanish")
+        string name;
+        /// @notice URI a metadatos/artefactos (IPFS, HTTP, etc)
+        string uri;
+        /// @notice Bps de royalty para el creador (0..10000)
+        uint256 royaltyBps; // 0..10000
+        /// @notice Flag de si el modelo está o no listado para nuevas licencias
+        bool listed;
+        /// @notice Precio para licencia perpetua (en wei)
+        uint256 pricePerpetual;
+        /// @notice Precio mensual para licencia de suscripción (en wei)
+        uint256 priceSubscription; // price per month
+        /// @notice Días por cada "mes" de suscripción (ej. 30)
+        uint256 defaultDurationDays; // base duration for 1 month
+        /// @notice Derechos por defecto de la licencia (bitmask: API, DOWNLOAD o ambos)
+        uint8 deliveryRightsDefault; // bitmask
+        /// @notice Hint para UI sobre modo de entrega (API, download, etc)
+        uint8 deliveryModeHint; // UX hint
+        /// @notice Versión del modelo dentro de la familia (owner + slug)
+        uint16 version;
+        /// @notice Hash de términos legales (keccak256 del documento de términos)
+        bytes32 termsHash; // keccak256 of terms blob
+    }
+&nbsp;
+    /// @notice Metadatos por "familia" de modelo (owner + slug)
+    /// @dev latestId/version apuntan siempre a la versión más reciente de la familia.
+    struct FamilyMeta {
+        uint256 latestId;
+        uint16 latestVersion;
+    }
+&nbsp;
+    // ===== State =====
+&nbsp;
+    /// @notice Siguiente ID de modelo a asignar (1-based)
+    uint256 public nextId = 1;
+&nbsp;
+    /// @notice Último ID de licencia minteada (para tracking externo)
+    uint256 public lastLicenseId;
+&nbsp;
+    /// @notice Fee del marketplace expresado en basis points (0..MAX_BPS)
+    uint256 public feeBps;
+&nbsp;
+    /// @notice Dirección que recibe la comisión del marketplace
+    address public feeRecipient;
+&nbsp;
+    /// @notice Flag global de pausa del marketplace
+    bool public paused;
+&nbsp;
+    /// @notice Cantidad de modelos actualmente listados (activos)
+    uint256 public activeModels;
+&nbsp;
+    /// @notice Límite máximo de modelos listados simultáneamente (0 = sin límite)
+    uint256 public modelsLimit; // 0 = no limit
+&nbsp;
+    /// @notice Registro de modelos por ID
+    mapping(uint256 =&gt; Model) public models; // id =&gt; Model
+&nbsp;
+    /// @notice Índice de familias por owner y slug hasheado (keccak256(slug))
+    /// @dev Permite versionado automático: cada listOrUpgrade crea una nueva versión.
+    mapping(address =&gt; mapping(bytes32 =&gt; FamilyMeta)) public families; // owner =&gt; keccak256(slug) =&gt; meta
+&nbsp;
+    /// @notice Contrato ERC721 que representa las licencias
+    LicenseNFT public immutable licenseNFT;
+&nbsp;
+    /// @notice Devuelve la dirección del contrato de licencias
+    function licenseNFTAddress() external view returns (address) {
+        return address(licenseNFT);
+    }
+&nbsp;
+    // ===== Events =====
+&nbsp;
+    /// @notice Emitted when the LicenseNFT contract is created
+    event LicenseNFTCreated(address license);
+&nbsp;
+    /// @notice Emitted when marketplace fee / recipient are updated
+    event MarketFeesSet(uint256 feeBps, address feeRecipient);
+&nbsp;
+    /// @notice Emitted when the marketplace is paused/unpaused
+    event MarketPaused(bool paused);
+&nbsp;
+    /// @notice Emitted when the models limit is updated
+    event ModelsLimitSet(uint256 newLimit);
+&nbsp;
+    /// @notice Emitted when the counter of active listed models changes
+    event ModelsCountChanged(uint256 active);
+&nbsp;
+    /// @notice Emitted when a model is listed (new or upgraded)
+    event ModelListed(uint256 id, address owner);
+&nbsp;
+    /// @notice Emitted when a model's listing status or params are updated
+    event ModelUpdated(uint256 id, address owner, bool listed);
+&nbsp;
+    /// @notice Emitted when a model is explicitly unlisted
+    event ModelUnlisted(uint256 id, address owner);
+&nbsp;
+    /// @notice Emitted when a new license is minted
+    event LicenseMinted(
+        uint256 licenseId,
+        uint256 modelId,
+        address buyer,
+        uint8 kind,
+        uint8 rights,
+        uint64 expiresAt,
+        uint16 version,
+        uint256 pricePaid,
+        uint256 feePaid,
+        uint256 royaltyPaid
+    );
+&nbsp;
+    /// @notice Emitted when an existing license is renewed
+    event LicenseRenewed(
+        uint256 licenseId,
+        uint256 modelId,
+        uint64 newExpiresAt,
+        uint16 months,
+        uint256 pricePaid,
+        uint256 feePaid,
+        uint256 royaltyPaid
+    );
+&nbsp;
+    // ===== Modifiers &amp; internal checks =====
+&nbsp;
+    /// @dev Rechaza llamadas si el marketplace está pausado
+    modifier notPaused() {
+        if (paused) revert MarketIsPaused();
+        _;
+    }
+&nbsp;
+    /// @dev Valida que los basis points no excedan 100%
+    function _ensureValidBps(uint256 bps) internal pure {
+        if (bps &gt; MAX_BPS) revert InvalidBps();
+    }
+&nbsp;
+    /// @dev Valida que la comisión del mercado no exceda el cap
+    function _ensureFeeUnderCap(uint256 bps) internal pure {
+        if (bps &gt; MAX_FEE_BPS_CAP) revert FeeOverCap();
+    }
+&nbsp;
+    /// @dev Valida que fee + royalty no excedan 100% en conjunto
+    function _ensureFeePlusRoyaltyOk(uint256 fee, uint256 royalty) internal pure {
+        if (fee + royalty &gt; MAX_BPS) revert FeePlusRoyaltyOver100();
+    }
+&nbsp;
+    /// @dev Valida bitmask de derechos (1, 2 o 3)
+    function _ensureValidRights(uint8 r) internal pure {
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (!(r == RIGHTS_API || r == RIGHTS_DOWNLOAD || r == RIGHTS_API + RIGHTS_DOWNLOAD)) revert InvalidRights();
+    }
+&nbsp;
+    /// @dev Valida hint de modo de entrega (reutiliza los mismos valores que RIGHTS_*)
+    function _ensureValidDelivery(uint8 d) internal pure {
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (!(d == RIGHTS_API || d == RIGHTS_DOWNLOAD || d == RIGHTS_API + RIGHTS_DOWNLOAD)) revert InvalidDelivery();
+    }
+&nbsp;
+    // ===== Ctor =====
+&nbsp;
+    /// @notice Deploys the marketplace and creates the LicenseNFT contract.
+    /// @param feeBps_ Marketplace fee in basis points (0..MAX_FEE_BPS_CAP).
+    /// @param feeRecipient_ Address that receives marketplace fees (non-zero).
+    /// @param modelsLimit_ Max concurrently listed models (0 = unlimited).
+    /// @param licenseNFTOwner Owner address of the LicenseNFT contract.
+    constructor(
+        uint256 feeBps_,
+        address feeRecipient_,
+        uint256 modelsLimit_,
+        address licenseNFTOwner
+    ) Ownable(msg.sender) {
+        _ensureValidBps(feeBps_);
+        _ensureFeeUnderCap(feeBps_);
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (feeRecipient_ == address(0)) revert ZeroAddress();
+&nbsp;
+        feeBps = feeBps_;
+        feeRecipient = feeRecipient_;
+        modelsLimit = modelsLimit_;
+&nbsp;
+        // Deploy del contrato de licencias, con el marketplace como "marketplace" autorizado
+        licenseNFT = new LicenseNFT(address(this));
+        // Transferimos la propiedad del NFT al owner indicado (p.ej. multisig del protocolo)
+        licenseNFT.transferOwnership(licenseNFTOwner);
+&nbsp;
+        emit LicenseNFTCreated(address(licenseNFT));
+    }
+&nbsp;
+    // ===== Admin =====
+&nbsp;
+    /// @notice Updates marketplace fee parameters.
+    /// @dev Solo callable por el owner del marketplace.
+    /// @param newFeeBps New fee in basis points (0..MAX_FEE_BPS_CAP).
+    /// @param newRecipient New fee recipient address (non-zero).
+    function setFees(uint256 newFeeBps, address newRecipient) external <span class="missing-if-branch" title="else path not taken" >E</span>onlyOwner {
+        _ensureValidBps(newFeeBps);
+        _ensureFeeUnderCap(newFeeBps);
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (newRecipient == address(0)) revert ZeroAddress();
+&nbsp;
+        feeBps = newFeeBps;
+        feeRecipient = newRecipient;
+&nbsp;
+        emit MarketFeesSet(newFeeBps, newRecipient);
+    }
+&nbsp;
+    /// @notice Pauses or unpauses the marketplace for state-changing operations.
+    /// @dev Afecta a listOrUpgrade, setLicensingParams, setListed, buyLicense y renewLicense.
+    /// @param p True para pausar, false para reanudar.
+    function setPaused(bool p) external <span class="missing-if-branch" title="else path not taken" >E</span>onlyOwner {
+        paused = p;
+        emit MarketPaused(p);
+    }
+&nbsp;
+    /// @notice Sets the maximum number of concurrently listed models.
+    /// @dev Si se establece en 0, no hay límite.
+    /// @param lim New limit of active models (0 = unlimited).
+    function setModelsLimit(uint256 lim) external <span class="missing-if-branch" title="else path not taken" >E</span>onlyOwner {
+        modelsLimit = lim;
+        emit ModelsLimitSet(lim);
+    }
+&nbsp;
+    // ===== Listing =====
+&nbsp;
+    /// @dev Valida que la configuración de precios y duración tenga sentido.
+    /// - Requiere al menos un precio (perpetual o subscription).
+    /// - Enforcea caps para UX (MAX_PRICE_CAP).
+    /// - Si no hay suscripción, durationDays debe ser 0; si hay, debe ser &gt;=1.
+    function _validateLicensing(uint256 pricePerp, uint256 priceSub, uint256 durationDays) internal pure {
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (pricePerp == 0 &amp;&amp; priceSub == 0) revert PriceNotConfigured();
+        if (pricePerp &gt; MAX_PRICE_CAP || <span class="branch-1 cbranch-no" title="branch not covered" >priceSub &gt; MAX_PRICE_CAP</span>) revert PriceTooHigh();
+&nbsp;
+        if (priceSub == 0) {
+            // Sin suscripción, la duración base debe ser 0
+            <span class="missing-if-branch" title="if path not taken" >I</span>if (durationDays != 0) revert InvalidDuration();
+        } else {
+            // Con suscripción, debe haber al menos 1 día
+            <span class="missing-if-branch" title="if path not taken" >I</span>if (durationDays &lt; 1) revert InvalidDuration();
+        }
+    }
+&nbsp;
+    /// @notice Lists a new model or upgrades an existing family version (owner+slug).
+    /// @dev Si ya existe un modelo para ese (owner, slug), se deslista la versión previa
+    ///      y se crea una nueva con version incrementada. El "slug" actúa como "nombre de familia".
+    /// @param slug Human-readable identifier for the model family (versioned series).
+    /// @param name Display name of the specific model version.
+    /// @param uri URI to model metadata / artifacts.
+    /// @param royaltyBps_ Creator royalty in basis points (0..MAX_BPS).
+    /// @param pricePerpetual Price in wei for perpetual license.
+    /// @param priceSubscription Monthly price in wei for subscription license.
+    /// @param defaultDurationDays Base number of days per "month" for subscriptions.
+    /// @param deliveryRightsDefault Default rights bitmask for licenses.
+    /// @param deliveryModeHint UX hint for delivery mode (API, download, both).
+    /// @param termsHash keccak256 hash of the legal terms associated with this version.
+    function listOrUpgrade(
+        string calldata slug,
+        string calldata name,
+        string calldata uri,
+        uint256 royaltyBps_,
+        uint256 pricePerpetual,
+        uint256 priceSubscription,
+        uint256 defaultDurationDays,
+        uint8 deliveryRightsDefault,
+        uint8 deliveryModeHint,
+        bytes32 termsHash
+    ) external notPaused {
+        _ensureValidBps(royaltyBps_);
+        _ensureFeePlusRoyaltyOk(feeBps, royaltyBps_);
+        _ensureValidRights(deliveryRightsDefault);
+        _ensureValidDelivery(deliveryModeHint);
+        _validateLicensing(pricePerpetual, priceSubscription, defaultDurationDays);
+&nbsp;
+        // Calculamos el hash del slug para usarlo como key en el mapping
+        bytes32 slugHash = keccak256(bytes(slug));
+        FamilyMeta storage fam = families[msg.sender][slugHash];
+&nbsp;
+        // Evita overflow de versión: si llegamos a uint16.max, ya no permitimos upgrades
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (fam.latestVersion == type(uint16).max) revert InvalidVersion();
+&nbsp;
+        // Si ya hay un modelo anterior en esta familia, lo deslistamos
+        if (fam.latestId != 0) {
+            Model storage oldM = models[fam.latestId];
+            <span class="missing-if-branch" title="else path not taken" >E</span>if (oldM.listed) {
+                oldM.listed = false;
+                <span class="missing-if-branch" title="else path not taken" >E</span>if (activeModels &gt; 0) {
+                    activeModels -= 1;
+                    emit ModelsCountChanged(activeModels);
+                }
+                emit ModelUnlisted(fam.latestId, oldM.owner);
+            }
+        }
+&nbsp;
+        // Enforce límite de modelos activos
+        if (modelsLimit &gt; 0 &amp;&amp; activeModels &gt;= modelsLimit) revert ModelsLimitReached();
+&nbsp;
+        // Creamos un nuevo modelo
+        uint256 id = nextId++;
+        Model storage m = models[id];
+        m.owner = msg.sender;
+        m.creator = msg.sender;
+        m.name = name;
+        m.uri = uri;
+        m.royaltyBps = royaltyBps_;
+        m.listed = true;
+        m.pricePerpetual = pricePerpetual;
+        m.priceSubscription = priceSubscription;
+        m.defaultDurationDays = defaultDurationDays;
+        m.deliveryRightsDefault = deliveryRightsDefault;
+        m.deliveryModeHint = deliveryModeHint;
+&nbsp;
+        // version = 1 si es la primera vez, si no, latestVersion + 1
+        uint16 newVersion = fam.latestId != 0 ? uint16(fam.latestVersion + 1) : uint16(1);
+        m.version = newVersion;
+        m.termsHash = termsHash;
+&nbsp;
+        // Actualizamos metadata de familia
+        fam.latestId = id;
+        fam.latestVersion = newVersion;
+&nbsp;
+        // Actualizamos contador de modelos activos
+        activeModels += 1;
+        emit ModelsCountChanged(activeModels);
+        emit ModelListed(id, msg.sender);
+    }
+&nbsp;
+    /// @notice Updates licensing parameters for an existing model and bumps its version.
+    /// @dev Solo el owner del modelo puede modificar estos parámetros.
+    /// @param modelId ID of the model to update.
+    /// @param pricePerpetual New perpetual license price in wei.
+    /// @param priceSubscription New subscription monthly price in wei.
+    /// @param defaultDurationDays New base duration in days per subscription "month".
+    /// @param deliveryRightsDefault New default rights bitmask for issued licenses.
+    /// @param deliveryModeHint New delivery mode UX hint.
+    /// @param termsHash New hash of legal terms blob.
+<span class="fstat-no" title="function not covered" >    function setLicensingParams(</span>
+        uint256 modelId,
+        uint256 pricePerpetual,
+        uint256 priceSubscription,
+        uint256 defaultDurationDays,
+        uint8 deliveryRightsDefault,
+        uint8 deliveryModeHint,
+        bytes32 termsHash
+    ) external notPaused {
+<span class="cstat-no" title="statement not covered" >        Model storage m = models[modelId];</span>
+<span class="cstat-no" title="statement not covered" >        if (m.owner != msg.sender) revert NotOwner();</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        _ensureValidRights(deliveryRightsDefault)</span>;
+<span class="cstat-no" title="statement not covered" >        _ensureValidDelivery(deliveryModeHint)</span>;
+<span class="cstat-no" title="statement not covered" >        _validateLicensing(pricePerpetual, priceSubscription, defaultDurationDays)</span>;
+&nbsp;
+        m.pricePerpetual = pricePerpetual;
+        m.priceSubscription = priceSubscription;
+        m.defaultDurationDays = defaultDurationDays;
+        m.deliveryRightsDefault = deliveryRightsDefault;
+        m.deliveryModeHint = deliveryModeHint;
+&nbsp;
+        // Protegemos overflow de versión
+<span class="cstat-no" title="statement not covered" >        if (m.version == type(uint16).max) revert InvalidVersion();</span>
+<span class="cstat-no" title="statement not covered" >        uint16 newVersion = m.version != 0 ? uint16(m.version + 1) : uint16(1);</span>
+        m.version = newVersion;
+        m.termsHash = termsHash;
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        emit ModelUpdated(modelId, m.owner, m.listed);</span>
+    }
+&nbsp;
+    /// @notice Sets the listed flag for a model.
+    /// @dev Sirve para pausar un modelo concreto sin eliminarlo.
+    /// @param modelId ID of the model to update.
+    /// @param listed True to list the model, false to unlist it.
+<span class="fstat-no" title="function not covered" >    function setListed(uint256 modelId, bool listed) external notPaused {</span>
+<span class="cstat-no" title="statement not covered" >        Model storage m = models[modelId];</span>
+<span class="cstat-no" title="statement not covered" >        if (m.owner != msg.sender) revert NotOwner();</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        bool was = m.listed;</span>
+        m.listed = listed;
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        emit ModelUpdated(modelId, m.owner, listed);</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        if (!listed) {</span>
+<span class="cstat-no" title="statement not covered" >            emit ModelUnlisted(modelId, m.owner);</span>
+            // Solo decrementamos si antes estaba listado
+<span class="cstat-no" title="statement not covered" >            if (was &amp;&amp; activeModels &gt; 0) {</span>
+                activeModels -= 1;
+<span class="cstat-no" title="statement not covered" >                emit ModelsCountChanged(activeModels);</span>
+            }
+        } else <span class="cstat-no" title="statement not covered" >if (!was) {</span>
+            // Solo incrementamos si antes NO estaba listado
+            activeModels += 1;
+<span class="cstat-no" title="statement not covered" >            emit ModelsCountChanged(activeModels);</span>
+        }
+    }
+&nbsp;
+    // ===== Payments =====
+&nbsp;
+    /// @dev Envía ETH a una dirección con manejo explícito de errores.
+    /// @param to Recipient address.
+    /// @param amount Amount in wei to transfer.
+    function _send(address to, uint256 amount) private {
+        if (amount == 0) return;
+        (bool ok, ) = payable(to).call{value: amount}("");
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (!ok) revert TransferFailed();
+    }
+&nbsp;
+    /// @dev Distribuye el pago total entre el marketplace, el creador y el seller.
+    /// @param total Total amount paid by the buyer.
+    /// @param royaltyBps Royalty in bps for the creator.
+    /// @param creator Address receiving royalties.
+    /// @param seller Address receiving the remainder after fee and royalty.
+    /// @return feePaid Amount sent to feeRecipient.
+    /// @return royaltyPaid Amount sent to creator.
+    /// @return sellerAmount Amount sent to seller.
+    function _distribute(
+        uint256 total,
+        uint256 royaltyBps,
+        address creator,
+        address seller
+    ) internal returns (uint256 feePaid, uint256 royaltyPaid, uint256 sellerAmount) {
+        feePaid = (total * feeBps) / MAX_BPS;
+        royaltyPaid = (total * royaltyBps) / MAX_BPS;
+        sellerAmount = total - feePaid - royaltyPaid;
+&nbsp;
+        _send(feeRecipient, feePaid);
+        _send(creator, royaltyPaid);
+        _send(seller, sellerAmount);
+    }
+&nbsp;
+    /// @dev Calcula el precio de la licencia según el tipo (perpetua o suscripción).
+    /// @param m Model storage reference.
+    /// @param kind License kind (KIND_PERPETUAL or KIND_SUBSCRIPTION).
+    /// @param months Number of months for subscription (ignored for perpetual).
+    /// @return Price in wei.
+    function _licensePrice(Model storage m, uint8 kind, uint16 months) internal view returns (uint256) {
+        if (kind == KIND_PERPETUAL) {
+            <span class="missing-if-branch" title="if path not taken" >I</span>if (m.pricePerpetual == 0) revert PriceNotConfigured();
+            return m.pricePerpetual;
+        } else <span class="missing-if-branch" title="else path not taken" >E</span>if (kind == KIND_SUBSCRIPTION) {
+            <span class="missing-if-branch" title="if path not taken" >I</span>if (m.priceSubscription == 0) revert PriceNotConfigured();
+            <span class="missing-if-branch" title="if path not taken" >I</span>if (months == 0) revert InvalidDuration();
+&nbsp;
+            uint256 total = uint256(m.priceSubscription) * uint256(months);
+            if (total &gt; MAX_PRICE_CAP) revert PriceTooHigh();
+            return total;
+        } else {
+            revert InvalidKind();
+        }
+    }
+&nbsp;
+    // ===== Buy / Renew =====
+&nbsp;
+    /// @notice Buys a license for a given model (either perpetual or subscription).
+    /// @dev msg.value must match the computed license price.
+    /// @param modelId ID of the model to license.
+    /// @param licenseKind KIND_PERPETUAL or KIND_SUBSCRIPTION.
+    /// @param months Number of months when buying a subscription (ignored for perpetual).
+    /// @param transferable Whether the resulting license NFT is transferable.
+    function buyLicense(
+        uint256 modelId,
+        uint8 licenseKind,
+        uint16 months,
+        bool transferable
+    ) external payable <span class="missing-if-branch" title="else path not taken" >E</span>notPaused nonReentrant {
+        Model storage m = models[modelId];
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (!m.listed) revert NotListed();
+&nbsp;
+        _ensureFeePlusRoyaltyOk(feeBps, m.royaltyBps);
+        _ensureValidRights(m.deliveryRightsDefault);
+        _ensureValidDelivery(m.deliveryModeHint);
+&nbsp;
+        // Calculamos el precio a pagar según.tipo de licencia
+        uint256 priceDue = _licensePrice(m, licenseKind, months);
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (msg.value != priceDue) revert InsufficientFunds();
+&nbsp;
+        // Distribuimos fee + royalty + sellerAmount
+        (uint256 feePaid, uint256 royaltyPaid, ) = _distribute(priceDue, m.royaltyBps, m.creator, m.owner);
+&nbsp;
+        // Calculamos expiración solo si es suscripción
+        uint64 expiresAt = 0;
+        if (licenseKind == KIND_SUBSCRIPTION) {
+            uint256 totalDays = m.defaultDurationDays * uint256(months);
+            expiresAt = uint64(block.timestamp + totalDays * 1 days);
+        }
+&nbsp;
+        // Construimos los datos de la licencia para el NFT
+        LicenseNFT.LicenseData memory d = LicenseNFT.LicenseData({
+            modelId: modelId,
+            licenseKind: licenseKind,
+            rights: m.deliveryRightsDefault,
+            expiresAt: expiresAt,
+            transferable: transferable,
+            termsHash: m.termsHash,
+            version: m.version
+        });
+&nbsp;
+        // Mint del NFT de licencia al buyer
+        uint256 lid = licenseNFT.mint(msg.sender, d);
+        lastLicenseId = lid;
+&nbsp;
+        emit LicenseMinted(
+            lid,
+            modelId,
+            msg.sender,
+            licenseKind,
+            m.deliveryRightsDefault,
+            expiresAt,
+            m.version,
+            priceDue,
+            feePaid,
+            royaltyPaid
+        );
+    }
+&nbsp;
+    /// @notice Renews a subscription license NFT.
+    /// @dev Only the token owner can renew, and only if it is a subscription license.
+    /// @param tokenId License NFT token ID.
+    /// @param months Additional months to add to the subscription.
+    function renewLicense(uint256 tokenId, uint16 months) external payable <span class="missing-if-branch" title="else path not taken" >E</span>notPaused <span class="missing-if-branch" title="else path not taken" >E</span>nonReentrant {
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (months == 0) revert InvalidDuration();
+&nbsp;
+        // Leemos datos de licencia del NFT
+        LicenseNFT.LicenseData memory lic = licenseNFT.getLicense(tokenId);
+&nbsp;
+        // Solo el owner actual del NFT puede renovar
+        if (licenseNFT.ownerOf(tokenId) != msg.sender) revert NotOwner();
+&nbsp;
+        // Solo aplica a licencias de tipo suscripción
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (lic.licenseKind != KIND_SUBSCRIPTION) revert InvalidKind();
+&nbsp;
+        // No se puede renovar una licencia revocada
+        if (revoked[tokenId]) revert LicenseRevokedError();
+&nbsp;
+        Model storage m = models[lic.modelId];
+&nbsp;
+        _ensureFeePlusRoyaltyOk(feeBps, m.royaltyBps);
+&nbsp;
+        // Precio de renovación (solo KIND_SUBSCRIPTION)
+        uint256 priceDue = _licensePrice(m, KIND_SUBSCRIPTION, months);
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (msg.value != priceDue) revert InsufficientFunds();
+&nbsp;
+        (uint256 feePaid, uint256 royaltyPaid, ) = _distribute(priceDue, m.royaltyBps, m.creator, m.owner);
+&nbsp;
+        // Si aún no expiró, extendemos desde expiresAt; si ya expiró, desde ahora
+        uint64 base = lic.expiresAt &gt; block.timestamp ? lic.expiresAt : <span class="missing-if-branch" title="else path not taken" >E</span>uint64(block.timestamp);
+        uint64 newExp = uint64(uint256(base) + m.defaultDurationDays * uint256(months) * 1 days);
+&nbsp;
+        licenseNFT.updateExpires(tokenId, newExp);
+&nbsp;
+        emit LicenseRenewed(tokenId, lic.modelId, newExp, months, priceDue, feePaid, royaltyPaid);
+    }
+&nbsp;
+    // ===== Revocation =====
+&nbsp;
+    /// @notice Emitted when a license token is revoked.
+    event LicenseRevoked(uint256 tokenId, uint256 modelId, address by);
+&nbsp;
+    /// @notice Estado de revocación por tokenId (true = revocada).
+    mapping(uint256 =&gt; bool) public revoked;
+&nbsp;
+    /// @notice Admin revokes a license token.
+    /// @dev No quema el NFT, solo marca el token como revocado y lo reporta en licenseStatus/renewLicense.
+    /// @param tokenId License NFT token ID to revoke.
+    function revokeByAdmin(uint256 tokenId) external <span class="missing-if-branch" title="else path not taken" >E</span>onlyOwner {
+        LicenseNFT.LicenseData memory lic = licenseNFT.getLicense(tokenId);
+        revoked[tokenId] = true;
+        emit LicenseRevoked(tokenId, lic.modelId, msg.sender);
+    }
+&nbsp;
+    /// @notice Model owner revokes a license token for one of their models.
+    /// @dev El owner del modelo puede revocar licencias emitidas sobre su modelo.
+    /// @param tokenId License NFT token ID to revoke.
+    function revokeByModelOwner(uint256 tokenId) external {
+        LicenseNFT.LicenseData memory lic = licenseNFT.getLicense(tokenId);
+&nbsp;
+        // Solo el owner del modelo asociado a la licencia puede revocarla
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (models[lic.modelId].owner != msg.sender) revert NotOwner();
+&nbsp;
+        revoked[tokenId] = true;
+        emit LicenseRevoked(tokenId, lic.modelId, msg.sender);
+    }
+&nbsp;
+    // ===== ETH handling =====
+&nbsp;
+    /// @dev Accept stray ETH (e.g. direct transfers).
+    receive() external payable {}
+&nbsp;
+    /// @notice Owner can withdraw stray ETH from the contract.
+    /// @dev Usa el mismo helper _send para manejo de errores.
+    /// @param to Recipient address.
+    /// @param amount Amount in wei to sweep.
+<span class="fstat-no" title="function not covered" >    function sweep(address to, uint256 amount) external onlyOwner {</span>
+<span class="cstat-no" title="statement not covered" >        _send(to, amount)</span>;
+    }
+&nbsp;
+    // ===== Views =====
+&nbsp;
+    /// @notice Returns license status info for frontends/indexers.
+    /// @dev Métrica de alto nivel: revocado, vigencia, derechos disponibles, tipo y owner actual.
+    /// @param tokenId License NFT token ID.
+    /// @return revoked_ Whether the license is revoked.
+    /// @return validApi Whether the license is currently valid for API usage.
+    /// @return validDownload Whether the license is currently valid for download usage.
+    /// @return kind License kind (perpetual or subscription).
+    /// @return expiresAt Expiration timestamp in seconds (0 for perpetual).
+    /// @return owner Current owner of the license NFT.
+    function licenseStatus(uint256 tokenId)
+        external
+        view
+        returns (
+            bool revoked_,
+            bool validApi,
+            bool validDownload,
+            uint8 kind,
+            uint64 expiresAt,
+            address owner
+        )
+    {
+        LicenseNFT.LicenseData memory lic = licenseNFT.getLicense(tokenId);
+&nbsp;
+        revoked_ = revoked[tokenId];
+        owner = licenseNFT.ownerOf(tokenId);
+        kind = lic.licenseKind;
+        expiresAt = lic.expiresAt;
+&nbsp;
+        if (revoked_) {
+            // Revocada = no válida para ningún derecho
+            validApi = false;
+            validDownload = false;
+        } else {
+            // Licencias perpetuas nunca expiran; suscripciones dependen de expiresAt
+            bool perpetual = (kind == KIND_PERPETUAL);
+            bool notExpired = perpetual || block.timestamp &lt; expiresAt;
+&nbsp;
+            uint8 r = lic.rights;
+&nbsp;
+            // Tiene derecho a API si la máscara incluye RIGHTS_API
+            validApi = notExpired &amp;&amp; (r == RIGHTS_API || r == RIGHTS_API + RIGHTS_DOWNLOAD);
+&nbsp;
+            // Tiene derecho a descarga si la máscara incluye RIGHTS_DOWNLOAD
+            validDownload = notExpired &amp;&amp; (r == RIGHTS_DOWNLOAD || r == RIGHTS_API + RIGHTS_DOWNLOAD);
+        }
+    }
+}
+&nbsp;</pre></td></tr>
+</table></pre>
+<div class='push'></div><!-- for sticky footer -->
+</div><!-- /wrapper -->
+<div class='footer quiet pad2 space-top1 center small'>
+  Code coverage
+  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Mon Nov 03 2025 15:17:36 GMT-0600 (Central Standard Time)
+</div>
+</div>
+<script src="../prettify.js"></script>
+<script>
+window.onload = function () {
+        if (typeof prettyPrint === 'function') {
+            prettyPrint();
+        }
+};
+</script>
+<script src="../sorter.js"></script>
+</body>
+</html>

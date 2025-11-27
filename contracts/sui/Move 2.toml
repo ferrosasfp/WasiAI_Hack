@@ -1,0 +1,15 @@
+[package]
+name = "MarketplaceAI"
+version = "0.1.0"
+authors = ["you <you@example.com>"]
+edition = "2024"
+
+[addresses]
+# Dirección del deployer/alias; debe coincidir con el nombre usado en los módulos Move (p.ej. `MarketplaceAI::...`)
+MarketplaceAI = "0x0"
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+
+[dev-addresses]
+MarketplaceAI = "0x0"

@@ -1,0 +1,956 @@
+{
+  "header": {
+    "brand": "MarketplaceAI",
+    "nav": {
+      "explore": "Explorar modelos",
+      "publish": "Publicar modelo",
+      "licenses": "Mis licencias"
+    },
+    "network": {
+      "label": "Red"
+    }
+  },
+  "wallet": {
+    "connect": "Conectar Wallet",
+    "logout": "Cerrar sesión",
+    "copy": "Copiar dirección",
+    "disconnectConfirmTitle": "Desconectar billetera",
+    "disconnectConfirmBody": "Estás conectado en Sui. ¿Quieres desconectar ahora?",
+    "cancel": "Cancelar",
+    "disconnect": "Desconectar"
+  },
+  "modelCard": {
+    "details": "Ver detalles",
+    "viewModel": "Ver modelo",
+    "viewDetailsLink": "Ver detalles",
+    "connect": "Conectar wallet",
+    "oneTime": "compra única",
+    "subscription": "suscripción",
+    "perMonth": "/mes suscripción",
+    "supportedLanguages": "Idiomas soportados",
+    "runs": "ejecuciones",
+    "shareLink": "Compartir enlace",
+    "linkCopied": "¡Enlace copiado!",
+    "chips": {
+      "apiUsage": "Uso por API",
+      "modelDownload": "Descarga del modelo",
+      "transferable": "Licencia transferible"
+    }
+  },
+  "landing": {
+    "badge": "Marketplace de modelos de IA",
+    "title": "Publica, vende y escala tus modelos de IA",
+    "subtitle": "Monetiza con licencias perpetuas o suscripciones. Entrega segura con IPFS y cifrado.",
+    "ctaExplore": "Explorar modelos",
+    "ctaPublish": "Publicar modelo",
+    "benefitsTitle": "Diseñado para creadores y equipos",
+    "benefitsSubtitle": "Seguridad, velocidad y control para escalar tu negocio de modelos de IA.",
+    "benefits": [
+      { "title": "Propiedad segura", "desc": "Licencias tokenizadas con cumplimiento automatizado y verificable." },
+      { "title": "Pagos instantáneos", "desc": "Liquidaciones en segundos con tarifas bajas." },
+      { "title": "IPFS + cifrado", "desc": "Entrega protegida con IPFS y AES-GCM." },
+      { "title": "API o descarga", "desc": "Vende acceso por API y/o descarga perpetua." }
+    ],
+    "howTitle": "¿Cómo funciona?",
+    "step": "Paso",
+    "steps": [
+      { "title": "Publica tu modelo", "desc": "Sube imagen y artefacto, define precios y derechos." },
+      { "title": "Lista en el mercado", "desc": "Ambos precios (perpetuo y suscripción) en un solo listado." },
+      { "title": "Vende y escala", "desc": "Compras con un clic y renovaciones sin fricción." }
+    ],
+    "storiesTitle": "Historias reales",
+    "testimonials": [
+      { "name": "Ana, creadora IA", "quote": "En 10 minutos publiqué y vendí mi primer modelo. El flujo es impecable." },
+      { "name": "Luis, startup ML", "quote": "La suscripción nos dio ingresos recurrentes desde la semana 1." },
+      { "name": "Caro, data scientist", "quote": "IPFS + cifrado me dio confianza para compartir modelos privados." }
+    ],
+    "ctaFinal": {
+      "title": "Comienza hoy",
+      "subtitle": "Publica tu primer modelo en minutos y habilita ventas globales."
+    }
+  },
+  "wizard": {
+    "common": {
+      "back": "Atrás",
+      "next": "Siguiente",
+      "saveDraft": "Guardar borrador",
+      "saving": "Guardando...",
+      "saved": "Guardado",
+      "errorSaving": "Error al guardar",
+      "publish": "Publicar",
+      "publishing": "Publicando..."
+    },
+    "index": {
+      "title": "Asistente de publicación",
+      "subtitle": "Completa estos pasos para publicar tu modelo.",
+      "step1": "Paso 1 · Identidad del modelo",
+      "step2": "Paso 2 · Ficha para el cliente",
+      "step3": "Paso 3 · Configuración técnica",
+      "step4": "Paso 4 · Precios y derechos",
+      "step5": "Paso 5 · Revisar y publicar",
+      "back": "Atrás",
+      "next": "Siguiente",
+      "publish": "Publicar",
+      "publishing": "Publicando...",
+      "connectModal": {
+        "title": "Conecta tu billetera para continuar",
+        "body": "Para iniciar el asistente necesitamos verificar tu cuenta. Esta conexión es segura y podrás desconectarte cuando quieras.",
+        "close": "Cerrar"
+      }
+    },
+    "step1": {
+      "title": "Paso 1 · Identidad del modelo",
+      "subtitle": "Define nombre, resumen, portada y clasificación. Esto alimenta la ficha pública y los listados.",
+      "sections": {
+        "identity": { "title": "Identidad", "help": "Estos campos ayudan a que tu modelo sea fácil de entender y encontrar." },
+        "cover": { "title": "Portada", "help": "Selecciona una imagen que represente tu modelo." },
+        "classification": { "title": "Clasificación", "help": "Facilita el descubrimiento con categorías y tags relevantes." },
+        "technical": { "title": "Clasificación técnica", "help": "Describe cómo funciona el modelo: categorías técnicas y etiquetas clave." },
+        "authorship": { "title": "Autoría", "help": "Información visible del autor del modelo." }
+      },
+      "fields": {
+        "name": { "label": "Nombre", "placeholder": "Nombre del modelo", "helper": "Usa un título claro y conciso." },
+        "summary": { "label": "Resumen", "placeholder": "1–3 frases que expliquen el propósito" },
+        "categories": { "label": "Categorías", "placeholder": "Selecciona una o varias", "helper": "Ej.: nlp, vision" },
+        "tags": { "label": "Tags", "placeholder": "Selecciona tags", "helper": "Tecnologías/formatos (pytorch, onnx, etc.)" },
+        "technicalCategories": { "label": "Categorías técnicas", "placeholder": "Selecciona una o varias", "helper": "Cómo funciona por dentro (NLP, visión, series de tiempo, etc.)." },
+        "technicalTags": {
+          "label": "Tags técnicos",
+          "placeholder": "Selecciona o escribe tags",
+          "helperNoCat": "Selecciona categorías técnicas para ver sugerencias — o escribe para añadir propias.",
+          "helperWithCatPrefix": "Mostrando tags para ",
+          "helperWithCatSuffix": " — también puedes añadir tags personalizados.",
+          "groupSuggested": "Sugeridos",
+          "groupOther": "Otros"
+        },
+        "author": { "label": "Autor o responsable" },
+        "socials": { "title": "Redes del autor", "helper": "Ninguno es obligatorio. Agrega tus redes si quieres mostrarlas en la ficha del modelo." }
+      },
+      "buttons": {
+        "chooseImage": "Elegir imagen",
+        "uploadCover": "Subir portada",
+        "refresh": "Refrescar vista",
+        "viewInIPFS": "Ver en IPFS",
+        "copyCid": "Copiar CID",
+        "remove": "Quitar"
+      },
+      "cover": {
+        "helper": "Selecciona una portada (recomendado 3:2 o 16:9). Formatos: PNG, JPEG o WEBP. Máx 5 MB.",
+        "meta": "Metadata",
+        "thumb": "thumb",
+        "placeholder": "Portada",
+        "uploading": "Subiendo...",
+        "uploaded": "Portada subida",
+        "errorFormat": "Formato no permitido (usa PNG, JPEG o WEBP)",
+        "errorSize": "La imagen supera 5 MB",
+        "removed": "Portada eliminada",
+        "removedSlow": "Portada eliminada (unpin puede tardar)"
+      },
+      "confirm": {
+        "removeCover": "¿Quitar portada actual? Se hará unpin de los CIDs en tu pinning service."
+      },
+      "errors": {
+        "required": "Requerido",
+        "categoriesRequired": "Elige al menos una categoría",
+        "fixMarked": "Corrige los campos marcados"
+      }
+    },
+    "step2": {
+      "title": "Paso 2 · Ficha para clientes",
+      "subtitle": "Explica el valor y los casos de uso en lenguaje de negocio; especifica entradas/salidas, ejemplos e impacto esperado. Añade notas de privacidad, despliegue y soporte.",
+      "clientSheet": {
+        "title": "Ficha para clientes",
+        "help": "Información pensada para compradores no técnicos"
+      },
+      "clientSheetMicrocopy": {
+        "intro": "Completa esta sección como si explicaras el modelo a un gerente de negocio. Usa lenguaje simple y ejemplos concretos.",
+        "headers": {
+          "valuePropLabel": "En una frase, ¿qué hace este modelo?",
+          "valuePropPh": "ej. Recomendar productos según el comportamiento de compra",
+          "descriptionLabel": "Explicación para usuarios de negocio",
+          "descriptionPh": "ej. Analiza historial de compras y visitas para sugerir qué producto ofrecer a cada cliente en email, app o web",
+          "expectedImpactLabel": "Impacto de negocio esperado",
+          "expectedImpactPh": "ej. +10% tasa de compra en campañas; +5% ticket promedio"
+        },
+        "context": {
+          "industriesLabel": "¿Para qué tipos de negocio es más adecuado?",
+          "industriesPh": "ej. retail, e‑commerce, supermercados",
+          "useCasesLabel": "Casos de uso típicos",
+          "useCasesPh": "ej. campañas de email, recomendaciones web, cross‑sell en checkout",
+          "supportedLangsLabel": "Idiomas que entiende el modelo",
+          "supportedLangsPh": "ej. en, es, pt"
+        },
+        "io": {
+          "title": "Cómo usas este modelo en tu negocio",
+          "helper": "Qué envías al modelo y qué recibes a cambio.",
+          "inputsLabel": "Qué envías al modelo",
+          "inputsPh": "ej. CSV de ventas diarias con customer_id, SKU, fecha, monto",
+          "outputsLabel": "Qué devuelve el modelo",
+          "outputsPh": "ej. Recomendaciones Top‑N por cliente con puntaje"
+        },
+        "examples": {
+          "inputLabel": "Ejemplo de entrada",
+          "inputPh": "ej. customer_id=123; últimos 90 días de compras",
+          "outputLabel": "Ejemplo de salida",
+          "outputPh": "ej. [\"SKU-34\", \"SKU-12\", \"SKU-87\"]",
+          "noteLabel": "Contexto del ejemplo (opcional)",
+          "notePh": "ej. Recomendaciones para una campaña de invierno"
+        },
+        "risks": {
+          "label": "Limitaciones y riesgos conocidos",
+          "ph": "ej. Sin stock en tiempo real; puede recomendar productos sin inventario si los datos no se actualizan a diario"
+        },
+        "prohibited": {
+          "label": "No usar para",
+          "ph": "ej. Decisiones de crédito o scoring individual sin revisión humana"
+        },
+        "privacy": {
+          "label": "Privacidad y datos",
+          "ph": "ej. No envíes identificadores personales crudos; usa datos de compra agregados"
+        },
+        "deploy": {
+          "label": "Cómo se entrega este modelo",
+          "ph": "ej. API SaaS gestionada; el cliente solo llama al endpoint"
+        },
+        "support": {
+          "label": "Soporte y servicio",
+          "ph": "ej. Soporte por email 8×5 comercial; revisión trimestral de performance"
+        }
+      },
+      "fields": {
+        "valueProp": "Propuesta de valor (pitch)",
+        "description": "Descripción para clientes",
+        "industries": "Industrias",
+        "useCases": "Casos de uso",
+        "expectedOutcomes": "Resultados esperados",
+        "inputs": "Entradas",
+        "outputs": "Salidas",
+        "limitations": "Limitaciones",
+        "privacy": "Privacidad",
+        "support": "Soporte"
+      },
+      "placeholders": {
+        "valueProp": "¿Qué resuelve y por qué es mejor?",
+        "description": "Explica en lenguaje simple cómo ayuda",
+        "select": "Selecciona",
+        "expectedOutcomes": "ej.: +10% retención",
+        "inputs": "ej.: PDFs, CSV, imágenes",
+        "outputs": "ej.: scores, etiquetas, resúmenes",
+        "limitations": "Advertencias conocidas",
+        "privacy": "Manejo de PII, aislamiento, cifrado",
+        "support": "SLA o contacto"
+      },
+      "clearSheet": "Limpiar ficha",
+      "cleared": "Ficha limpiada",
+      "presetApplied": "Preset aplicado",
+      "validationFillClientSheet": "Completa la ficha para clientes (título, descripción y al menos una industria o caso de uso)",
+      "examples": {
+        "input": "Entrada (input)",
+        "output": "Salida (output)",
+        "note": "Nota (opcional)",
+        "add": "+ Añadir ejemplo",
+        "remove": "Eliminar"
+      },
+      "preview": {
+        "title": "Previsualización",
+        "help": "Vista previa pública de la ficha del modelo",
+        "placeholderTitle": "Título de valor del modelo",
+        "placeholderDesc": "Descripción breve orientada a clientes.",
+        "inputs": "Entradas",
+        "outputs": "Salidas",
+        "examples": "Ejemplos"
+      },
+      "tech": {
+        "accordionTitle": "Configuración técnica (opcional)",
+        "titles": {
+          "capabilities": "Capacidades",
+          "architecture": "Arquitectura",
+          "runtime": "Runtime",
+          "dependencies": "Dependencias",
+          "resources": "Recursos mínimos",
+          "inference": "Opciones de inferencia"
+        },
+        "helps": {
+          "capabilities": "Tareas y modalidades que cubre el modelo",
+          "architecture": "Detalles del modelo y formatos soportados",
+          "runtime": "Versiones y aceleradores requeridos",
+          "dependencies": "Paquetes Python requeridos (separados por coma o nueva línea)",
+          "resources": "Requisitos base para una inferencia estable",
+          "inference": "Límites y parámetros de ejecución"
+        },
+        "labels": {
+          "tasks": "Tareas",
+          "modalities": "Modalidades",
+          "technicalModelType": "Tipo de arquitectura (opcional)",
+          "frameworks": "Frameworks",
+          "architectures": "Arquitecturas",
+          "precision": "Precisión",
+          "quantization": "Cuantización",
+          "modelSize": "Tamaño del modelo (parámetros)",
+          "modelParams": "Parámetros (M)",
+          "artifactSize": "Tamaño del artefacto del modelo",
+          "embedDim": "Dimensión de embeddings",
+          "refPerf": "Latencia / rendimiento de referencia (opcional)",
+          "fileFormats": "Formatos de archivos",
+          "python": "Python",
+          "cuda": "CUDA",
+          "torch": "PyTorch",
+          "cudnn": "cuDNN",
+          "systems": "Sistemas",
+          "accelerators": "Aceleradores",
+          "computeCapability": "Compute Capability / Nota GPU",
+          "vramGB": "VRAM (GB)",
+          "cpuCores": "CPU Cores",
+          "ramGB": "RAM (GB)",
+          "maxBatch": "Max batch size",
+          "contextLen": "Context length",
+          "maxTokens": "Max tokens",
+          "imagePx": "Imagen (px)",
+          "sampleRate": "Sample rate (Hz)",
+          "triton": "Triton"
+        },
+        "placeholders": {
+          "select": "Selecciona",
+          "technicalModelType": "decoder-only, encoder-decoder, diffusion...",
+          "precision": "fp16, int8, etc.",
+          "imagePx": "1024x1024",
+          "cuda": "12.2",
+          "torch": "2.2",
+          "compute": "Ej.: SM 8.0, ROCm 5.x, M-series",
+          "packages": "torch==2.2.2, transformers>=4.42, onnxruntime-gpu"
+        },
+        "helpers": {
+          "technicalModelType": "Clasificación arquitectónica de alto nivel (ej: decoder-only para GPT/Llama). Opcional pero recomendado."
+        },
+        "training": {
+          "labels": {
+            "primaryLanguage": "Idioma principal de entrenamiento (opcional)",
+            "metrics": "Métricas / evaluación (opcional)"
+          }
+        },
+        "technicalModelTypes": {
+          "decoder-only": "Decoder-only LLM",
+          "encoder-decoder": "Encoder-decoder (seq2seq)",
+          "encoder-only": "Solo codificador",
+          "vision-encoder": "Codificador de visión",
+          "diffusion": "Difusión",
+          "multimodal": "Multimodal",
+          "embedding": "Modelo de embeddings",
+          "other": "Otro"
+        }
+      }
+    },
+    "step3": {
+      "title": "Paso 3 · Sube los archivos del modelo y explica cómo probarlo",
+      "subtitle": "Sube los artefactos del modelo a IPFS (CID y SHA-256 se generan automáticamente). Agrega instrucciones de instalación/ejecución y valida una demo alojada.",
+      "sections": {
+        "artifacts": { "title": "Artefactos (IPFS)", "help": "Sube tus archivos del modelo; generamos el CID automáticamente" },
+        "demo": { "title": "Demo (Hosted)", "help": "La demo se ejecuta en nuestra infraestructura" }
+      },
+      "fields": {
+        "filename": "Archivo",
+        "size": "Tamaño",
+        "role": "Rol",
+        "artifactNotes": "Notas de uso (opcional)",
+        "downloadNotes": "Instrucciones para descargar y ejecutar el modelo",
+        "presetJson": "Preset de input (JSON)"
+      },
+      "roles": {
+        "primary-weights": "Pesos principales",
+        "adapter": "Adapter / LoRA",
+        "inference-code": "Código de inferencia",
+        "training-code": "Código de entrenamiento",
+        "tokenizer": "Tokenizer",
+        "assets": "Assets",
+        "other": "Otro"
+      },
+      "actions": {
+        "replaceFile": "Reemplazar archivo",
+        "selectFile": "Seleccionar archivo",
+        "typesMax": "Tipos: safetensors, bin, pt, onnx, gguf, json, zip, tar, gz, bz2, xz. Máx: 200 MB.",
+        "dragDrop": "Arrastra aquí tus archivos .zip / .gguf / .onnx o haz clic para seleccionarlos",
+        "fromCid": "Crear fila desde un CID",
+        "pasteCidPrompt": "Pega el CID existente (ipfs hash):",
+        "copyCid": "Copiar CID",
+        "openGateway": "Abrir en gateway",
+        "copyHash": "Copiar hash",
+        "addArtifact": "Agregar artefacto",
+        "validating": "Validando...",
+        "tryDemo": "Probar demo"
+      },
+      "status": {
+        "uploading": "Subiendo...",
+        "pinning": "Fijando...",
+        "ready": "Listo",
+        "error": "Error"
+      },
+      "errors": {
+        "tooLarge": "Archivo demasiado grande. Máximo permitido: {max}",
+        "duplicateFile": "Archivo duplicado en la lista",
+        "duplicateCID": "CID duplicado",
+        "duplicateFilenameShort": "Nombre repetido en la lista",
+        "unsupportedType": "Tipo de archivo no soportado"
+      },
+      "validation": {
+        "noPrimaryArtifact": "Selecciona qué archivo es el artefacto principal del modelo (Pesos principales).",
+        "noArtifacts": "Sube al menos un artefacto.",
+        "noInstructions": "Agrega instrucciones para descargar y ejecutar el modelo.",
+        "uploadInProgress": "Espera a que terminen todas las subidas."
+      },
+      "demo": {
+        "ok": "Demo OK",
+        "error": "Error demo",
+        "errorValidate": "Error al validar demo",
+        "response": "Respuesta de demo"
+      },
+      "file": "file",
+      "placeholders": {
+        "downloadNotes": "Ejemplo:\n1. Descarga el artefacto principal usando su CID\n2. Extrae: unzip model.zip\n3. Instala dependencias: pip install -r requirements.txt\n4. Lanza el servidor de inferencia: python serve.py --model ./model\n5. Prueba con: curl -X POST http://localhost:8000/predict -d '{\"input\":\"test\"}'"
+      }
+    },
+    "step4": {
+      "title": "Paso 4 · Define licencias y términos",
+      "subtitle": "Define precio (perpetuo o suscripción), royalties y fee del marketplace. Configura derechos (API/Descarga/Transferible), modo de entrega y términos legales. La moneda se muestra según la red (AVAX/ETH); sin conversiones a fiat.",
+      "sections": {
+        "prices": { "title": "Precios", "help": "Valores de referencia. Puedes dejar 0 si no aplica." },
+        "rights": { "title": "Derechos y entrega", "help": "Selecciona cómo se puede usar y entregar el modelo." },
+        "terms": { "title": "Términos", "help": "Escribe o pega tus términos. Compute Hash genera una huella SHA‑256 de este texto para anclar la versión y detectar cambios." },
+        "revenueSplit": "Reparto de ingresos"
+      },
+      "alerts": {
+        "onePrice": "Define al menos un precio (> 0): Perpetuo o Suscripción.",
+        "downloadTransferable": "Advertencia: Marcar Download + Transferible permite que los compradores redistribuyan los archivos del modelo."
+      },
+      "pricingMode": {
+        "label": "Modelo de precios",
+        "perpetual": "Pago único (perpetuo)",
+        "subscription": "Suscripción",
+        "both": "Ambos",
+        "free": "Gratis / demo"
+      },
+      "rightsHelpers": {
+        "api": "El comprador usa el modelo solo vía API",
+        "download": "Puede descargar artefactos para auto-hosting",
+        "transferable": "Puede revender o transferir la licencia"
+      },
+      "fields": {
+        "perpetual": "Perpetuo (ref)",
+        "subscriptionPerMonth": "Suscripción / mes",
+        "baseDurationMonths": "Duración base (meses)",
+        "transferable": "Transferible",
+        "deliveryMode": "Modo de entrega",
+        "termsUrl": "URL de términos (opcional)",
+        "termsText": "Texto de términos",
+        "termsHash": "Hash (SHA-256)",
+        "termsSummary": "Resumen para compradores (3–5 puntos clave)"
+      },
+      "labels": {
+        "perpetual": "Perpetuo",
+        "subscriptionPerMonth": "Suscripción / mes"
+      },
+      "legends": {
+        "rights": "Define qué puede hacer el cliente: solo API, descarga de artefactos, o ambos.",
+        "delivery": "Cómo se proporcionará (API alojada o descarga de archivos). No cambia los derechos legales.",
+        "rightsDelivery": "Elige solo API, descarga de artefactos, o ambos. Delivery selecciona cómo se proporciona (API alojada o archivo). No cambia los derechos legales."
+      },
+      "revenue": {
+        "marketplace": "Marketplace",
+        "creator": "Creador",
+        "seller": "Vendedor"
+      },
+      "delivery": {
+        "none": "Ninguno"
+      },
+      "actions": {
+        "computeHash": "Firmar términos",
+        "signTerms": "Firmar términos"
+      },
+      "helpers": {
+        "termsText": "Resumen de cláusulas clave (uso, atribución, actualizaciones). Puedes pegar o editar.",
+        "termsSummary": "3–5 puntos clave que los compradores verán en el listado. Ejemplo: No uso en producción, Atribución requerida, etc.",
+        "hashExplanation": "El hash se genera desde el texto + configuración de precios actual.",
+        "signExplanation": "Firmar guarda en cadena el hash de estos términos y precios."
+      },
+      "templates": {
+        "label": "Plantilla de términos (opcional)",
+        "placeholder": "Selecciona una plantilla...",
+        "standard": "Licencia comercial estándar",
+        "eval": "Solo evaluación (sin producción)",
+        "opensource": "Wrapper compatible con código abierto"
+      },
+      "templatesContent": {
+        "standard": "# Licencia Comercial\n\n## Otorgamiento\nEl vendedor otorga al comprador una licencia no exclusiva y mundial para usar el modelo.\n\n## Restricciones\n- Sin redistribución\n- Sin ingeniería inversa\n- Atribución requerida\n\n## Garantía\nSe proporciona tal cual, sin garantía.\n\n## Responsabilidad\nEl vendedor no es responsable por daños.",
+        "eval": "# Licencia de Evaluación\n\n## Propósito\nSolo para pruebas y evaluación. No para uso en producción.\n\n## Duración\n30 días desde la compra.\n\n## Restricciones\n- Sin uso comercial\n- Sin distribución\n- Sin modificaciones\n\n## Datos\nCualquier salida debe eliminarse después del período de evaluación.",
+        "opensource": "# Wrapper de Código Abierto\n\n## Licencia del Modelo\nEl modelo sigue [especificar licencia, ej., Apache 2.0].\n\n## Código Wrapper\nWrapper de inferencia bajo licencia MIT.\n\n## Atribución\nDebe acreditarse a los autores originales.\n\n## Distribución\nPuedes redistribuir bajo los mismos términos."
+      },
+      "termsEditor": {
+        "bold": "Negrita",
+        "italic": "Cursiva",
+        "heading": "Encabezado",
+        "list": "Lista con viñetas",
+        "ordered": "Lista numerada",
+        "checklist": "Lista de verificación",
+        "link": "Enlace",
+        "quote": "Cita",
+        "code": "Código en línea",
+        "clear": "Limpiar formato",
+        "preview": "Vista previa",
+        "edit": "Editar"
+      },
+      "validation": {
+        "intNonNegative": "Debe ser un entero ≥ 0",
+        "durationRequired": "Requerido si hay suscripción",
+        "durationRange": "Selecciona entre 1 y 12 meses",
+        "chooseRight": "Debes elegir al menos un derecho: API y/o Download.",
+        "termsMustBeSigned": "Por favor firma los Términos antes de continuar.",
+        "noPriceForMode": "Establece un precio mayor a 0 para el modelo de precios seleccionado."
+      },
+      "finalReminder": "Revisa que precios, reparto y derechos coincidan con tu estrategia. Podrás cambiarlos antes de publicar."
+    },
+    "step5": {
+      "title": "Paso 5 · Revisar y publicar",
+      "subtitle": "Revisa el resumen consolidado y publica en la red seleccionada. Todos los metadatos se generan a partir de los pasos anteriores.",
+      "sections": {
+        "networks": "Redes de publicación",
+        "summary": "Resumen",
+        "modelInfo": "Información del modelo",
+        "listingOverview": "Resumen de la ficha del modelo (Step 1)",
+        "customerSheet": "Ficha para clientes (Step 2)",
+        "technicalConfig": "Configuración técnica (Step 2)",
+        "licensesTerms": "Licencias y términos (Step 4)",
+        "artifactsDemo": "Artefactos e instrucciones de demo (Step 3)",
+        "artifacts": "Artefactos (IPFS)",
+        "results": "Resultados de publicación"
+      },
+      "techConfig": {
+        "capabilities": "Capacidades",
+        "tasks": "Tareas",
+        "modalities": "Modalidades",
+        "architecture": "Arquitectura",
+        "frameworks": "Frameworks",
+        "architectures": "Arquitecturas",
+        "precisions": "Precisiones",
+        "quantization": "Cuantización",
+        "modelSizeParams": "Tamaño del modelo (parámetros)",
+        "artifactSizeGB": "Tamaño del artefacto (GB)",
+        "embeddingDimension": "Dimensión de embeddings",
+        "modelFiles": "Archivos del modelo",
+        "trainingEval": "Entrenamiento y evaluación (opcional)",
+        "primaryLanguage": "Idioma principal de entrenamiento",
+        "metrics": "Métricas / evaluación",
+        "runtime": "Runtime",
+        "python": "Python",
+        "os": "Sistemas operativos",
+        "accelerators": "Aceleradores",
+        "cuda": "CUDA",
+        "torch": "PyTorch",
+        "cudnn": "cuDNN",
+        "computeCapability": "Capacidad de cómputo",
+        "dependencies": "Dependencias",
+        "dependenciesPip": "Dependencias (pip)",
+        "resources": "Recursos",
+        "vramGB": "VRAM (GB)",
+        "cpuCores": "Núcleos CPU",
+        "ramGB": "RAM (GB)",
+        "inference": "Inferencia",
+        "maxBatchSize": "Tamaño máximo de batch",
+        "contextLength": "Longitud de contexto",
+        "maxTokens": "Tokens máximos",
+        "imageResolution": "Resolución de imagen",
+        "sampleRate": "Tasa de muestreo (Hz)",
+        "triton": "Triton",
+        "tritonEnabled": "Activado",
+        "tritonDisabled": "Desactivado",
+        "referencePerf": "Latencia / rendimiento de referencia",
+        "editStep2": "Editar Step 2"
+      },
+      "step2Summary": {
+        "subtitle": "Lo que verán los compradores en la ficha del modelo",
+        "headline": "Título principal",
+        "description": "Descripción",
+        "expectedImpact": "Impacto esperado",
+        "howUsed": "Cómo se usa en el negocio",
+        "inputs": "Entradas",
+        "outputs": "Salidas",
+        "ioExamples": "Ejemplos I/O",
+        "moreExamples": "ejemplos adicionales",
+        "limitations": "Limitaciones y riesgos",
+        "prohibited": "No usar para",
+        "privacy": "Privacidad y datos",
+        "support": "Soporte y servicio",
+        "businessFit": "Ajuste de negocio",
+        "industries": "Industrias",
+        "useCases": "Casos de uso",
+        "delivery": "Cómo se entrega este modelo",
+        "languages": "Idiomas",
+        "primary": "Principal",
+        "modelType": "Tipo de modelo",
+        "metrics": "Métricas",
+        "editStep2": "Editar Step 2",
+        "emptyState": "La ficha para clientes aún no está completa. Edita el Step 2 para llenarla.",
+        "showMore": "Ver más"
+      },
+      "step4Summary": {
+        "prices": "Precios",
+        "pricingModel": "Modelo de precio",
+        "perpetualPrice": "Precio perpetuo",
+        "subscriptionPrice": "Precio suscripción / mes",
+        "baseDuration": "Duración base",
+        "creatorRoyalty": "Royalty del creador",
+        "marketplaceFee": "Comisión del marketplace",
+        "revenueSplit": "Reparto de ingresos",
+        "splitPerpetual": "Split (perpetuo)",
+        "splitSubscription": "Split (suscripción)",
+        "rightsDelivery": "Derechos y entrega",
+        "rights": "Derechos",
+        "noRights": "Sin derechos de uso seleccionados",
+        "deliveryMode": "Modo de entrega",
+        "terms": "Términos",
+        "buyerSummary": "Resumen para compradores",
+        "termsTemplate": "Plantilla",
+        "termsText": "Texto de términos",
+        "viewFullTerms": "Ver términos completos",
+        "termsHash": "Hash de términos firmados (SHA-256)",
+        "termsNotSigned": "Términos aún no firmados",
+        "editStep4": "Editar Step 4",
+        "copyHash": "Copiar hash",
+        "hashCopied": "¡Hash copiado!",
+        "months": "meses"
+      },
+      "artifactsDemo": {
+        "totalFiles": "Archivos totales",
+        "primaryWeights": "Pesos principales",
+        "noPrimaryWeights": "Sin pesos principales definidos",
+        "rolesCovered": "Roles",
+        "file": "Archivo",
+        "cid": "CID",
+        "size": "Tamaño",
+        "sha256": "SHA-256",
+        "notes": "Notas",
+        "copy": "Copiar",
+        "copied": "¡Copiado!",
+        "open": "Abrir",
+        "viewSha": "Ver SHA-256 completo",
+        "viewNotes": "Ver notas completas",
+        "roles": {
+          "primary-weights": "Pesos principales",
+          "adapter": "Adapter / LoRA",
+          "inference-code": "Código de inferencia",
+          "training-code": "Código de entrenamiento",
+          "tokenizer": "Tokenizer",
+          "assets": "Assets",
+          "other": "Otros"
+        },
+        "demoInstructions": "Instrucciones para descargar y ejecutar el modelo",
+        "showFullInstructions": "Ver instrucciones completas",
+        "hideInstructions": "Ocultar instrucciones",
+        "editStep3": "Editar Step 3",
+        "noArtifacts": "Aún no se han subido artefactos en el Step 3."
+      },
+      "step1Summary": {
+        "identifier": "Identificador (URL)",
+        "businessCategory": "Categoría de negocio",
+        "modelType": "Tipo de modelo (negocio)",
+        "technicalCategories": "Categorías técnicas",
+        "technicalTags": "Tags técnicos",
+        "by": "Por",
+        "editStep1": "Editar Step 1",
+        "viewFullListing": "Ver ficha completa"
+      },
+      "labels": {
+        "selectNetworks": "Selecciona redes",
+        "cover": "Portada",
+        "name": "Nombre",
+        "slug": "Slug",
+        "author": "Autor",
+        "perpetual": "Perpetua",
+        "subscriptionPerMonth": "Suscripción/mes",
+        "baseDurationDays": "Duración base (días)",
+        "rights": "Derechos",
+        "deliveryMode": "Modo de entrega",
+        "cid": "CID",
+        "uri": "URI",
+        "noArtifacts": "No hay artefactos.",
+        "error": "Error"
+      },
+      "buttons": {
+        "publish": "Publicar",
+        "publishing": "Publicando..."
+      },
+      "issues": {
+        "artifacts": "Debes tener al menos un artefacto con CID.",
+        "rights": "Selecciona al menos un derecho: API y/o Download (Paso 4).",
+        "onePrice": "Define al menos un precio (> 0) en licencias (Paso 4).",
+        "subNeedsDuration": "Si usas suscripción, define duración base (> 0)."
+      },
+      "messages": {
+        "publishDone": "Publicación finalizada",
+        "publishError": "Error al publicar"
+      }
+    },
+    "step0": {
+      "title": "Bienvenido al asistente de publicación",
+      "subtitle": "En pocos minutos prepararás tu modelo para venderlo globalmente en 5 pasos simples.",
+      "pitch": {
+        "title": "¿Por qué completar los 5 pasos?",
+        "body": "Al finalizar, tendrás un listado profesional, confiable y listo para convertir. Con valor claro, detalles técnicos y precios, los compradores tendrán confianza para adquirir y usar tu modelo de inmediato."
+      },
+      "blocks": {
+        "value": {
+          "title": "Valor y claridad",
+          "desc": "Explica qué resuelve tu modelo y qué lo hace distinto.",
+          "items": ["Casos de uso", "Entradas/salidas", "Resultados esperados"]
+        },
+        "trust": {
+          "title": "Confianza y cumplimiento",
+          "desc": "Muestra formatos, requisitos y limitaciones de forma clara.",
+          "items": ["Arquitecturas/formatos", "Runtime y recursos", "Privacidad y limitaciones"]
+        },
+        "growth": {
+          "title": "Crecimiento y monetización",
+          "desc": "Habilita entrega por API y/o descarga con precios flexibles.",
+          "items": ["Perpetua o suscripción", "API y/o descarga", "Entrega automatizada"]
+        }
+      },
+      "steps": {
+        "title": "Qué completarás",
+        "subtitle": "Un vistazo a los 5 pasos antes de empezar."
+      },
+      "cta": "Iniciar asistente"
+    }
+  },
+  "evm": {
+    "detail": {
+      "back": "Volver",
+      "buy": "Comprar licencia",
+      "tryDemo": "Probar demo",
+      "noCover": "Sin portada",
+      "perpetual": "Perpetua",
+      "subscriptionMo": "Suscripción / mes",
+      "version": "v",
+      "uri": "URI",
+      "notFound": "Modelo no encontrado.",
+      "whatItDoes": "Qué hace este modelo",
+      "valueProp": "Propuesta de valor",
+      "descMissing": "Descripción no especificada.",
+      "expectedImpact": "El impacto esperado en su negocio",
+      "customerSheet": "Ficha para clientes",
+      "ioTitle": "Entradas y salidas",
+      "ioSubtitle": "Qué entregan los usuarios y qué reciben.",
+      "inputs": "Entradas",
+      "outputs": "Salidas",
+      "examples": "Ejemplos",
+      "exampleIn": "Entrada",
+      "exampleOut": "Respuesta del modelo",
+      "note": "Nota",
+      "noExamples": "El creador aún no ha añadido ejemplos.",
+      "industriesUseCases": "Industrias y casos de uso",
+      "industries": "Industrias",
+      "useCases": "Casos de uso",
+      "unspecified": "No especificado",
+      "knownLimits": "Limitaciones conocidas",
+      "prohibited": "Usos prohibidos",
+      "privacy": "Privacidad",
+      "deploy": "Deploy",
+      "support": "Soporte",
+      "techConfig": "Configuración técnica",
+      "capabilities": "Capacidades",
+      "modalities": "Modalidades",
+      "architecture": "Arquitectura",
+      "frameworks": "Frameworks",
+      "architectures": "Architectures",
+      "precision": "Precision",
+      "quantization": "Quantization",
+      "fileFormats": "Formatos de archivo",
+      "modelSize": "Tamaño del modelo",
+      "artifactSize": "Tamaño del artefacto",
+      "runtime": "Runtime",
+      "dependencies": "Dependencias",
+      "minResources": "Recursos mínimos",
+      "minVram": "VRAM mínima",
+      "cpuCores": "CPU cores",
+      "recRam": "RAM recomendada",
+      "inferenceOpts": "Opciones de inferencia",
+      "maxBatch": "Max batch size",
+      "contextLength": "Context length",
+      "maxTokens": "Max tokens",
+      "referenceLatency": "Latencia de referencia",
+      "triton": "Triton",
+      "imageResolution": "Resolución imagen",
+      "artifactsDemo": "Artefactos & demo",
+      "artifacts": "Artifacts (IPFS)",
+      "cid": "CID",
+      "filename": "Archivo",
+      "size": "Tamaño",
+      "sha256": "SHA-256",
+      "actions": "Acciones",
+      "open": "Abrir",
+      "copy": "Copiar",
+      "copyHash": "Copiar hash",
+      "noArtifacts": "No hay artefactos publicados.",
+      "hostedDemo": "Demo (Hosted)",
+      "runDemo": "Run demo",
+      "noDemo": "Este modelo no tiene una demo configurada.",
+      "licensesTerms": "Licencias y términos",
+      "perpetualLicense": "Licencia perpetua",
+      "subscriptionPerMonth": "Suscripción / mes",
+      "baseDuration": "Duración base",
+      "rightsDelivery": "Entrega",
+      "deliveryHint": "Cómo recibes el modelo: API, descarga o ambos.",
+      "transferableHint": ", puedes transferir la licencia según los términos.",
+      "termsKey": "Términos clave",
+      "termsHash": "Hash de términos (SHA-256):",
+      "buyModalTitle": "Comprar licencia",
+      "buyModalHint": "Selecciona la opción de licencia que prefieras.",
+      "close": "Cerrar",
+      "continue": "Continuar",
+      "months": "Meses",
+      "selectType": "Tipo de licencia",
+      "review": "Revisar compra",
+      "purchase": "Comprar",
+      "connectWallet": "Conecta tu wallet para continuar.",
+      "wrongNetwork": "Red incorrecta. Cambia a la red objetivo.",
+      "purchaseSuccess": "Compra realizada con éxito.",
+      "purchaseErrorPrefix": "Error al comprar la licencia: ",
+      "marketAddressMissing": "No se configuró la dirección del marketplace para esta red.",
+      "loadingModelTitle": "Cargando el modelo…",
+      "loadingModelBody": "Un momento por favor, estamos preparando la información.",
+      "monthShort": "mes",
+      "monthsShort": "mes",
+      "systems": "Sistemas",
+      "accelerators": "Aceleradores",
+      "deliveryApi": "API",
+      "deliveryDownload": "Descarga",
+      "deliveryBoth": "API + Descarga",
+      "transferable": "Transferible",
+      "yes": "Sí"
+    }
+  },
+  "business": {
+    "categories": {
+      "marketingGrowth": "Marketing & Growth",
+      "salesCrm": "Ventas & CRM",
+      "riskFraud": "Riesgo & fraude",
+      "financePricing": "Finanzas & precios",
+      "operationsLogistics": "Operaciones & logística",
+      "supplyInventory": "Cadena de suministro & inventario",
+      "supportCx": "Soporte al cliente & CX",
+      "hrPeople": "RR. HH. & people analytics",
+      "productUx": "Producto & UX",
+      "itSecurity": "IT & seguridad",
+      "general": "Propósito general / cross-domain"
+    },
+    "modelTypes": {
+      "customerSegmentation": "Segmentación de clientes",
+      "leadScoring": "Lead scoring",
+      "campaignResponsePrediction": "Predicción de respuesta de campaña",
+      "propensityToBuy": "Propensión de compra",
+      "recommendationSystem": "Sistema de recomendación",
+      "nextBestOffer": "Siguiente mejor oferta",
+      "upsellCrossSell": "Upsell / cross-sell",
+      "customerChurnPrediction": "Predicción de churn de clientes",
+      "customerLtv": "Valor de vida del cliente (LTV)",
+      "salesForecasting": "Pronóstico de ventas",
+      "opportunityWinRate": "Probabilidad de cierre de oportunidad",
+      "creditRiskScoring": "Scoring de riesgo crediticio",
+      "paymentFraudDetection": "Detección de fraude de pagos",
+      "transactionAnomalyDetection": "Detección de anomalías en transacciones",
+      "dynamicPricing": "Precios dinámicos / optimización de precios",
+      "revenueForecasting": "Pronóstico de ingresos",
+      "demandForecasting": "Pronóstico de demanda",
+      "inventoryOptimization": "Optimización de inventario",
+      "replenishmentOptimization": "Optimización de reposición",
+      "routeOptimization": "Optimización de rutas",
+      "workforceForecasting": "Pronóstico de dotación / staffing",
+      "predictiveMaintenance": "Mantenimiento predictivo",
+      "qualityInspection": "Inspección de calidad / detección de defectos",
+      "stockoutPrediction": "Predicción de quiebres de stock",
+      "supplierRiskScoring": "Scoring de riesgo de proveedores",
+      "supportTicketRouting": "Enrutamiento de tickets de soporte",
+      "supportIntentClassification": "Clasificación de intención en soporte",
+      "sentimentAnalysis": "Análisis de sentimiento",
+      "csatNpsPrediction": "Predicción de CSAT / NPS",
+      "employeeAttritionPrediction": "Predicción de rotación de empleados",
+      "workforcePlanning": "Planificación de fuerza laboral",
+      "talentMatching": "Matching de talento / ranking de candidatos",
+      "featureAdoptionPrediction": "Predicción de adopción de funcionalidades",
+      "searchRanking": "Ranking de búsqueda / relevancia",
+      "experimentOutcomePrediction": "Predicción de resultados de experimentos",
+      "logAnomalyDetection": "Detección de anomalías en logs",
+      "threatIntrusionDetection": "Detección de amenazas / intrusiones",
+      "accessRiskScoring": "Scoring de riesgo de acceso",
+      "generalTsForecasting": "Pronóstico general de series de tiempo",
+      "generalAnomalyDetection": "Detección general de anomalías",
+      "documentClassification": "Clasificación de documentos",
+      "textClassification": "Clasificación de texto / detección de intención",
+      "semanticSearch": "Búsqueda semántica / similitud"
+    }
+  }
+  ,
+  "technical": {
+    "categories": {
+      "nlpText": "NLP & texto",
+      "vision": "Visión por computador",
+      "speechAudio": "Voz y audio",
+      "video": "Video",
+      "tabular": "Tabular / datos estructurados",
+      "timeSeries": "Series de tiempo",
+      "recommenders": "Sistemas de recomendación",
+      "multimodal": "Multimodal",
+      "graph": "Grafos / redes",
+      "agentsOrchestration": "Agentes y orquestación",
+      "foundationLlms": "Modelos fundacionales / LLMs",
+      "retrievalSearch": "Recuperación y búsqueda"
+    },
+    "tags": {
+      "textClassification": "Clasificación de texto",
+      "sentimentAnalysis": "Análisis de sentimiento",
+      "topicModeling": "Modelado de temas",
+      "ner": "Reconocimiento de entidades (NER)",
+      "summarization": "Resumen",
+      "semanticSearch": "Búsqueda semántica",
+      "embeddingModel": "Modelo de embeddings",
+      "questionAnswering": "Pregunta-respuesta",
+      "documentClassification": "Clasificación de documentos",
+      "documentParsing": "Parseo de documentos",
+      "ocr": "OCR",
+      "chatbotAssistant": "Chatbot / asistente",
+
+      "imageClassification": "Clasificación de imágenes",
+      "objectDetection": "Detección de objetos",
+      "imageSegmentation": "Segmentación de imágenes",
+      "faceRecognition": "Reconocimiento facial",
+      "imageGeneration": "Generación de imágenes",
+      "styleTransfer": "Transferencia de estilo",
+
+      "asr": "Reconocimiento de voz (ASR)",
+      "tts": "Texto a voz (TTS)",
+      "speakerDiarization": "Diarización de locutor",
+      "keywordSpotting": "Detección de palabras clave",
+      "musicAudioGeneration": "Generación de música / audio",
+
+      "videoClassification": "Clasificación de video",
+      "actionRecognition": "Reconocimiento de acciones",
+      "videoSummarization": "Resumen de video",
+
+      "timeSeriesForecasting": "Pronóstico de series de tiempo",
+      "anomalyDetection": "Detección de anomalías",
+      "churnPrediction": "Predicción de churn",
+      "creditRiskScoring": "Scoring de riesgo crediticio",
+      "demandForecasting": "Pronóstico de demanda",
+      "pricingOptimization": "Optimización de precios",
+
+      "recommendationSystem": "Sistema de recomendación",
+      "nextBestOffer": "Siguiente mejor oferta",
+      "upsellCrossSell": "Upsell / cross-sell",
+      "rankingSearch": "Ranking / búsqueda",
+
+      "graphNeuralNetwork": "Red neuronal de grafos",
+
+      "toolUsingAgent": "Agente con herramientas",
+      "workflowOrchestration": "Orquestación de flujos",
+
+      "rag": "RAG (generación aumentada por recuperación)"
+    }
+  }
+}
