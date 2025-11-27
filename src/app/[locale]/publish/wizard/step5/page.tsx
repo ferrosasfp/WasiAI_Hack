@@ -32,18 +32,11 @@ export const dynamic = 'force-dynamic'
 // Session key to track if user came from within wizard
 const WIZARD_SESSION_KEY = 'wizard_active_session'
 
-// Chain configuration - centralized to avoid hardcoding chainIds throughout the file
-// These are universal blockchain constants (never change)
+// Chain configuration - Avalanche only for hackathon
 const CHAIN_CONFIG = {
   // Avalanche
   AVAX_MAINNET: 43114,
   AVAX_TESTNET: 43113,
-  // Base
-  BASE_MAINNET: 8453,
-  BASE_TESTNET: 84532,
-  // Ethereum
-  ETH_MAINNET: 1,
-  ETH_SEPOLIA: 11155111,
 } as const
 
 // Get default chainId from environment (what chain to use if not specified)
@@ -57,22 +50,13 @@ const getDefaultChainId = (): number => {
   return CHAIN_CONFIG.AVAX_TESTNET
 }
 
-// Check if a chainId is supported (based on env configuration)
+// Check if a chainId is supported (Avalanche only)
 const isChainSupported = (chainId: number): boolean => {
-  // If SUPPORTED_CHAIN_IDS is configured in env, use it
-  const supportedChains = process.env.NEXT_PUBLIC_SUPPORTED_CHAIN_IDS
-  if (supportedChains) {
-    const chainIds = supportedChains.split(',').map(id => parseInt(id.trim(), 10)).filter(n => !isNaN(n))
-    return chainIds.includes(chainId)
-  }
-  // Default: support all chains in CHAIN_CONFIG
-  const configuredChains = Object.values(CHAIN_CONFIG) as unknown as number[]
-  return configuredChains.includes(chainId)
+  return chainId === CHAIN_CONFIG.AVAX_TESTNET || chainId === CHAIN_CONFIG.AVAX_MAINNET
 }
 
 // Helper to map chainId to network name
-const getNetworkFromChainId = (chainId: number): 'base'|'avax'|'testnet'|null => {
-  if (chainId === CHAIN_CONFIG.BASE_TESTNET || chainId === CHAIN_CONFIG.BASE_MAINNET) return 'base'
+const getNetworkFromChainId = (chainId: number): 'avax'|'testnet' => {
   if (chainId === CHAIN_CONFIG.AVAX_TESTNET || chainId === CHAIN_CONFIG.AVAX_MAINNET) return 'avax'
   return 'testnet' // fallback
 }
@@ -84,9 +68,8 @@ const getChainIdFromNetwork = (network: string): number | undefined => {
   const networkFromDefault = getNetworkFromChainId(defaultChainId)
   if (networkFromDefault === network) return defaultChainId
   
-  // Fallback to mainnet for each network
+  // Fallback to mainnet
   if (network === 'avax') return CHAIN_CONFIG.AVAX_MAINNET
-  if (network === 'base') return CHAIN_CONFIG.BASE_MAINNET
   return undefined
 }
 
@@ -140,7 +123,7 @@ export default function Step5ReviewPublishLocalized() {
   }, [draft, setWizardDirty])
   
   const [loading, setLoading] = useState(true)
-  const [targets, setTargets] = useState<Array<{chain:'evm'|'sui', network:'base'|'avax'|'testnet'}>>([])
+  const [targets, setTargets] = useState<Array<{chain:'evm', network:'avax'|'testnet'}>>([])
   const [publishing, setPublishing] = useState(false)
   const [results, setResults] = useState<Array<{ chain:string, network:string, ok:boolean, tx?:any, error?:string }>>([])
   const [msg, setMsg] = useState('')

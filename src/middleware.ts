@@ -17,25 +17,20 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // EVM-only guards: if SUI disabled, redirect SUI (non-locale) routes to locale EVM pages
-  const enableSui = (process.env.NEXT_PUBLIC_ENABLE_SUI || '').toLowerCase() === 'true'
-  if (!enableSui) {
-    // Only apply to top-level non-locale paths
-    const isLocalePrefixed = pathname.startsWith('/en/') || pathname.startsWith('/es/')
-    if (!isLocalePrefixed) {
-      // Map non-locale SUI routes to locale equivalents
-      const map: Array<{ test: RegExp, to: string }> = [
-        { test: /^\/models(?:\/.*)?$/, to: `/${locale}/models` },
-        { test: /^\/upload(?:\/.*)?$/, to: `/${locale}/publish/wizard` },
-        { test: /^\/licenses(?:\/.*)?$/, to: `/${locale}/licenses` },
-        { test: /^\/debug(?:\/.*)?$/, to: `/${locale}` },
-      ]
-      for (const r of map) {
-        if (r.test.test(pathname)) {
-          const url = req.nextUrl.clone()
-          url.pathname = r.to
-          return NextResponse.redirect(url)
-        }
+  // Redirect non-locale routes to locale equivalents (Avalanche EVM only)
+  const isLocalePrefixed = pathname.startsWith('/en/') || pathname.startsWith('/es/')
+  if (!isLocalePrefixed) {
+    const map: Array<{ test: RegExp, to: string }> = [
+      { test: /^\/models(?:\/.*)?$/, to: `/${locale}/models` },
+      { test: /^\/upload(?:\/.*)?$/, to: `/${locale}/publish/wizard` },
+      { test: /^\/licenses(?:\/.*)?$/, to: `/${locale}/licenses` },
+      { test: /^\/debug(?:\/.*)?$/, to: `/${locale}` },
+    ]
+    for (const r of map) {
+      if (r.test.test(pathname)) {
+        const url = req.nextUrl.clone()
+        url.pathname = r.to
+        return NextResponse.redirect(url)
       }
     }
   }

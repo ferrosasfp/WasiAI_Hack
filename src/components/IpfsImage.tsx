@@ -137,7 +137,7 @@ export function IpfsImage({
 
   // Determine if we should use fill mode
   // Use fill when: aspectRatio is set OR when width/height are not both provided
-  const useFillMode = aspectRatio || !width || !height
+  const useFillMode = Boolean(aspectRatio) || !width || !height
 
   return (
     <Box

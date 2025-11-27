@@ -91,8 +91,8 @@ export default function Step4LicensesTermsLocalized() {
   }, [pricePerpetual, priceSubscription, termsText, loadedRemote, setWizardDirty])
 
   const MARKET_ADDRS: Record<number, string> = useMemo(() => {
-    // Use centralized chain configuration
-    const ids = [CHAIN_IDS.BASE_SEPOLIA, CHAIN_IDS.BASE_MAINNET, CHAIN_IDS.AVALANCHE_FUJI, CHAIN_IDS.AVALANCHE_MAINNET]
+    // Use centralized chain configuration (Avalanche only)
+    const ids = [CHAIN_IDS.AVALANCHE_FUJI, CHAIN_IDS.AVALANCHE_MAINNET]
     return Object.fromEntries(ids.map(id => [id, getMarketAddress(id) || '']))
   }, [])
 

@@ -4,14 +4,39 @@ import React from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WagmiConfig, createConfig, createStorage, http } from 'wagmi';
-import { base, baseSepolia, avalanche, avalancheFuji } from 'wagmi/chains';
+import { WagmiProvider, createConfig, createStorage, http } from 'wagmi';
+import { avalanche, avalancheFuji } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors';
-import dynamic from 'next/dynamic';
+import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import '@rainbow-me/rainbowkit/styles.css';
 import { WalletEcosystemProvider } from '@/contexts/WalletEcosystemContext';
 import theme from '@/styles/theme';
 import { CACHE_TTLS, getExponentialBackoff } from '@/config';
+
+// Avalanche chain selection based on NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID
+// 43114 = Avalanche Mainnet, 43113 = Avalanche Fuji (testnet)
+const defaultChainId = parseInt(process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID || '43113', 10);
+const isMainnet = defaultChainId === 43114;
+const evmChainsArr = isMainnet ? [avalanche] as const : [avalancheFuji] as const;
+
+// Create wagmi config once at module level for stability
+// This ensures the config is not recreated on each render
+const wagmiConfig = createConfig({
+  chains: evmChainsArr as any,
+  transports: {
+    [evmChainsArr[0].id]: http(),
+  },
+  connectors: [injected()],
+  ssr: true,
+  // Use noopStorage for SSR, real localStorage on client
+  storage: createStorage({
+    storage: typeof window !== 'undefined' ? window.localStorage : {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    },
+  }),
+});
 
 // Use centralized cache and retry configuration
 const queryClient = new QueryClient({
@@ -29,56 +54,28 @@ const queryClient = new QueryClient({
 interface ProvidersProps { children: React.ReactNode }
 
 export function ProvidersEvm({ children }: ProvidersProps) {
-  const isMainnet = (process.env.NEXT_PUBLIC_NETWORK_ENV || '').toLowerCase() === 'mainnet';
-  const evmChainsArr = isMainnet ? [base, avalanche] : [baseSepolia, avalancheFuji];
-  const transports = Object.fromEntries(evmChainsArr.map(c => [c.id, http()]));
-
-  const wagmiConfig = React.useMemo(() => createConfig({
-    chains: [evmChainsArr[0], ...evmChainsArr.slice(1)] as any,
-    transports: transports as any,
-    connectors: [injected()],
-    // Enable storage for wallet persistence across page refreshes
-    ssr: false,
-    storage: createStorage({ 
-      storage: typeof window !== 'undefined' ? window.localStorage : undefined 
-    }),
-  }), [isMainnet]);
-
-  const Noop: React.FC<{children: React.ReactNode}> = ({ children }) => <>{children}</>;
   const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => { setMounted(true) }, []);
+  
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  if (!mounted) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <WagmiConfig config={wagmiConfig} reconnectOnMount={true}>
-          <Noop>
-            <WalletEcosystemProvider>
-              <ThemeProvider theme={theme}>
-                <CssBaseline />
-                {children}
-              </ThemeProvider>
-            </WalletEcosystemProvider>
-          </Noop>
-        </WagmiConfig>
-      </QueryClientProvider>
-    );
-  }
-
-  const RainbowKitProvider = dynamic(() => import('@rainbow-me/rainbowkit').then(m => m.RainbowKitProvider), { ssr: false });
-
+  // Always render the full provider tree to avoid context errors
+  // Use CSS to hide content during hydration if needed
   return (
-    <QueryClientProvider client={queryClient}>
-      <WagmiConfig config={wagmiConfig} reconnectOnMount={true}>
+    <WagmiProvider config={wagmiConfig} reconnectOnMount={true}>
+      <QueryClientProvider client={queryClient}>
         <RainbowKitProvider>
           <WalletEcosystemProvider>
             <ThemeProvider theme={theme}>
               <CssBaseline />
-              {children}
+              <div style={{ visibility: mounted ? 'visible' : 'hidden' }}>
+                {children}
+              </div>
             </ThemeProvider>
           </WalletEcosystemProvider>
         </RainbowKitProvider>
-      </WagmiConfig>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }

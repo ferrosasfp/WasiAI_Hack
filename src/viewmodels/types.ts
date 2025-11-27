@@ -48,8 +48,8 @@ export interface Step1ViewModel {
   supportedLanguages?: string[]
   
   // Metadata
-  chain: 'avalanche' | 'base' | 'ethereum' | 'sui'
-  chainSymbol: 'AVAX' | 'ETH' | 'SUI'
+  chain: 'avalanche'
+  chainSymbol: 'AVAX'
   visibility: 'public' | 'private'
   locale: 'en' | 'es'
   version?: string

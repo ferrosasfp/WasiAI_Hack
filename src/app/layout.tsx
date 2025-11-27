@@ -1,11 +1,16 @@
 import type { Metadata, Viewport } from 'next';
+import dynamic from 'next/dynamic';
 import { Roboto } from 'next/font/google';
 import { Providers } from './providers';
-import { ProvidersEvm } from './providers-evm';
 import { TopProgressBar } from '@/components/TopProgressBar';
 import { WebVitals } from '@/components/WebVitals';
 import '@/styles/globals.css';
 import '@mysten/dapp-kit/dist/index.css';
+
+// Dynamic import with SSR disabled to avoid wagmi SSR issues
+const ProvidersEvm = dynamic(() => import('./providers-evm').then(mod => ({ default: mod.ProvidersEvm })), {
+  ssr: false,
+});
 
 const roboto = Roboto({
   weight: ['300', '400', '500', '700'],

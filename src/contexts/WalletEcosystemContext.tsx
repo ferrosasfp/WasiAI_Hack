@@ -1,8 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo } from "react";
 
-export type Ecosystem = "evm" | "sui";
+/**
+ * Wallet Ecosystem Context
+ * Currently only supports EVM (Avalanche)
+ */
+export type Ecosystem = "evm";
 
 interface Ctx {
   ecosystem: Ecosystem;
@@ -12,16 +16,12 @@ interface Ctx {
 const WalletEcosystemContext = createContext<Ctx | undefined>(undefined);
 
 export function WalletEcosystemProvider({ children }: { children: React.ReactNode }) {
-  const enableSui = (process.env.NEXT_PUBLIC_ENABLE_SUI || '').toLowerCase() === 'true'
-  const [ecosystem, _setEcosystem] = useState<Ecosystem>("evm");
-  const setEcosystem = (e: Ecosystem) => {
-    if (!enableSui) {
-      _setEcosystem('evm');
-      return;
-    }
-    _setEcosystem(e);
-  }
-  const value = useMemo(() => ({ ecosystem: enableSui ? ecosystem : 'evm', setEcosystem }), [ecosystem, enableSui]);
+  // Avalanche only - ecosystem is always 'evm'
+  const ecosystem: Ecosystem = 'evm';
+  const setEcosystem = (_e: Ecosystem) => {
+    // No-op: Only EVM/Avalanche is supported
+  };
+  const value = useMemo(() => ({ ecosystem, setEcosystem }), []);
   return (
     <WalletEcosystemContext.Provider value={value}>{children}</WalletEcosystemContext.Provider>
   );

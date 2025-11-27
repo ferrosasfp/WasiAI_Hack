@@ -1,28 +1,40 @@
 /**
  * Chain Configuration
- * Centralized configuration for all supported blockchain networks
+ * Centralized configuration for Avalanche blockchain networks
  */
 
-import { avalanche, avalancheFuji, base, baseSepolia } from 'viem/chains'
+import { avalanche, avalancheFuji } from 'viem/chains'
 import type { Chain } from 'viem'
 
 /**
- * Supported Chain IDs
+ * Supported Chain IDs (Avalanche only)
  * Use these constants instead of magic numbers throughout the codebase
  */
 export const CHAIN_IDS = {
   AVALANCHE_FUJI: 43113,
   AVALANCHE_MAINNET: 43114,
-  BASE_SEPOLIA: 84532,
-  BASE_MAINNET: 8453,
 } as const
 
 export type ChainId = typeof CHAIN_IDS[keyof typeof CHAIN_IDS]
 
 /**
+ * Default Chain ID - Read from environment variable
+ * Set NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID in .env.local
+ * - 43113 = Avalanche Fuji (testnet)
+ * - 43114 = Avalanche Mainnet
+ */
+const envChainId = typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID
+  ? parseInt(process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID, 10)
+  : CHAIN_IDS.AVALANCHE_FUJI
+
+export const DEFAULT_CHAIN_ID: ChainId = (envChainId === CHAIN_IDS.AVALANCHE_MAINNET)
+  ? CHAIN_IDS.AVALANCHE_MAINNET
+  : CHAIN_IDS.AVALANCHE_FUJI
+
+/**
  * Chain Type (for UI logic)
  */
-export type ChainType = 'avalanche' | 'base'
+export type ChainType = 'avalanche'
 
 /**
  * Chain Configuration Interface
@@ -43,7 +55,7 @@ export interface ChainConfig {
 }
 
 /**
- * Get Chain Configuration
+ * Avalanche Chain Configuration
  */
 export const CHAIN_CONFIG: Record<ChainId, ChainConfig> = {
   [CHAIN_IDS.AVALANCHE_FUJI]: {
@@ -73,34 +85,6 @@ export const CHAIN_CONFIG: Record<ChainId, ChainConfig> = {
     rpc: process.env.NEXT_PUBLIC_AVALANCHE_MAINNET_RPC || avalanche.rpcUrls.default.http[0],
     marketAddress: process.env.NEXT_PUBLIC_EVM_MARKET_43114 || '',
     explorerUrl: 'https://snowtrace.io',
-  },
-  [CHAIN_IDS.BASE_SEPOLIA]: {
-    id: CHAIN_IDS.BASE_SEPOLIA,
-    name: 'Base Sepolia',
-    shortName: 'Base',
-    symbol: 'ETH',
-    icon: '/icons/base.svg',
-    color: '#0052FF',
-    type: 'base',
-    isTestnet: true,
-    chain: baseSepolia,
-    rpc: process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC || baseSepolia.rpcUrls.default.http[0],
-    marketAddress: process.env.NEXT_PUBLIC_EVM_MARKET_84532 || '',
-    explorerUrl: 'https://sepolia.basescan.org',
-  },
-  [CHAIN_IDS.BASE_MAINNET]: {
-    id: CHAIN_IDS.BASE_MAINNET,
-    name: 'Base',
-    shortName: 'Base',
-    symbol: 'ETH',
-    icon: '/icons/base.svg',
-    color: '#0052FF',
-    type: 'base',
-    isTestnet: false,
-    chain: base,
-    rpc: process.env.NEXT_PUBLIC_BASE_MAINNET_RPC || base.rpcUrls.default.http[0],
-    marketAddress: process.env.NEXT_PUBLIC_EVM_MARKET_8453 || '',
-    explorerUrl: 'https://basescan.org',
   },
 }
 
@@ -136,7 +120,7 @@ export function isTestnet(chainId: number): boolean {
  * Helper: Get native currency symbol
  */
 export function getNativeSymbol(chainId: number): string {
-  return getChainConfig(chainId)?.symbol ?? 'ETH'
+  return getChainConfig(chainId)?.symbol ?? 'AVAX'
 }
 
 /**
@@ -161,21 +145,21 @@ export function getChainName(chainId: number): string {
 }
 
 /**
- * Legacy: Map network string to chain ID (for backwards compatibility)
+ * Helper: Map network string to chain ID
  */
 export function networkToChainId(network: string): ChainId | undefined {
   const map: Record<string, ChainId> = {
     'avax': CHAIN_IDS.AVALANCHE_FUJI,
-    'base': CHAIN_IDS.BASE_SEPOLIA,
+    'avalanche': CHAIN_IDS.AVALANCHE_MAINNET,
   }
   return map[network]
 }
 
 /**
- * Legacy: Map chain ID to network string (for backwards compatibility)
+ * Helper: Map chain ID to network string
  */
-export function chainIdToNetwork(chainId: number): 'avax' | 'base' | 'testnet' | null {
+export function chainIdToNetwork(chainId: number): 'avax' | 'testnet' | null {
   const config = getChainConfig(chainId)
   if (!config) return 'testnet'
-  return config.type === 'avalanche' ? 'avax' : 'base'
+  return 'avax'
 }

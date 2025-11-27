@@ -24,14 +24,11 @@ import {
 // ============================================================================
 
 /**
- * Get chain symbol from chain name
+ * Get chain symbol from chain name (Avalanche only)
  */
-function getChainSymbol(chain: string): 'AVAX' | 'ETH' | 'SUI' {
-  const normalized = chain.toLowerCase()
-  if (normalized.includes('avalanche') || normalized.includes('avax')) return 'AVAX'
-  if (normalized.includes('base') || normalized.includes('ethereum') || normalized.includes('eth')) return 'ETH'
-  if (normalized.includes('sui')) return 'SUI'
-  return 'ETH' // default
+function getChainSymbol(chain: string): 'AVAX' {
+  // Avalanche only for hackathon
+  return 'AVAX'
 }
 
 /**

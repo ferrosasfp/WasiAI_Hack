@@ -1,31 +1,27 @@
 "use client";
 
 import React from 'react';
-import { AppBar, Toolbar, Box, Typography, Container, Button, IconButton, Drawer, List, ListItem, ListItemButton, ListItemText, Stack, FormControl, InputLabel, Select, MenuItem, Skeleton } from '@mui/material';
+import { AppBar, Toolbar, Box, Typography, Container, Button, IconButton, Drawer, List, ListItem, ListItemButton, ListItemText, Stack, FormControl, Select, MenuItem, Skeleton } from '@mui/material';
 import UnifiedConnectButtonEvm from '@/components/UnifiedConnectButtonEvm';
 import MenuIcon from '@mui/icons-material/Menu';
 import Link from 'next/link';
 import {useTranslations, useLocale} from 'next-intl';
 import { usePathname } from 'next/navigation';
 import { useWalletEcosystem } from '@/contexts/WalletEcosystemContext';
-import { useChains, useChainId, useSwitchChain, useAccount as useEvmAccount } from 'wagmi';
-import { getChainConfig, getChainType } from '@/config';
+import { useChainId, useAccount as useEvmAccount } from 'wagmi';
+import { DEFAULT_CHAIN_ID, getChainConfig } from '@/config';
 
 export function GlobalHeaderEvm() {
   const t = useTranslations();
   const locale = useLocale();
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
-  const { ecosystem, setEcosystem } = useWalletEcosystem();
-  const chains = useChains();
+  const { setEcosystem } = useWalletEcosystem();
   const chainId = useChainId();
-  const { switchChain } = useSwitchChain();
   const { isConnected: evmConnected } = useEvmAccount();
   const isConnected = evmConnected;
-  const [selectedNet, setSelectedNet] = React.useState<any>(chainId || '');
-  React.useEffect(() => {
-    if (typeof chainId === 'number') setSelectedNet(chainId)
-  }, [chainId])
+  // For Avalanche Hackathon: Always use Avalanche Fuji
+  const activeChainId = chainId || DEFAULT_CHAIN_ID;
   const [mounted, setMounted] = React.useState(false)
   React.useEffect(() => { setMounted(true) }, [])
   const [uiReady, setUiReady] = React.useState(false)
@@ -51,12 +47,11 @@ export function GlobalHeaderEvm() {
     window.location.href = nextPath;
   };
 
-  const LogoImg = ({ kind, size=20, title }: { kind: 'base'|'avax', size?: number, title?: string }) => {
-    const real = kind === 'base' ? '/icons/base.svg' : '/icons/avalanche.svg'
-    const src = mounted ? real : '/icons/base.svg'
+  const LogoImg = ({ size=20, title }: { size?: number, title?: string }) => {
+    const src = mounted ? '/icons/avalanche.svg' : '/icons/avalanche.svg'
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={'network'} title={title || kind} width={size} height={size} style={{ display:'block' }} onError={(e)=>{ (e.currentTarget as HTMLImageElement).style.visibility = 'hidden' }} />
+      <img src={src} alt={'Avalanche'} title={title || 'Avalanche'} width={size} height={size} style={{ display:'block' }} onError={(e)=>{ (e.currentTarget as HTMLImageElement).style.visibility = 'hidden' }} />
     )
   }
 
@@ -149,65 +144,29 @@ export function GlobalHeaderEvm() {
                   <MenuItem value="en" sx={{ color: '#fff' }}>EN</MenuItem>
                 </Select>
               </FormControl>
+              {/* Avalanche Hackathon: Fixed badge showing Avalanche Fuji */}
               {(mounted && uiReady) ? (
-                <FormControl size="small" sx={{ minWidth: 116 }}>
-                  <Select
-                    value={selectedNet}
-                    suppressHydrationWarning
-                    displayEmpty
-                    renderValue={(v)=>{
-                      const config = getChainConfig(v)
-                      const kind = config?.type || 'avax'
-                      const title = config?.shortName || 'Unknown'
-                      return (
-                        <Box component="span" sx={{ display:'inline-flex', alignItems:'center', gap: 0.75, fontSize: 14, color: '#fff', px: 1.25, py: 0.5, bgcolor: 'rgba(17,20,28,0.95)', borderRadius: '10px', border: '1px solid oklch(0.22 0 0)' }}>
-                          <LogoImg kind={kind as any} size={16} title={title} />
-                          <Box component="span">{title}</Box>
-                        </Box>
-                      )
-                    }}
-                    onChange={(e)=>{
-                      const v = e.target.value as number
-                      setSelectedNet(v)
-                      setTimeout(()=>{
-                        try { switchChain({ chainId: v }) } catch {}
-                        try { setEcosystem('evm') } catch {}
-                        try { localStorage.setItem('preferred_ecosystem', 'evm') } catch {}
-                        try { localStorage.setItem('preferred_net', String(v)) } catch {}
-                        try { window.dispatchEvent(new CustomEvent('preferred_net_changed', { detail: { id: v } })) } catch {}
-                      }, 0)
-                    }}
-                    sx={{
-                      '& .MuiSelect-select': { py: 0, color: '#fff', WebkitTextFillColor: '#fff' },
-                      '& .MuiSelect-select > span': { color: '#fff' },
-                      '& .MuiSelect-select > span *': { color: '#fff' },
-                      '& .MuiSelect-icon': { color: '#fff' },
-                      '& fieldset': { display: 'none' },
-                      '&.Mui-disabled': { opacity: '1 !important' },
-                      '& .MuiInputBase-root.Mui-disabled': { opacity: '1 !important' },
-                      '& .MuiSelect-select.Mui-disabled': { opacity: '1 !important', color: '#fff', WebkitTextFillColor: '#fff' },
-                      '& .MuiInputBase-input.Mui-disabled': { color: '#fff', WebkitTextFillColor: '#fff' },
-                      pointerEvents: isConnected ? 'none' : 'auto'
-                    }}
-                    MenuProps={{ PaperProps: { sx: { bgcolor: 'rgba(14,18,26,0.98)', border: '1px solid oklch(0.22 0 0)', color: 'oklch(0.95 0 0)' } } }}
-                  >
-                    {chains.map(c => {
-                      const config = getChainConfig(c.id)
-                      const kind = config?.type || 'avax'
-                      const title = config?.shortName || c.name
-                      return (
-                        <MenuItem key={`evm-${c.id}`} value={c.id} title={title}>
-                          <Box sx={{ display:'flex', alignItems:'center', gap: 0.75, color: '#fff' }}>
-                            <LogoImg kind={kind as any} title={title} />
-                            <Box component="span">{title}</Box>
-                          </Box>
-                        </MenuItem>
-                      )
-                    })}
-                  </Select>
-                </FormControl>
+                <Box 
+                  component="span" 
+                  sx={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: 0.75, 
+                    fontSize: 14, 
+                    color: '#fff', 
+                    px: 1.25, 
+                    py: 0.5, 
+                    bgcolor: 'rgba(17,20,28,0.95)', 
+                    borderRadius: '10px', 
+                    border: '1px solid rgba(232, 65, 66, 0.3)',
+                    cursor: 'default'
+                  }}
+                >
+                  <LogoImg size={16} title={getChainConfig(activeChainId)?.shortName || 'Fuji'} />
+                  <Box component="span">{getChainConfig(activeChainId)?.shortName || 'Fuji'}</Box>
+                </Box>
               ) : (
-                <Skeleton variant="rounded" width={116} height={40} />
+                <Skeleton variant="rounded" width={90} height={36} />
               )}
               {(mounted && uiReady) ? (
                 <Box sx={{ '& button': { height: 36, backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color: '#fff', borderRadius: '10px', px: 2, boxShadow: '0 6px 20px rgba(46,160,255,0.25)', '&:hover': { filter: 'brightness(1.05)', backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)' } } }}>
@@ -256,53 +215,28 @@ export function GlobalHeaderEvm() {
                   <MenuItem value="en" sx={{ color: '#fff' }}>🇺🇸 EN</MenuItem>
                 </Select>
               </FormControl>
+              {/* Avalanche Hackathon: Fixed badge showing Avalanche Fuji in mobile drawer */}
               {(mounted && uiReady) ? (
-                <FormControl size="small" fullWidth>
-                  <Select
-                    value={selectedNet}
-                    suppressHydrationWarning
-                    displayEmpty
-                    renderValue={(v)=>{
-                      const config = getChainConfig(v)
-                      const kind = config?.type || 'avax'
-                      const title = config?.shortName || 'Unknown'
-                      return (
-                        <Box component="span" sx={{ display:'inline-flex', alignItems:'center', gap: 0.75, fontSize: 14, color: '#fff', px: 1.25, py: 0.75, bgcolor: 'rgba(18,22,33,0.9)', borderRadius: '10px', border: '1px solid oklch(0.22 0 0)' }}>
-                          <LogoImg kind={kind as any} size={16} title={title} />
-                          <Box component="span">{title}</Box>
-                        </Box>
-                      )
-                    }}
-                    onChange={(e)=>{
-                  const v = e.target.value as number
-                  setSelectedNet(v)
-                  setTimeout(()=>{
-                    try { switchChain({ chainId: v }) } catch {}
-                    try { setEcosystem('evm') } catch {}
-                    try { localStorage.setItem('preferred_net', String(v)) } catch {}
-                    try { window.dispatchEvent(new CustomEvent('preferred_net_changed', { detail: { id: v } })) } catch {}
-                  }, 0)
-                }}
-                  sx={{ '& fieldset': { display: 'none' } }}
-                  MenuProps={{ PaperProps: { sx: { bgcolor: 'rgba(14,18,26,0.98)', border: '1px solid oklch(0.22 0 0)', color: 'oklch(0.95 0 0)' } } }}
-                  >
-                    {chains.map(c => {
-                      const config = getChainConfig(c.id)
-                      const kind = config?.type || 'avax'
-                      const title = config?.shortName || c.name
-                      return (
-                        <MenuItem key={`m-evm-${c.id}`} value={c.id} title={title}>
-                          <Box sx={{ display:'flex', alignItems:'center', gap: 0.75, color: '#fff' }}>
-                            <LogoImg kind={kind as any} title={title} />
-                            <Box component="span">{title}</Box>
-                          </Box>
-                        </MenuItem>
-                      )
-                    })}
-                  </Select>
-                </FormControl>
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    gap: 0.75, 
+                    fontSize: 14, 
+                    color: '#fff', 
+                    px: 1.25, 
+                    py: 0.75, 
+                    bgcolor: 'rgba(18,22,33,0.9)', 
+                    borderRadius: '10px', 
+                    border: '1px solid rgba(232, 65, 66, 0.3)'
+                  }}
+                >
+                  <LogoImg size={16} title={getChainConfig(activeChainId)?.shortName || 'Fuji'} />
+                  <Box component="span">{getChainConfig(activeChainId)?.shortName || 'Fuji'}</Box>
+                </Box>
               ) : (
-                <Skeleton variant="rounded" width={320} height={40} />
+                <Skeleton variant="rounded" width="100%" height={40} />
               )}
               {(mounted && uiReady) ? (
                 <Box sx={{ '& button': { width: '100%', height: 36, backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)', color: '#fff', borderRadius: '10px', py: 0, boxShadow: '0 6px 20px rgba(46,160,255,0.25)', '&:hover': { filter: 'brightness(1.05)', backgroundImage: 'linear-gradient(90deg, #7c5cff, #2ea0ff)' } } }}>

@@ -1,12 +1,12 @@
 /**
  * RPC Configuration
- * Centralized RPC URLs and fallbacks for blockchain connections
+ * Centralized RPC URLs and fallbacks for Avalanche blockchain
  */
 
 import { CHAIN_IDS, type ChainId } from './chains'
 
 /**
- * RPC URLs by Chain ID
+ * RPC URLs by Chain ID (Avalanche only)
  */
 export const RPC_URLS: Record<ChainId, string> = {
   [CHAIN_IDS.AVALANCHE_FUJI]: 
@@ -16,14 +16,6 @@ export const RPC_URLS: Record<ChainId, string> = {
   [CHAIN_IDS.AVALANCHE_MAINNET]: 
     process.env.NEXT_PUBLIC_AVALANCHE_MAINNET_RPC || 
     'https://api.avax.network/ext/bc/C/rpc',
-  
-  [CHAIN_IDS.BASE_SEPOLIA]: 
-    process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC || 
-    'https://sepolia.base.org',
-  
-  [CHAIN_IDS.BASE_MAINNET]: 
-    process.env.NEXT_PUBLIC_BASE_MAINNET_RPC || 
-    'https://mainnet.base.org',
 }
 
 /**
@@ -37,13 +29,6 @@ export const RPC_FALLBACKS: Partial<Record<ChainId, string[]>> = {
   [CHAIN_IDS.AVALANCHE_MAINNET]: [
     'https://avalanche-c-chain.publicnode.com',
     'https://rpc.ankr.com/avalanche',
-  ],
-  [CHAIN_IDS.BASE_SEPOLIA]: [
-    'https://base-sepolia.blockpi.network/v1/rpc/public',
-  ],
-  [CHAIN_IDS.BASE_MAINNET]: [
-    'https://base.blockpi.network/v1/rpc/public',
-    'https://rpc.ankr.com/base',
   ],
 }
 
@@ -65,11 +50,8 @@ export function getAllRpcUrls(chainId: number): string[] {
 }
 
 /**
- * Helper: Get RPC URL by legacy network name
- * @deprecated Use getRpcUrl with chain ID instead
+ * Helper: Get RPC URL by network name
  */
-export function getRpcUrlByNetwork(network: 'avax' | 'base'): string {
-  if (network === 'avax') return RPC_URLS[CHAIN_IDS.AVALANCHE_FUJI]
-  if (network === 'base') return RPC_URLS[CHAIN_IDS.BASE_SEPOLIA]
-  return RPC_URLS[CHAIN_IDS.BASE_SEPOLIA] // Default fallback
+export function getRpcUrlByNetwork(network: 'avax'): string {
+  return RPC_URLS[CHAIN_IDS.AVALANCHE_FUJI]
 }

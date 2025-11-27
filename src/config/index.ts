@@ -7,6 +7,7 @@ export { env, type Env } from './env'
 export {
   CHAIN_IDS,
   CHAIN_CONFIG,
+  DEFAULT_CHAIN_ID,
   getChainConfig,
   isSupportedChain,
   getChainType,

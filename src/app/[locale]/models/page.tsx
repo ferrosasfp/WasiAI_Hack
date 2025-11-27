@@ -1,14 +1,13 @@
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useLocale } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { Container, Box, Grid, Stack, Typography, Button, Card, CardContent, TextField, Chip, IconButton, Drawer, Divider, Skeleton } from '@mui/material'
 import TuneIcon from '@mui/icons-material/Tune'
 import VerifiedIcon from '@mui/icons-material/Verified'
 import UploadIcon from '@mui/icons-material/CloudUpload'
 import RocketIcon from '@mui/icons-material/RocketLaunch'
 import { ModelCard } from '@/components/ModelCard'
-import { useWalletEcosystem } from '@/contexts/WalletEcosystemContext'
 import { useChainId as useEvmChainId, useConfig as useWagmiConfig, useAccount as useEvmAccount } from 'wagmi'
 import { ipfsToApiRoute } from '@/config'
 
@@ -42,33 +41,33 @@ type ApiModel = {
 
 export default function ExploreModelsPage() {
   const locale = useLocale()
+  const t = useTranslations('explore')
   const isES = String(locale||'').startsWith('es')
-  const { ecosystem } = useWalletEcosystem()
   const evmChainId = useEvmChainId()
   const wagmiConfig = useWagmiConfig()
   const { isConnected: evmConnected } = useEvmAccount()
   const evmSymbol = React.useMemo(()=>{
-    if (typeof evmChainId !== 'number') return 'ETH'
+    if (typeof evmChainId !== 'number') return 'AVAX'
     try {
       const chains = (wagmiConfig as any)?.chains || []
       const ch = chains.find((c:any)=> c?.id === evmChainId)
       const sym = ch?.nativeCurrency?.symbol
-      return typeof sym === 'string' && sym ? sym : 'ETH'
+      return typeof sym === 'string' && sym ? sym : 'AVAX'
     } catch {
-      return 'ETH'
+      return 'AVAX'
     }
   }, [evmChainId, wagmiConfig])
   const L = {
-    title: isES ? 'Explora modelos de IA listos para producción' : 'Explore production-ready AI models',
-    subtitle: isES ? 'Modelos con licencias perpetuas o por suscripción, listos para integrar por API o descarga.' : 'Models with perpetual or subscription licenses, ready by API or download.',
-    exploreAll: isES ? 'Explorar todos los modelos' : 'Explore all models',
-    publish: isES ? 'Publicar un modelo' : 'Publish a model',
-    recommended: isES ? 'Recomendados para ti' : 'Recommended for you',
-    popular: isES ? 'Modelos más populares' : 'Most popular',
-    new: isES ? 'Nuevos modelos' : 'New models',
-    byCategory: isES ? 'Por categoría' : 'By category',
-    searchPh: isES ? 'Buscar por nombre, autor…' : 'Search by name, author…',
-    filters: isES ? 'Filtros' : 'Filters',
+    title: t('title'),
+    subtitle: t('subtitle'),
+    exploreAll: t('exploreAll'),
+    publish: t('publish'),
+    recommended: t('recommended'),
+    popular: t('popular'),
+    new: t('new'),
+    byCategory: t('byCategory'),
+    searchPh: t('searchPlaceholder'),
+    filters: t('filters'),
   }
 
   const [q, setQ] = useState('')
@@ -112,7 +111,7 @@ export default function ExploreModelsPage() {
         // NEW: Use indexed API (FAST!) - already has metadata cached
         const page = Math.floor(nextStart / limit) + 1
         const params = new URLSearchParams({ page: String(page), limit: String(limit) })
-        if (ecosystem === 'evm' && typeof evmChainId === 'number') params.set('chainId', String(evmChainId))
+        if (typeof evmChainId === 'number') params.set('chainId', String(evmChainId))
         const r = await fetchWithTimeout(`/api/indexed/models?${params.toString()}`, { cache: 'no-store' }, isFirst ? initialTimeoutMs : 8000)
         const j = await r.json().catch(()=>({}))
         // API indexada devuelve {models: [], total, page, pages}
@@ -244,7 +243,7 @@ export default function ExploreModelsPage() {
         }
       }
     }
-    // reset on ecosystem/chain change
+    // reset on chain change
     setItems([])
     setStart(0)
     setHasMore(true)
@@ -261,7 +260,7 @@ export default function ExploreModelsPage() {
     // Revalidar en background
     load(0)
     return () => { alive = false }
-  }, [ecosystem, evmChainId, limit, refreshKey, initialTimeoutMs])
+  }, [evmChainId, limit, refreshKey, initialTimeoutMs])
 
   // Auto-reintento con backoff si la carga inicial falla y no hay items
   useEffect(()=>{
@@ -298,7 +297,7 @@ export default function ExploreModelsPage() {
               // reuse loader but do not reset - use indexed API
               const page = Math.floor(start / limit) + 1
               const params = new URLSearchParams({ page: String(page), limit: String(limit) })
-              if (ecosystem === 'evm' && typeof evmChainId === 'number') params.set('chainId', String(evmChainId))
+              if (typeof evmChainId === 'number') params.set('chainId', String(evmChainId))
               setLoadingMore(true)
               try {
                 const ac = new AbortController()
@@ -395,7 +394,7 @@ export default function ExploreModelsPage() {
     }, { rootMargin: '800px 0px' })
     io.observe(el)
     return () => { alive = false; io.disconnect() }
-  }, [hasMore, loading, loadingMore, start, limit, ecosystem, evmChainId, items.length])
+  }, [hasMore, loading, loadingMore, start, limit, evmChainId, items.length])
 
   const filtered = useMemo(()=>{
     return items.filter(m=>{
@@ -554,10 +553,10 @@ export default function ExploreModelsPage() {
                   demoPreset: m.demoPreset,
                   artifacts: m.artifacts,
                   deliveryMode: m.deliveryMode,
-                  pricePerpetual: m.price_perpetual ? (ecosystem==='sui' ? `${(m.price_perpetual/1_000_000_000).toFixed(2)} SUI` : `${(m.price_perpetual/1e18).toFixed(4)} ${evmSymbol}`) : undefined,
-                  priceSubscription: m.price_subscription ? (ecosystem==='sui' ? `${(m.price_subscription/1_000_000_000).toFixed(2)} SUI/${isES?'mes':'mo'}` : `${(m.price_subscription/1e18).toFixed(4)} ${evmSymbol}/${isES?'mes':'mo'}`) : undefined,
+                  pricePerpetual: m.price_perpetual ? `${(m.price_perpetual/1e18).toFixed(4)} ${evmSymbol}` : undefined,
+                  priceSubscription: m.price_subscription ? `${(m.price_subscription/1e18).toFixed(4)} ${evmSymbol}/${isES?'mes':'mo'}` : undefined,
                   version: m.version || undefined,
-                }} href={ecosystem==='sui' ? `/models/${m.modelId ?? ''}` : (m.modelId ? `/${locale}/evm/models/${m.modelId}` : undefined)} priority={idx < 3} onMeta={onCardMeta} preMeta={(m as any).__preMeta} />
+                }} href={m.modelId ? `/${locale}/evm/models/${m.modelId}` : undefined} priority={idx < 3} onMeta={onCardMeta} preMeta={(m as any).__preMeta} />
               </Grid>
             ))}
           </Grid>

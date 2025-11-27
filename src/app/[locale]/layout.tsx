@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
-import { GlobalHeader } from '@/components/GlobalHeader';
 import { GlobalHeaderEvm } from '@/components/GlobalHeaderEvm';
 import { NavigationProgress } from '@/components/NavigationProgress';
 import EmotionRegistry from '@/app/emotion/registry'
@@ -34,12 +33,12 @@ export default async function LocaleLayout({
   const messages = await getMessages(locale);
   if (!messages) notFound();
 
-  const enableSui = (process.env.NEXT_PUBLIC_ENABLE_SUI || '').toLowerCase() === 'true'
+  // Avalanche EVM only
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
       <EmotionRegistry>
         <NavigationProgress />
-        {enableSui ? <GlobalHeader /> : <GlobalHeaderEvm />}
+        <GlobalHeaderEvm />
         {children}
       </EmotionRegistry>
     </NextIntlClientProvider>

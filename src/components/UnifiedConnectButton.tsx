@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useMemo } from "react";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Menu from "@mui/material/Menu";
@@ -8,20 +8,10 @@ import MenuItem from "@mui/material/MenuItem";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Divider from "@mui/material/Divider";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
-import Typography from "@mui/material/Typography";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import LogoutIcon from "@mui/icons-material/Logout";
-import { useWalletEcosystem } from "@/contexts/WalletEcosystemContext";
 import { useAccount as useEvmAccount, useDisconnect } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { ConnectButton as SuiConnectButton, useCurrentAccount as useSuiAccount } from "@mysten/dapp-kit";
-// Intentaremos desconectar SUI vía dapp-kit si está disponible
-// @ts-ignore
-import { useCurrentWallet as useSuiCurrentWallet } from "@mysten/dapp-kit";
 
 function WalletIcon({ size = 18 }: { size?: number }) {
   return (
@@ -37,36 +27,27 @@ function shorten(addr?: string) {
   return addr.slice(0, 6) + "…" + addr.slice(-4);
 }
 
+/**
+ * Unified Connect Button - Avalanche EVM only
+ */
 export function UnifiedConnectButton({ onBeforeOpen, onConnectError }: { onBeforeOpen?: () => void; onConnectError?: (err: any) => void } = {}) {
-  const { ecosystem } = useWalletEcosystem();
-  const enableSui = (process.env.NEXT_PUBLIC_ENABLE_SUI || '').toLowerCase() === 'true'
-  const { address: evmAddress, isConnected: evmConnected } = useEvmAccount();
+  const { address: evmAddress, isConnected } = useEvmAccount();
   const { openConnectModal } = useConnectModal();
-  let suiAcc: ReturnType<typeof useSuiAccount> | null = null as any;
-  try { if (enableSui) { suiAcc = useSuiAccount() as any } } catch {}
-  const suiConnected = !!(suiAcc as any)?.address;
   const { disconnect } = useDisconnect();
-  // Obtener la wallet actual de SUI solo si está habilitado
-  // @ts-ignore
-  const suiWallet = enableSui && typeof useSuiCurrentWallet === 'function' ? (useSuiCurrentWallet as any)() : null;
-  const isConnected = (enableSui && ecosystem === "sui") ? suiConnected : evmConnected;
+  
   const label = useMemo(() => {
     if (!isConnected) return "Connect Wallet";
-    return ecosystem === "evm" ? shorten(evmAddress) : shorten((suiAcc as any)?.address);
-  }, [isConnected, ecosystem, evmAddress, (suiAcc as any)?.address]);
+    return shorten(evmAddress);
+  }, [isConnected, evmAddress]);
 
-  // Hidden SUI connect button to trigger its modal if needed
-  const suiBtnRef = useRef<HTMLDivElement>(null);
   const [menuAnchor, setMenuAnchor] = React.useState<null | HTMLElement>(null);
   const menuOpen = Boolean(menuAnchor);
-  const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
 
-  // Cerrar el menú si cambia el estado de conexión
+  // Close menu when connection state changes
   React.useEffect(() => {
     if (!isConnected && menuOpen) setMenuAnchor(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected]);
+  }, [isConnected, menuOpen]);
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (isConnected) {
@@ -75,20 +56,14 @@ export function UnifiedConnectButton({ onBeforeOpen, onConnectError }: { onBefor
     }
     if (busy) return;
     setBusy(true);
-    const release = () => setTimeout(()=> setBusy(false), 1200);
+    const release = () => setTimeout(() => setBusy(false), 1200);
     try { onBeforeOpen?.(); } catch {}
-    if (!enableSui || ecosystem === "evm") {
-      if (openConnectModal) {
-        try { openConnectModal(); } finally { release(); }
-      } else { release(); }
-    } else {
-      const btn = suiBtnRef.current?.querySelector("button");
-      if (btn) (btn as HTMLButtonElement).click();
-      release();
-    }
+    if (openConnectModal) {
+      try { openConnectModal(); } finally { release(); }
+    } else { release(); }
   };
 
-  // Detect MetaMask cancel (4001) to surface a friendly message once
+  // Detect MetaMask cancel (4001) to surface a friendly message
   React.useEffect(() => {
     const onRejection = (e: PromiseRejectionEvent) => {
       const reason: any = (e as any).reason || {}
@@ -102,65 +77,17 @@ export function UnifiedConnectButton({ onBeforeOpen, onConnectError }: { onBefor
   }, [onConnectError])
 
   const onCopy = async () => {
-    const addr = ecosystem === 'evm' ? evmAddress : (suiAcc as any)?.address;
-    try { if (addr) await navigator.clipboard.writeText(addr); } catch {}
+    try { if (evmAddress) await navigator.clipboard.writeText(evmAddress); } catch {}
     setMenuAnchor(null);
   };
 
-  const onLogout = async () => {
-    try {
-      // cerrar menú inmediatamente
-      setMenuAnchor(null);
-      if (ecosystem === 'evm') {
-        disconnect();
-      } else {
-        const w: any = suiWallet;
-        const cap = w?.features?.['standard:disconnect'] as any;
-        if (cap?.disconnect) {
-          await cap.disconnect();
-        } else {
-          // Pedir confirmación y usar un click real del usuario para abrir el modal nativo
-          setConfirmOpen(true);
-        }
-      }
-    } finally {
-      // menú ya gestionado
-    }
+  const onLogout = () => {
+    setMenuAnchor(null);
+    disconnect();
   };
-
-  const confirmSuiDisconnect = () => {
-    setConfirmOpen(false);
-    // Disparar el botón nativo oculto (modal Mysten) tras confirmación del usuario
-    const btn = suiBtnRef.current?.querySelector('button, [role="button"]') as HTMLElement | null;
-    if (btn) {
-      try { btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); }
-      catch { (btn as any).click?.(); }
-    }
-  };
-
-  const cancelSuiDisconnect = () => setConfirmOpen(false);
 
   return (
     <Stack direction="row" alignItems="center" spacing={1}>
-      {/* Hidden Sui connect button to provide modal/flows when ecosystem = SUI */}
-      {enableSui && (
-        <div
-          ref={suiBtnRef}
-          style={{
-            display: ecosystem === "sui" ? "block" : "none",
-            position: "fixed",
-            left: 8,
-            top: 8,
-            opacity: 0,
-            pointerEvents: "auto",
-            zIndex: 9999,
-          }}
-          aria-hidden
-        >
-          <SuiConnectButton>Connect</SuiConnectButton>
-        </div>
-      )}
-
       <Button
         onClick={handleClick}
         variant="contained"
@@ -180,11 +107,11 @@ export function UnifiedConnectButton({ onBeforeOpen, onConnectError }: { onBefor
         {label}
       </Button>
 
-      {/* Menu cuando está conectado */}
-      <Menu anchorEl={menuAnchor} open={menuOpen} onClose={()=>setMenuAnchor(null)} anchorOrigin={{ vertical:'bottom', horizontal:'right' }} transformOrigin={{ vertical:'top', horizontal:'right' }}>
+      {/* Menu when connected */}
+      <Menu anchorEl={menuAnchor} open={menuOpen} onClose={() => setMenuAnchor(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
         <MenuItem onClick={onCopy} disabled={!isConnected}>
           <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>{(ecosystem === 'evm' ? shorten(evmAddress) : shorten(suiAcc?.address)) || '—'}</ListItemText>
+          <ListItemText>{shorten(evmAddress) || '—'}</ListItemText>
         </MenuItem>
         <Divider />
         <MenuItem onClick={onLogout}>
@@ -192,18 +119,6 @@ export function UnifiedConnectButton({ onBeforeOpen, onConnectError }: { onBefor
           <ListItemText>Log Out</ListItemText>
         </MenuItem>
       </Menu>
-
-      {/* Confirmación para SUI */}
-      <Dialog open={confirmOpen} onClose={cancelSuiDisconnect} maxWidth="xs" fullWidth>
-        <DialogTitle>Disconnect wallet</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2">Do you want to disconnect now?</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={cancelSuiDisconnect} color="inherit">Cancel</Button>
-          <Button onClick={confirmSuiDisconnect} variant="contained" color="primary">Disconnect</Button>
-        </DialogActions>
-      </Dialog>
     </Stack>
   );
 }
