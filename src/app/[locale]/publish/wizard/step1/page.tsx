@@ -49,6 +49,7 @@ import SelectField from '@/components/SelectField'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
 import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
 import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
+import { saveStep as saveStepCentralized } from '@/lib/wizard-draft-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -816,11 +817,10 @@ export default function Step1BasicsLocalized() {
       if (lastSavedRef.current && shallowEqualJSON(lastSavedRef.current, payload.data)) { setSaving(false); return }
     }
     try {
-      await saveDraftUtil('step1', payload.data, upgradeMode, upgradeModelId)
+      // Use centralized service (handles localStorage + server sync)
+      await saveStepCentralized('step1', payload.data, upgradeMode, upgradeModelId)
       setMsg(t('wizard.common.saved'))
       lastSavedRef.current = payload.data
-      const localStorageKey = `draft_step1_${getDraftId(upgradeMode, upgradeModelId)}`
-      try { localStorage.setItem(localStorageKey, JSON.stringify(payload.data)) } catch {}
     } catch (e: any) {
       setMsg(t('wizard.common.errorSaving'))
     } finally {

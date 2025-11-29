@@ -20,6 +20,7 @@ import WizardThemeProvider from '@/components/WizardThemeProvider'
 import { ipfsToHttp } from '@/config'
 import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
 import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
+import { saveStep as saveStepCentralized } from '@/lib/wizard-draft-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -612,11 +613,10 @@ export default function Step3ArtifactsDemoLocalized() {
     setSaving(true)
     try { console.log('[step3] payload to save:', payload) } catch {}
     try {
-      const resp = await saveDraftUtil('step3', payload.data, upgradeMode, upgradeModelId)
-      try { console.log('[step3] saveDraft resp:', resp) } catch {}
+      // Use centralized service (handles localStorage + server sync)
+      await saveStepCentralized('step3', payload.data, upgradeMode, upgradeModelId)
       setMsg(t('wizard.common.saved'))
       lastSavedRef.current = payload.data
-      writeCache(payload.data)
     } catch {
       setMsg(t('wizard.common.errorSaving'))
     } finally {

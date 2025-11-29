@@ -1,6 +1,6 @@
 // src/domain/models/types.ts
 
-export type ChainKind = 'sui' | 'evm';
+export type ChainKind = 'evm';
 
 export interface ModelSummary {
   id: number;

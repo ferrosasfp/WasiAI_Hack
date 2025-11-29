@@ -1,11 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import dynamic from 'next/dynamic';
 import { Roboto } from 'next/font/google';
-import { Providers } from './providers';
 import { TopProgressBar } from '@/components/TopProgressBar';
 import { WebVitals } from '@/components/WebVitals';
 import '@/styles/globals.css';
-import '@mysten/dapp-kit/dist/index.css';
 
 // Dynamic import with SSR disabled to avoid wagmi SSR issues
 const ProvidersEvm = dynamic(() => import('./providers-evm').then(mod => ({ default: mod.ProvidersEvm })), {
@@ -22,8 +20,8 @@ const roboto = Roboto({
 
 export const metadata: Metadata = {
   title: 'MarketplaceAI - Decentralized AI Model Marketplace',
-  description: 'Buy and sell AI models on Sui blockchain with IPFS storage',
-  keywords: ['AI', 'Blockchain', 'Sui', 'IPFS', 'Marketplace', 'Machine Learning'],
+  description: 'Buy and sell AI models on Avalanche blockchain with IPFS storage',
+  keywords: ['AI', 'Blockchain', 'Avalanche', 'AVAX', 'IPFS', 'Marketplace', 'Machine Learning'],
   authors: [{ name: 'MarketplaceAI Team' }],
   icons: {
     icon: '/favicon.ico',
@@ -34,13 +32,13 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: 'https://marketplaceai.com',
     title: 'MarketplaceAI',
-    description: 'Decentralized AI Model Marketplace on Sui',
+    description: 'Decentralized AI Model Marketplace on Avalanche',
     siteName: 'MarketplaceAI',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'MarketplaceAI',
-    description: 'Decentralized AI Model Marketplace on Sui',
+    description: 'Decentralized AI Model Marketplace on Avalanche',
   },
 };
 
@@ -55,21 +53,14 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const enableSui = (process.env.NEXT_PUBLIC_ENABLE_SUI || '').toLowerCase() === 'true';
   return (
     <html lang="en" className={roboto.variable}>
       <body>
         <TopProgressBar />
         <WebVitals />
-        {enableSui ? (
-          <Providers>
-            {children}
-          </Providers>
-        ) : (
-          <ProvidersEvm>
-            {children}
-          </ProvidersEvm>
-        )}
+        <ProvidersEvm>
+          {children}
+        </ProvidersEvm>
       </body>
     </html>
   );

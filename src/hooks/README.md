@@ -1,10 +1,8 @@
 # Hooks
 
-Custom hooks para MarketplaceAI.
+Custom hooks para MarketplaceAI (EVM-only / Avalanche).
 
-## Categorías
+## Hooks Disponibles
 
-- **wallet/**: Hooks para interacción con wallet
-- **models/**: Hooks para gestión de modelos
-- **transactions/**: Hooks para transacciones blockchain
-- **ipfs/**: Hooks para IPFS
+- **useWalletAddress.ts** - Hook para obtener dirección de wallet EVM conectada (wagmi)
+- **useWizardNavGuard.ts** - Guard de navegación para el wizard de publicación

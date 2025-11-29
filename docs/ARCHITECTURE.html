@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>ARCHITECTURE</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown.min.css" />
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#marketplaceai---arquitectura-del-sistema"
+id="toc-marketplaceai---arquitectura-del-sistema">MarketplaceAI -
+Arquitectura del Sistema</a>
+<ul>
+<li><a href="#documento-de-arquitectura-técnica-v1.1.0-only-avax"
+id="toc-documento-de-arquitectura-técnica-v1.1.0-only-avax">Documento de
+Arquitectura Técnica v1.1.0-only-avax</a></li>
+<li><a href="#tabla-de-contenidos" id="toc-tabla-de-contenidos">Tabla de
+Contenidos</a></li>
+<li><a href="#visión-general" id="toc-visión-general">1. Visión
+General</a>
+<ul>
+<li><a href="#descripción" id="toc-descripción">1.1 Descripción</a></li>
+<li><a href="#características-principales"
+id="toc-características-principales">1.2 Características
+Principales</a></li>
+<li><a href="#blockchain-soportada" id="toc-blockchain-soportada">1.3
+Blockchain Soportada</a></li>
+</ul></li>
+<li><a href="#stack-tecnológico" id="toc-stack-tecnológico">2. Stack
+Tecnológico</a>
+<ul>
+<li><a href="#frontend" id="toc-frontend">2.1 Frontend</a></li>
+<li><a href="#blockchain" id="toc-blockchain">2.2 Blockchain</a></li>
+<li><a href="#almacenamiento" id="toc-almacenamiento">2.3
+Almacenamiento</a></li>
+<li><a href="#internacionalización" id="toc-internacionalización">2.4
+Internacionalización</a></li>
+</ul></li>
+<li><a href="#arquitectura-de-alto-nivel"
+id="toc-arquitectura-de-alto-nivel">3. Arquitectura de Alto
+Nivel</a></li>
+<li><a href="#estructura-del-proyecto"
+id="toc-estructura-del-proyecto">4. Estructura del Proyecto</a></li>
+<li><a href="#componentes-del-frontend"
+id="toc-componentes-del-frontend">5. Componentes del Frontend</a>
+<ul>
+<li><a href="#componentes-principales"
+id="toc-componentes-principales">5.1 Componentes Principales</a></li>
+<li><a href="#modelcard---estructura"
+id="toc-modelcard---estructura">5.2 ModelCard - Estructura</a></li>
+<li><a href="#wizard-de-publicación-5-steps"
+id="toc-wizard-de-publicación-5-steps">5.3 Wizard de Publicación (5
+Steps)</a></li>
+</ul></li>
+<li><a href="#smart-contracts" id="toc-smart-contracts">6. Smart
+Contracts</a>
+<ul>
+<li><a href="#marketplace.sol" id="toc-marketplace.sol">6.1
+Marketplace.sol</a></li>
+<li><a href="#licensenft.sol-erc-721"
+id="toc-licensenft.sol-erc-721">6.2 LicenseNFT.sol (ERC-721)</a></li>
+<li><a href="#direcciones-de-contratos"
+id="toc-direcciones-de-contratos">6.3 Direcciones de Contratos</a></li>
+</ul></li>
+<li><a href="#sistema-de-viewmodels" id="toc-sistema-de-viewmodels">7.
+Sistema de ViewModels</a>
+<ul>
+<li><a href="#arquitectura" id="toc-arquitectura">7.1
+Arquitectura</a></li>
+<li><a href="#tipos-principales" id="toc-tipos-principales">7.2 Tipos
+Principales</a></li>
+<li><a href="#prioridad-de-datos" id="toc-prioridad-de-datos">7.3
+Prioridad de Datos</a></li>
+</ul></li>
+<li><a href="#integración-ipfs" id="toc-integración-ipfs">8. Integración
+IPFS</a>
+<ul>
+<li><a href="#flujo-de-upload" id="toc-flujo-de-upload">8.1 Flujo de
+Upload</a></li>
+<li><a href="#flujo-de-fetch" id="toc-flujo-de-fetch">8.2 Flujo de
+Fetch</a></li>
+<li><a href="#estructura-de-metadata-ipfs"
+id="toc-estructura-de-metadata-ipfs">8.3 Estructura de Metadata
+IPFS</a></li>
+</ul></li>
+<li><a href="#sistema-de-wallet" id="toc-sistema-de-wallet">9. Sistema
+de Wallet</a>
+<ul>
+<li><a href="#provider-configuration"
+id="toc-provider-configuration">9.1 Provider Configuration</a></li>
+<li><a href="#dynamic-import-ssr-fix"
+id="toc-dynamic-import-ssr-fix">9.2 Dynamic Import (SSR Fix)</a></li>
+<li><a href="#hooks-de-wallet" id="toc-hooks-de-wallet">9.3 Hooks de
+Wallet</a></li>
+</ul></li>
+<li><a href="#internacionalización-i18n"
+id="toc-internacionalización-i18n">10. Internacionalización (i18n)</a>
+<ul>
+<li><a href="#configuración" id="toc-configuración">10.1
+Configuración</a></li>
+<li><a href="#namespaces" id="toc-namespaces">10.2 Namespaces</a></li>
+<li><a href="#uso-en-componentes" id="toc-uso-en-componentes">10.3 Uso
+en Componentes</a></li>
+</ul></li>
+<li><a href="#flujos-end-to-end" id="toc-flujos-end-to-end">11. Flujos
+End-to-End</a>
+<ul>
+<li><a href="#flujo-de-publicación-de-modelo"
+id="toc-flujo-de-publicación-de-modelo">11.1 Flujo de Publicación de
+Modelo</a></li>
+<li><a href="#flujo-de-compra-de-licencia"
+id="toc-flujo-de-compra-de-licencia">11.2 Flujo de Compra de
+Licencia</a></li>
+<li><a href="#flujo-de-descarga-de-artifacts"
+id="toc-flujo-de-descarga-de-artifacts">11.3 Flujo de Descarga de
+Artifacts</a></li>
+</ul></li>
+<li><a href="#api-routes" id="toc-api-routes">12. API Routes</a>
+<ul>
+<li><a href="#endpoints-principales" id="toc-endpoints-principales">12.1
+Endpoints Principales</a></li>
+<li><a href="#ipfs-proxy" id="toc-ipfs-proxy">12.2 IPFS Proxy</a></li>
+</ul></li>
+<li><a href="#configuración-1" id="toc-configuración-1">13.
+Configuración</a>
+<ul>
+<li><a href="#variables-de-entorno" id="toc-variables-de-entorno">13.1
+Variables de Entorno</a></li>
+<li><a href="#configuración-de-chains"
+id="toc-configuración-de-chains">13.2 Configuración de Chains</a></li>
+<li><a href="#comandos-útiles" id="toc-comandos-útiles">13.3 Comandos
+Útiles</a></li>
+</ul></li>
+<li><a href="#apéndice-a-glosario" id="toc-apéndice-a-glosario">Apéndice
+A: Glosario</a></li>
+<li><a href="#apéndice-b-tags-de-git"
+id="toc-apéndice-b-tags-de-git">Apéndice B: Tags de Git</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="marketplaceai---arquitectura-del-sistema">MarketplaceAI -
+Arquitectura del Sistema</h1>
+<h2 id="documento-de-arquitectura-técnica-v1.1.0-only-avax">Documento de
+Arquitectura Técnica v1.1.0-only-avax</h2>
+<p><strong>Fecha</strong>: 27 Noviembre 2025<br />
+<strong>Versión</strong>: 1.1.0-only-avax<br />
+<strong>Autor</strong>: Equipo MarketplaceAI<br />
+<strong>Estado</strong>: Limpieza Fase 3 completada - Sin código legacy
+Sui</p>
+<hr />
+<h2 id="tabla-de-contenidos">Tabla de Contenidos</h2>
+<ol type="1">
+<li><a href="#1-visión-general">Visión General</a></li>
+<li><a href="#2-stack-tecnológico">Stack Tecnológico</a></li>
+<li><a href="#3-arquitectura-de-alto-nivel">Arquitectura de Alto
+Nivel</a></li>
+<li><a href="#4-estructura-del-proyecto">Estructura del
+Proyecto</a></li>
+<li><a href="#5-componentes-del-frontend">Componentes del
+Frontend</a></li>
+<li><a href="#6-smart-contracts">Smart Contracts</a></li>
+<li><a href="#7-sistema-de-viewmodels">Sistema de ViewModels</a></li>
+<li><a href="#8-integración-ipfs">Integración IPFS</a></li>
+<li><a href="#9-sistema-de-wallet">Sistema de Wallet</a></li>
+<li><a href="#10-internacionalización-i18n">Internacionalización
+(i18n)</a></li>
+<li><a href="#11-flujos-end-to-end">Flujos End-to-End</a></li>
+<li><a href="#12-api-routes">API Routes</a></li>
+<li><a href="#13-configuración">Configuración</a></li>
+</ol>
+<hr />
+<h2 id="visión-general">1. Visión General</h2>
+<h3 id="descripción">1.1 Descripción</h3>
+<p>MarketplaceAI es un marketplace descentralizado para modelos de IA
+construido sobre <strong>Avalanche</strong>. Permite publicar, licenciar
+y monetizar modelos de IA mediante licencias NFT (perpetuas o
+suscripción).</p>
+<h3 id="características-principales">1.2 Características
+Principales</h3>
+<ul>
+<li><strong>Publicación de Modelos</strong>: Wizard de 5 pasos con
+metadata rica</li>
+<li><strong>Licenciamiento NFT</strong>: Perpetuas o suscripción
+mensual</li>
+<li><strong>Almacenamiento IPFS</strong>: Artifacts y metadata via
+Pinata</li>
+<li><strong>Multi-idioma</strong>: Inglés y Español completo</li>
+<li><strong>Wallet Integration</strong>: MetaMask, WalletConnect, Core
+Wallet</li>
+</ul>
+<h3 id="blockchain-soportada">1.3 Blockchain Soportada</h3>
+<table>
+<thead>
+<tr>
+<th>Red</th>
+<th>Chain ID</th>
+<th>Símbolo</th>
+<th>Uso</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Avalanche Fuji</td>
+<td>43113</td>
+<td>AVAX</td>
+<td>Testnet</td>
+</tr>
+<tr>
+<td>Avalanche Mainnet</td>
+<td>43114</td>
+<td>AVAX</td>
+<td>Producción</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="stack-tecnológico">2. Stack Tecnológico</h2>
+<h3 id="frontend">2.1 Frontend</h3>
+<table>
+<thead>
+<tr>
+<th>Tecnología</th>
+<th>Versión</th>
+<th>Propósito</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Next.js</strong></td>
+<td>14.2.33</td>
+<td>Framework React con SSR/SSG</td>
+</tr>
+<tr>
+<td><strong>React</strong></td>
+<td>18.x</td>
+<td>Biblioteca UI</td>
+</tr>
+<tr>
+<td><strong>TypeScript</strong></td>
+<td>5.9.3</td>
+<td>Tipado estático</td>
+</tr>
+<tr>
+<td><strong>Material UI</strong></td>
+<td>5.18.0</td>
+<td>Sistema de diseño</td>
+</tr>
+<tr>
+<td><strong>Emotion</strong></td>
+<td>11.14.x</td>
+<td>CSS-in-JS</td>
+</tr>
+<tr>
+<td><strong>Zustand</strong></td>
+<td>4.5.7</td>
+<td>Estado global</td>
+</tr>
+<tr>
+<td><strong>SWR</strong></td>
+<td>2.2.0</td>
+<td>Data fetching y cache</td>
+</tr>
+<tr>
+<td><strong>React Query</strong></td>
+<td>5.90.5</td>
+<td>Server state management</td>
+</tr>
+</tbody>
+</table>
+<h3 id="blockchain">2.2 Blockchain</h3>
+<table>
+<thead>
+<tr>
+<th>Tecnología</th>
+<th>Versión</th>
+<th>Propósito</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Wagmi</strong></td>
+<td>2.19.4</td>
+<td>React hooks para Ethereum</td>
+</tr>
+<tr>
+<td><strong>Viem</strong></td>
+<td>2.38.6</td>
+<td>Cliente Ethereum ligero</td>
+</tr>
+<tr>
+<td><strong>RainbowKit</strong></td>
+<td>2.0.8</td>
+<td>UI de conexión de wallet</td>
+</tr>
+<tr>
+<td><strong>Ethers.js</strong></td>
+<td>6.15.0</td>
+<td>Interacción con contratos</td>
+</tr>
+</tbody>
+</table>
+<h3 id="almacenamiento">2.3 Almacenamiento</h3>
+<table>
+<thead>
+<tr>
+<th>Tecnología</th>
+<th>Propósito</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>IPFS</strong></td>
+<td>Almacenamiento descentralizado</td>
+</tr>
+<tr>
+<td><strong>Pinata</strong></td>
+<td>Gateway y pinning IPFS</td>
+</tr>
+<tr>
+<td><strong>PostgreSQL</strong></td>
+<td>Cache de metadata (Neon)</td>
+</tr>
+<tr>
+<td><strong>Prisma</strong></td>
+<td>ORM para PostgreSQL</td>
+</tr>
+</tbody>
+</table>
+<h3 id="internacionalización">2.4 Internacionalización</h3>
+<table>
+<thead>
+<tr>
+<th>Tecnología</th>
+<th>Versión</th>
+<th>Propósito</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>next-intl</strong></td>
+<td>4.5.0</td>
+<td>i18n para Next.js</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="arquitectura-de-alto-nivel">3. Arquitectura de Alto Nivel</h2>
+<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
+│                              USUARIO                                     │
+│                    (Browser + Wallet Extension)                          │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         NEXT.JS FRONTEND                                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │
+│  │   Pages     │  │ Components  │  │   Hooks     │  │  ViewModels │    │
+│  │  (App Dir)  │  │    (UI)     │  │  (Logic)    │  │  (Data)     │    │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘    │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                      API ROUTES (/api/*)                         │    │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐            │    │
+│  │  │  IPFS   │  │ Models  │  │ Indexer │  │Metadata │            │    │
+│  │  └─────────┘  └─────────┘  └─────────┘  └─────────┘            │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────┘
+          │                    │                         │
+          ▼                    ▼                         ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐
+│     PINATA      │  │   AVALANCHE     │  │      POSTGRESQL             │
+│   (IPFS PIN)    │  │   BLOCKCHAIN    │  │    (Neon - Cache)           │
+│                 │  │                 │  │                             │
+│ • Artifacts     │  │ • Marketplace   │  │ • models                    │
+│ • Metadata      │  │   Contract      │  │ • licenses                  │
+│ • Images        │  │ • LicenseNFT    │  │ • metadata_cache            │
+│                 │  │   Contract      │  │                             │
+└─────────────────┘  └─────────────────┘  └─────────────────────────────┘</code></pre>
+<hr />
+<h2 id="estructura-del-proyecto">4. Estructura del Proyecto</h2>
+<pre><code>marketplaceai-frontend/
+├── src/
+│   ├── abis/                    # ABIs de Smart Contracts
+│   │   ├── LicenseNFT.json      # ERC-721 para licencias
+│   │   └── Marketplace.json     # Contrato principal
+│   │
+│   ├── app/                     # Next.js App Router
+│   │   ├── [locale]/            # Rutas internacionalizadas
+│   │   │   ├── models/          # Listado de modelos
+│   │   │   ├── publish/         # Wizard de publicación
+│   │   │   │   └── wizard/
+│   │   │   │       ├── page.tsx     # Step 0: Intro
+│   │   │   │       ├── step1/       # Identidad
+│   │   │   │       ├── step2/       # Customer sheet
+│   │   │   │       ├── step3/       # Artifacts
+│   │   │   │       ├── step4/       # Pricing
+│   │   │   │       └── step5/       # Review &amp; Publish
+│   │   │   └── evm/
+│   │   │       ├── models/[id]/     # Detalle de modelo
+│   │   │       └── licenses/        # Mis licencias NFT
+│   │   │
+│   │   ├── api/                 # API Routes
+│   │   │   ├── ipfs/            # Proxy IPFS
+│   │   │   ├── models/          # CRUD modelos
+│   │   │   ├── metadata/        # Upload metadata
+│   │   │   └── pinata/          # Upload archivos
+│   │   │
+│   │   ├── providers-evm.tsx    # Wagmi/RainbowKit providers
+│   │   └── layout.tsx           # Root layout
+│   │
+│   ├── components/              # Componentes React (17 archivos)
+│   │   ├── GlobalHeaderEvm.tsx      # Header con navegación y wallet
+│   │   ├── TopProgressBar.tsx       # Barra de progreso de navegación
+│   │   ├── NavigationProgress.tsx   # Indicador de progreso
+│   │   ├── ModelCard.tsx            # Card de modelo en listados
+│   │   ├── ModelDetailView.tsx      # Vista detalle (Step 5 style)
+│   │   ├── ModelDetailShared.tsx    # Componentes compartidos
+│   │   ├── ModelEditControls.tsx    # Controles de edición
+│   │   ├── IpfsImage.tsx            # Imagen desde IPFS
+│   │   ├── OptimizedImage.tsx       # Imagen con lazy loading
+│   │   ├── QuickEditDrawer.tsx      # Edición rápida de modelo
+│   │   ├── WizardFooter.tsx         # Footer del wizard
+│   │   ├── WizardThemeProvider.tsx  # Theme provider wizard
+│   │   ├── SelectField.tsx          # Campo select reutilizable
+│   │   ├── UnifiedConnectButton.tsx # Botón conexión unificado
+│   │   ├── UnifiedConnectButtonEvm.tsx # Implementación EVM
+│   │   └── WebVitals.tsx            # Reporte Web Vitals
+│   │
+│   ├── config/                  # Configuración centralizada
+│   │   ├── chains.ts            # Chain IDs, nombres, símbolos
+│   │   ├── rpc.ts               # URLs RPC por chain
+│   │   └── index.ts             # Exports centralizados
+│   │
+│   ├── hooks/                   # Custom Hooks (2 archivos)
+│   │   ├── useWalletAddress.ts  # Dirección wallet EVM (wagmi)
+│   │   └── useWizardNavGuard.ts # Guard navegación wizard
+│   │
+│   ├── lib/                     # Utilidades core (9 archivos)
+│   │   ├── cache.ts             # Cache utilities con TTL
+│   │   ├── crypto.ts            # Funciones criptográficas
+│   │   ├── db.ts                # Cliente PostgreSQL/Neon
+│   │   ├── draft-utils.ts       # Utilidades drafts wizard
+│   │   ├── fetchEvmModel.ts     # Fetch modelos EVM + IPFS
+│   │   ├── indexer.ts           # Indexador blockchain → DB
+│   │   ├── indexer-single.ts    # Indexador modelo individual
+│   │   ├── metrics.ts           # Métricas y contadores
+│   │   └── prefetch.ts          # Prefetch datos SSR
+│   │
+│   ├── messages/                # Traducciones i18n
+│   │   ├── en.json              # Inglés (~950 keys)
+│   │   └── es.json              # Español (~950 keys)
+│   │
+│   ├── store/                   # Estado global (Zustand)
+│   │   └── market.ts            # Store del marketplace
+│   │
+│   └── viewmodels/              # ViewModels (abstracción UI)
+│       ├── types.ts             # Interfaces TypeScript
+│       ├── factories.ts         # Factory functions
+│       └── adapters.ts          # Adaptadores de datos
+│
+├── contracts/evm/               # Smart Contracts (Solidity)
+│   ├── Marketplace.sol
+│   └── LicenseNFT.sol
+│
+├── prisma/                      # Schema Prisma
+│   └── schema.prisma
+│
+└── docs/                        # Documentación</code></pre>
+<hr />
+<h2 id="componentes-del-frontend">5. Componentes del Frontend</h2>
+<h3 id="componentes-principales">5.1 Componentes Principales</h3>
+<table>
+<colgroup>
+<col style="width: 35%" />
+<col style="width: 26%" />
+<col style="width: 38%" />
+</colgroup>
+<thead>
+<tr>
+<th>Componente</th>
+<th>Archivo</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>GlobalHeaderEvm</strong></td>
+<td><code>GlobalHeaderEvm.tsx</code></td>
+<td>Header con navegación, idioma, wallet</td>
+</tr>
+<tr>
+<td><strong>ModelCard</strong></td>
+<td><code>ModelCard.tsx</code></td>
+<td>Card de modelo en listado con metadata</td>
+</tr>
+<tr>
+<td><strong>ModelDetailView</strong></td>
+<td><code>ModelDetailView.tsx</code></td>
+<td>Vista completa del modelo</td>
+</tr>
+<tr>
+<td><strong>IpfsImage</strong></td>
+<td><code>IpfsImage.tsx</code></td>
+<td>Imagen desde IPFS con fallback</td>
+</tr>
+<tr>
+<td><strong>QuickEditDrawer</strong></td>
+<td><code>QuickEditDrawer.tsx</code></td>
+<td>Edición rápida de precios/rights</td>
+</tr>
+<tr>
+<td><strong>UnifiedConnectButtonEvm</strong></td>
+<td><code>UnifiedConnectButtonEvm.tsx</code></td>
+<td>Botón conexión wallet</td>
+</tr>
+</tbody>
+</table>
+<h3 id="modelcard---estructura">5.2 ModelCard - Estructura</h3>
+<pre><code>┌─────────────────────────────────────┐
+│  [Cover Image from IPFS]            │
+├─────────────────────────────────────┤
+│  Model Name                         │
+│  Short summary (3-line clamp)       │
+├─────────────────────────────────────┤
+│  [Category] [Tasks] ← Purple chips  │
+│  🔧 Arch · Framework · Precision    │
+├─────────────────────────────────────┤
+│  🏆 1.5 AVAX perpetual              │
+│  📅 0.1 AVAX/mo subscription        │
+├─────────────────────────────────────┤
+│  [API] [Download] [Transferable]    │
+├─────────────────────────────────────┤
+│  [View Model] [Share]               │
+└─────────────────────────────────────┘</code></pre>
+<h3 id="wizard-de-publicación-5-steps">5.3 Wizard de Publicación (5
+Steps)</h3>
+<table>
+<colgroup>
+<col style="width: 22%" />
+<col style="width: 29%" />
+<col style="width: 48%" />
+</colgroup>
+<thead>
+<tr>
+<th>Step</th>
+<th>Página</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>0</strong></td>
+<td><code>wizard/page.tsx</code></td>
+<td>Introducción y overview</td>
+</tr>
+<tr>
+<td><strong>1</strong></td>
+<td><code>step1/page.tsx</code></td>
+<td>Identidad: nombre, cover, categoría</td>
+</tr>
+<tr>
+<td><strong>2</strong></td>
+<td><code>step2/page.tsx</code></td>
+<td>Customer sheet: value prop, inputs/outputs</td>
+</tr>
+<tr>
+<td><strong>3</strong></td>
+<td><code>step3/page.tsx</code></td>
+<td>Artifacts: upload a IPFS, instrucciones</td>
+</tr>
+<tr>
+<td><strong>4</strong></td>
+<td><code>step4/page.tsx</code></td>
+<td>Pricing: perpetual, subscription, rights</td>
+</tr>
+<tr>
+<td><strong>5</strong></td>
+<td><code>step5/page.tsx</code></td>
+<td>Review &amp; Publish: resumen y TX</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="smart-contracts">6. Smart Contracts</h2>
+<h3 id="marketplace.sol">6.1 Marketplace.sol</h3>
+<p>Contrato principal del marketplace:</p>
+<pre class="solidity"><code>// Registro de modelo
+function registerModel(
+    string memory uri,           // IPFS URI de metadata
+    uint256 perpetualPrice,      // Precio perpetuo en wei
+    uint256 subscriptionPrice,   // Precio mensual en wei
+    uint256 baseDurationMonths,  // Duración base suscripción
+    bool canUseAPI,              // Derecho a usar API
+    bool canDownload,            // Derecho a descargar
+    bool isTransferable,         // Licencia transferible
+    uint256 royaltyPct           // Royalty del creador (%)
+) external returns (uint256 modelId)
+
+// Compra de licencia con URI
+function buyLicenseWithURI(
+    uint256 modelId,
+    uint8 kind,           // 0=perpetual, 1=subscription
+    uint256 months,       // Meses (0 para perpetual)
+    bool transferable,
+    string memory tokenUri
+) external payable returns (uint256 licenseId)
+
+// Actualización de URI
+function updateModelURI(uint256 modelId, string memory newUri) external
+
+// Eventos
+event ModelRegistered(uint256 indexed modelId, address owner, string uri)
+event LicenseMinted(uint256 indexed licenseId, uint256 modelId, address buyer)</code></pre>
+<h3 id="licensenft.sol-erc-721">6.2 LicenseNFT.sol (ERC-721)</h3>
+<pre class="solidity"><code>struct LicenseStatus {
+    bool revoked;
+    bool validApi;
+    bool validDownload;
+    uint8 kind;           // 0=perpetual, 1=subscription
+    uint64 expiresAt;     // Timestamp de expiración
+}
+
+function licenseStatus(uint256 tokenId) external view returns (LicenseStatus)
+function ownerOf(uint256 tokenId) external view returns (address)</code></pre>
+<h3 id="direcciones-de-contratos">6.3 Direcciones de Contratos</h3>
+<pre><code>Avalanche Fuji (43113):
+├── Marketplace: NEXT_PUBLIC_MARKETPLACE_ADDRESS_FUJI
+└── LicenseNFT:  NEXT_PUBLIC_LICENSE_NFT_ADDRESS_FUJI
+
+Avalanche Mainnet (43114):
+├── Marketplace: NEXT_PUBLIC_MARKETPLACE_ADDRESS_MAINNET
+└── LicenseNFT:  NEXT_PUBLIC_LICENSE_NFT_ADDRESS_MAINNET</code></pre>
+<hr />
+<h2 id="sistema-de-viewmodels">7. Sistema de ViewModels</h2>
+<h3 id="arquitectura">7.1 Arquitectura</h3>
+<p>Los ViewModels proporcionan una capa de abstracción entre datos
+crudos y UI:</p>
+<pre><code>┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Blockchain +   │ ──▶ │   ViewModel     │ ──▶ │   UI Component  │
+│  IPFS Metadata  │     │   Factory       │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘</code></pre>
+<h3 id="tipos-principales">7.2 Tipos Principales</h3>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> UnifiedModelViewModel {</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  step1<span class="op">:</span> Step1ViewModel    <span class="co">// Identidad</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  step2<span class="op">:</span> Step2ViewModel    <span class="co">// Customer + Technical</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  step3<span class="op">:</span> Step3ViewModel    <span class="co">// Artifacts</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  step4<span class="op">:</span> Step4ViewModel    <span class="co">// Pricing &amp; Rights</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  isPublished<span class="op">:</span> <span class="dt">boolean</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> Step1ViewModel {</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  name<span class="op">:</span> <span class="dt">string</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  tagline<span class="op">?:</span> <span class="dt">string</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>  summary<span class="op">:</span> <span class="dt">string</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  cover<span class="op">?:</span> { cid<span class="op">:</span> <span class="dt">string</span><span class="op">,</span> url<span class="op">?:</span> <span class="dt">string</span> }</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>  businessCategory<span class="op">?:</span> <span class="dt">string</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  technicalCategories<span class="op">?:</span> <span class="dt">string</span>[]</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>  industries<span class="op">?:</span> <span class="dt">string</span>[]</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>  useCases<span class="op">?:</span> <span class="dt">string</span>[]</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>  chain<span class="op">:</span> <span class="st">&#39;avalanche&#39;</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>  chainSymbol<span class="op">:</span> <span class="st">&#39;AVAX&#39;</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>  authorName<span class="op">?:</span> <span class="dt">string</span></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>  authorAddress<span class="op">?:</span> <span class="dt">string</span></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> Step4ViewModel {</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>  pricing<span class="op">:</span> {</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    perpetual<span class="op">?:</span> { price<span class="op">:</span> <span class="dt">string</span><span class="op">,</span> priceFormatted<span class="op">?:</span> <span class="dt">string</span> }</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>    subscription<span class="op">?:</span> { pricePerMonth<span class="op">:</span> <span class="dt">string</span><span class="op">,</span> baseDurationMonths<span class="op">:</span> <span class="dt">number</span> }</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>  rights<span class="op">:</span> {</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>    canUseAPI<span class="op">:</span> <span class="dt">boolean</span></span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>    canDownload<span class="op">:</span> <span class="dt">boolean</span></span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>    isTransferable<span class="op">:</span> <span class="dt">boolean</span></span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>    deliveryMode<span class="op">?:</span> <span class="dt">string</span></span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>  revenueShare<span class="op">:</span> {</span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>    creatorRoyaltyPct<span class="op">:</span> <span class="dt">number</span></span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>    marketplaceFeePct<span class="op">:</span> <span class="dt">number</span></span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>  termsSummary<span class="op">?:</span> <span class="dt">string</span>[]</span>
+<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a>  termsMarkdown<span class="op">?:</span> <span class="dt">string</span></span>
+<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="prioridad-de-datos">7.3 Prioridad de Datos</h3>
+<pre><code>1. Blockchain (fuente de verdad para precios/rights)
+2. Neon DB (cache indexado)
+3. IPFS Metadata (datos enriquecidos)</code></pre>
+<hr />
+<h2 id="integración-ipfs">8. Integración IPFS</h2>
+<h3 id="flujo-de-upload">8.1 Flujo de Upload</h3>
+<pre><code>┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Browser   │ ──▶ │  /api/      │ ──▶ │   Pinata    │
+│   (File)    │     │  pinata/    │     │   API       │
+│             │     │  upload     │     │             │
+└─────────────┘     └─────────────┘     └─────────────┘
+                           │
+                           ▼
+                    ┌─────────────┐
+                    │  Response:  │
+                    │  { cid,     │
+                    │    uri }    │
+                    └─────────────┘</code></pre>
+<h3 id="flujo-de-fetch">8.2 Flujo de Fetch</h3>
+<pre><code>┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Browser   │ ──▶ │  /api/ipfs/ │ ──▶ │   Pinata    │
+│   (Image)   │     │  [cid]      │     │   Gateway   │
+└─────────────┘     └─────────────┘     └─────────────┘</code></pre>
+<h3 id="estructura-de-metadata-ipfs">8.3 Estructura de Metadata
+IPFS</h3>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;Customer Segmentation Model&quot;</span><span class="fu">,</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;AI model for customer segmentation&quot;</span><span class="fu">,</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;image&quot;</span><span class="fu">:</span> <span class="st">&quot;ipfs://QmImageCID...&quot;</span><span class="fu">,</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;step1&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;Customer Segmentation Model&quot;</span><span class="fu">,</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;tagline&quot;</span><span class="fu">:</span> <span class="st">&quot;Segment customers with ML&quot;</span><span class="fu">,</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;summary&quot;</span><span class="fu">:</span> <span class="st">&quot;Advanced ML model for...&quot;</span><span class="fu">,</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;cover&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;cid&quot;</span><span class="fu">:</span> <span class="st">&quot;QmCoverCID...&quot;</span> <span class="fu">},</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;businessCategory&quot;</span><span class="fu">:</span> <span class="st">&quot;marketingGrowth&quot;</span><span class="fu">,</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;technicalCategories&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;tabular&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;industries&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;retail&quot;</span><span class="ot">,</span> <span class="st">&quot;ecommerce&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;useCases&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;customerSegmentation&quot;</span><span class="ot">]</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;step2&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;customer&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;valueProp&quot;</span><span class="fu">:</span> <span class="st">&quot;Increase conversion by 30%&quot;</span><span class="fu">,</span></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;inputs&quot;</span><span class="fu">:</span> <span class="st">&quot;Customer transaction data (CSV)&quot;</span><span class="fu">,</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;outputs&quot;</span><span class="fu">:</span> <span class="st">&quot;Segment labels and scores&quot;</span><span class="fu">,</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;risks&quot;</span><span class="fu">:</span> <span class="st">&quot;Requires clean data&quot;</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;technical&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;frameworks&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;pytorch&quot;</span><span class="ot">,</span> <span class="st">&quot;sklearn&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;architectures&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;transformer&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;vramGB&quot;</span><span class="fu">:</span> <span class="dv">8</span><span class="fu">,</span></span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;python&quot;</span><span class="fu">:</span> <span class="st">&quot;3.10+&quot;</span></span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;step3&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;artifacts&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>      <span class="fu">{</span></span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;filename&quot;</span><span class="fu">:</span> <span class="st">&quot;model.pt&quot;</span><span class="fu">,</span></span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;cid&quot;</span><span class="fu">:</span> <span class="st">&quot;QmModelCID...&quot;</span><span class="fu">,</span></span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;size&quot;</span><span class="fu">:</span> <span class="dv">4200000000</span><span class="fu">,</span></span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;sha256&quot;</span><span class="fu">:</span> <span class="st">&quot;abc123...&quot;</span></span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a>    <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;downloadInstructions&quot;</span><span class="fu">:</span> <span class="st">&quot;pip install torch...&quot;</span></span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb12-43"><a href="#cb12-43" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb12-44"><a href="#cb12-44" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;step4&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-45"><a href="#cb12-45" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;pricing&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-46"><a href="#cb12-46" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;perpetual&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;price&quot;</span><span class="fu">:</span> <span class="st">&quot;1.5&quot;</span><span class="fu">,</span> <span class="dt">&quot;available&quot;</span><span class="fu">:</span> <span class="kw">true</span> <span class="fu">},</span></span>
+<span id="cb12-47"><a href="#cb12-47" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;subscription&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;pricePerMonth&quot;</span><span class="fu">:</span> <span class="st">&quot;0.1&quot;</span><span class="fu">,</span> <span class="dt">&quot;baseDurationMonths&quot;</span><span class="fu">:</span> <span class="dv">1</span> <span class="fu">}</span></span>
+<span id="cb12-48"><a href="#cb12-48" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb12-49"><a href="#cb12-49" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;rights&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-50"><a href="#cb12-50" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;canUseAPI&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb12-51"><a href="#cb12-51" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;canDownload&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb12-52"><a href="#cb12-52" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;isTransferable&quot;</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb12-53"><a href="#cb12-53" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb12-54"><a href="#cb12-54" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb12-55"><a href="#cb12-55" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<hr />
+<h2 id="sistema-de-wallet">9. Sistema de Wallet</h2>
+<h3 id="provider-configuration">9.1 Provider Configuration</h3>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">// src/app/providers-evm.tsx</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> wagmiConfig <span class="op">=</span> <span class="fu">createConfig</span>({</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  chains<span class="op">:</span> [avalancheFuji]<span class="op">,</span> <span class="co">// o avalanche para mainnet</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>  transports<span class="op">:</span> {</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    [avalancheFuji<span class="op">.</span><span class="at">id</span>]<span class="op">:</span> <span class="fu">http</span>()<span class="op">,</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>  }<span class="op">,</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>  connectors<span class="op">:</span> [<span class="fu">injected</span>()]<span class="op">,</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>  ssr<span class="op">:</span> <span class="kw">true</span><span class="op">,</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>  storage<span class="op">:</span> <span class="fu">createStorage</span>({</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    storage<span class="op">:</span> <span class="kw">typeof</span> <span class="bu">window</span> <span class="op">!==</span> <span class="st">&#39;undefined&#39;</span> <span class="op">?</span> <span class="bu">window</span><span class="op">.</span><span class="at">localStorage</span> <span class="op">:</span> <span class="kw">undefined</span><span class="op">,</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>  })<span class="op">,</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="co">// Provider tree</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>WagmiProvider config<span class="op">=</span>{wagmiConfig} reconnectOnMount<span class="op">=</span>{<span class="kw">true</span>}<span class="op">&gt;</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;</span>QueryClientProvider client<span class="op">=</span>{queryClient}<span class="op">&gt;</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>    <span class="op">&lt;</span>RainbowKitProvider<span class="op">&gt;</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>      <span class="op">&lt;</span>WalletEcosystemProvider<span class="op">&gt;</span></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        {children}</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>      <span class="op">&lt;/</span>WalletEcosystemProvider<span class="op">&gt;</span></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">&lt;/</span>RainbowKitProvider<span class="op">&gt;</span></span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>  <span class="op">&lt;/</span>QueryClientProvider<span class="op">&gt;</span></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;/</span>WagmiProvider<span class="op">&gt;</span></span></code></pre></div>
+<h3 id="dynamic-import-ssr-fix">9.2 Dynamic Import (SSR Fix)</h3>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co">// src/app/layout.tsx</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> ProvidersEvm <span class="op">=</span> <span class="fu">dynamic</span>(</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  () <span class="kw">=&gt;</span> <span class="im">import</span>(<span class="st">&#39;./providers-evm&#39;</span>)<span class="op">.</span><span class="fu">then</span>(mod <span class="kw">=&gt;</span> ({ <span class="cf">default</span><span class="op">:</span> mod<span class="op">.</span><span class="at">ProvidersEvm</span> }))<span class="op">,</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  { ssr<span class="op">:</span> <span class="kw">false</span> }</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="hooks-de-wallet">9.3 Hooks de Wallet</h3>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Obtener dirección conectada</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> { address<span class="op">,</span> isConnected } <span class="op">=</span> <span class="fu">useAccount</span>()</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Ejecutar transacción</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> { writeContract } <span class="op">=</span> <span class="fu">useWriteContract</span>()</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Leer contrato</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> { data } <span class="op">=</span> <span class="fu">useReadContract</span>({</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>  address<span class="op">:</span> MARKETPLACE_ADDRESS<span class="op">,</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>  abi<span class="op">:</span> MarketplaceABI<span class="op">,</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>  functionName<span class="op">:</span> <span class="st">&#39;getModel&#39;</span><span class="op">,</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>  args<span class="op">:</span> [modelId]<span class="op">,</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>})</span></code></pre></div>
+<hr />
+<h2 id="internacionalización-i18n">10. Internacionalización (i18n)</h2>
+<h3 id="configuración">10.1 Configuración</h3>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Locales soportados</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">export</span> <span class="kw">const</span> locales <span class="op">=</span> [<span class="st">&#39;en&#39;</span><span class="op">,</span> <span class="st">&#39;es&#39;</span>]</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="im">export</span> <span class="kw">const</span> defaultLocale <span class="op">=</span> <span class="st">&#39;en&#39;</span></span></code></pre></div>
+<h3 id="namespaces">10.2 Namespaces</h3>
+<table>
+<thead>
+<tr>
+<th>Namespace</th>
+<th>Descripción</th>
+<th>Keys</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>header</code></td>
+<td>Navegación y header</td>
+<td>~20</td>
+</tr>
+<tr>
+<td><code>explore</code></td>
+<td>Página de exploración</td>
+<td>~15</td>
+</tr>
+<tr>
+<td><code>modelCard</code></td>
+<td>Cards de modelos</td>
+<td>~25</td>
+</tr>
+<tr>
+<td><code>modelDetail</code></td>
+<td>Detalle de modelo</td>
+<td>~80</td>
+</tr>
+<tr>
+<td><code>wizard</code></td>
+<td>Wizard de publicación</td>
+<td>~200</td>
+</tr>
+<tr>
+<td><code>licenses</code></td>
+<td>Página de licencias</td>
+<td>~30</td>
+</tr>
+<tr>
+<td><code>common</code></td>
+<td>Textos comunes</td>
+<td>~20</td>
+</tr>
+<tr>
+<td><code>business</code></td>
+<td>Categorías de negocio</td>
+<td>~50</td>
+</tr>
+<tr>
+<td><code>technical</code></td>
+<td>Categorías técnicas</td>
+<td>~60</td>
+</tr>
+</tbody>
+</table>
+<h3 id="uso-en-componentes">10.3 Uso en Componentes</h3>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Server Component</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { getTranslations } <span class="im">from</span> <span class="st">&#39;next-intl/server&#39;</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> t <span class="op">=</span> <span class="cf">await</span> <span class="fu">getTranslations</span>(<span class="st">&#39;explore&#39;</span>)</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="co">// Client Component</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { useTranslations } <span class="im">from</span> <span class="st">&#39;next-intl&#39;</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> t <span class="op">=</span> <span class="fu">useTranslations</span>(<span class="st">&#39;explore&#39;</span>)</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="co">// Uso</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>Typography<span class="op">&gt;</span>{<span class="fu">t</span>(<span class="st">&#39;title&#39;</span>)}<span class="op">&lt;/</span>Typography<span class="op">&gt;</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>Typography<span class="op">&gt;</span>{<span class="fu">t</span>(<span class="st">&#39;subtitle&#39;</span>)}<span class="op">&lt;/</span>Typography<span class="op">&gt;</span></span></code></pre></div>
+<hr />
+<h2 id="flujos-end-to-end">11. Flujos End-to-End</h2>
+<h3 id="flujo-de-publicación-de-modelo">11.1 Flujo de Publicación de
+Modelo</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
+│                     FLUJO DE PUBLICACIÓN DE MODELO                       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+     USUARIO
+        │
+        ▼
+┌─────────────────┐
+│  1. Conectar    │
+│     Wallet      │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│  2. Step 1:     │     │  LocalStorage   │
+│  Identidad      │────▶│  (Draft)        │
+│  - Nombre       │     └─────────────────┘
+│  - Cover image  │────▶ Upload Pinata ──▶ CID
+│  - Categoría    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  3. Step 2:     │
+│  Customer Sheet │
+│  - Value prop   │
+│  - Inputs/Out   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  4. Step 3:     │
+│  Artifacts      │
+│  - Upload files │────▶ Upload Pinata ──▶ CIDs
+│  - Instructions │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  5. Step 4:     │
+│  Pricing        │
+│  - Perpetual    │
+│  - Subscription │
+│  - Rights       │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  6. Step 5:     │
+│  Review         │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│  7. Publish     │────▶│  Build Metadata │
+│     Click       │     │  JSON           │
+└────────┬────────┘     └────────┬────────┘
+         │                       │
+         │                       ▼
+         │              ┌─────────────────┐
+         │              │  Upload JSON    │
+         │              │  a Pinata       │
+         │              └────────┬────────┘
+         │                       │
+         │                       ▼
+         │              ┌─────────────────┐
+         │              │  URI: ipfs://Qm │
+         │              └────────┬────────┘
+         │                       │
+         ▼                       ▼
+┌─────────────────────────────────────────┐
+│  8. Transacción Blockchain              │
+│                                          │
+│  Marketplace.registerModel(             │
+│    uri,                                  │
+│    perpetualPrice,                       │
+│    subscriptionPrice,                    │
+│    baseDurationMonths,                   │
+│    canUseAPI,                            │
+│    canDownload,                          │
+│    isTransferable,                       │
+│    royaltyPct                            │
+│  )                                       │
+└────────────────────┬────────────────────┘
+                     │
+                     ▼
+          ┌─────────────────┐
+          │  ✅ Modelo      │
+          │  Publicado!     │
+          │  ID: 123        │
+          └─────────────────┘</code></pre>
+<h3 id="flujo-de-compra-de-licencia">11.2 Flujo de Compra de
+Licencia</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
+│                     FLUJO DE COMPRA DE LICENCIA                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+     COMPRADOR
+        │
+        ▼
+┌─────────────────┐
+│  1. Explorar    │
+│  /models        │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│  2. Ver Detalle │◀────│  Fetch desde    │
+│  /evm/models/12 │     │  Blockchain +   │
+│                 │     │  IPFS           │
+└────────┬────────┘     └─────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│  3. Conectar    │
+│     Wallet      │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  4. Seleccionar │
+│  ○ Perpetual    │
+│  ○ Subscription │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  5. Click       │
+│  &quot;Buy License&quot;  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│  6. Transacción Blockchain              │
+│                                          │
+│  Marketplace.buyLicenseWithURI(         │
+│    modelId: 12,                          │
+│    kind: 0,        // perpetual          │
+│    months: 0,                            │
+│    transferable: true,                   │
+│    tokenUri: &quot;ipfs://Qm...&quot;              │
+│  )                                       │
+│                                          │
+│  value: 1.5 AVAX                         │
+└────────────────────┬────────────────────┘
+                     │
+                     ▼
+          ┌─────────────────┐
+          │  ✅ License NFT │
+          │  Minted!        │
+          │  Token ID: 456  │
+          └────────┬────────┘
+                   │
+                   ▼
+          ┌─────────────────┐
+          │  Redirect a     │
+          │  /evm/licenses  │
+          └─────────────────┘</code></pre>
+<h3 id="flujo-de-descarga-de-artifacts">11.3 Flujo de Descarga de
+Artifacts</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
+│                     FLUJO DE DESCARGA DE ARTIFACTS                       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+     USUARIO (License Owner)
+        │
+        ▼
+┌─────────────────┐
+│  1. Ir a        │
+│  /evm/licenses  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│  2. Verificar   │◀────│  LicenseNFT     │
+│     Licencias   │     │  .licenseStatus │
+└────────┬────────┘     └─────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│  3. Click       │
+│  &quot;Download      │
+│   Artifacts&quot;    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│  4. Verificar   │◀────│  validDownload  │
+│     Permiso     │     │  == true        │
+└────────┬────────┘     └─────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│  5. Drawer con  │
+│  Artifacts      │
+│  ┌───────────┐  │
+│  │ model.pt  │  │
+│  │ CID: Qm...│  │
+│  │ [Download]│  │
+│  └───────────┘  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│  6. Download    │────▶│  /api/ipfs/     │
+│     Click       │     │  ipfs/QmCID     │
+└─────────────────┘     └────────┬────────┘
+                                 │
+                                 ▼
+                        ┌─────────────────┐
+                        │  Pinata Gateway │
+                        │  → File         │
+                        └─────────────────┘</code></pre>
+<hr />
+<h2 id="api-routes">12. API Routes</h2>
+<h3 id="endpoints-principales">12.1 Endpoints Principales</h3>
+<table>
+<colgroup>
+<col style="width: 22%" />
+<col style="width: 29%" />
+<col style="width: 48%" />
+</colgroup>
+<thead>
+<tr>
+<th>Ruta</th>
+<th>Método</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/api/ipfs/[...path]</code></td>
+<td>GET</td>
+<td>Proxy para contenido IPFS</td>
+</tr>
+<tr>
+<td><code>/api/models/evm/[id]</code></td>
+<td>GET</td>
+<td>Obtener modelo por ID</td>
+</tr>
+<tr>
+<td><code>/api/models/evm</code></td>
+<td>GET</td>
+<td>Listar modelos</td>
+</tr>
+<tr>
+<td><code>/api/metadata/upload</code></td>
+<td>POST</td>
+<td>Subir metadata JSON a IPFS</td>
+</tr>
+<tr>
+<td><code>/api/pinata/upload</code></td>
+<td>POST</td>
+<td>Subir archivo a Pinata</td>
+</tr>
+<tr>
+<td><code>/api/models/evm/[id]/quick-edit-metadata</code></td>
+<td>POST</td>
+<td>Regenerar metadata para Quick Edit</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ipfs-proxy">12.2 IPFS Proxy</h3>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co">// GET /api/ipfs/ipfs/QmXxx...</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="im">export</span> <span class="kw">async</span> <span class="kw">function</span> <span class="fu">GET</span>(request<span class="op">:</span> Request<span class="op">,</span> { params }) {</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> cid <span class="op">=</span> params<span class="op">.</span><span class="at">path</span><span class="op">.</span><span class="fu">join</span>(<span class="st">&#39;/&#39;</span>)</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> response <span class="op">=</span> <span class="cf">await</span> <span class="fu">fetch</span>(<span class="vs">`</span><span class="sc">${</span>PINATA_GATEWAY<span class="sc">}</span><span class="vs">/</span><span class="sc">${</span>cid<span class="sc">}</span><span class="vs">`</span>)</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="kw">new</span> <span class="fu">Response</span>(response<span class="op">.</span><span class="at">body</span><span class="op">,</span> {</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    headers<span class="op">:</span> {</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>      <span class="st">&#39;Content-Type&#39;</span><span class="op">:</span> response<span class="op">.</span><span class="at">headers</span><span class="op">.</span><span class="fu">get</span>(<span class="st">&#39;Content-Type&#39;</span>)<span class="op">,</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>      <span class="st">&#39;Cache-Control&#39;</span><span class="op">:</span> <span class="st">&#39;public, max-age=31536000&#39;</span><span class="op">,</span> <span class="co">// 1 año</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>  })</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
+<h2 id="configuración-1">13. Configuración</h2>
+<h3 id="variables-de-entorno">13.1 Variables de Entorno</h3>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ═══════════════════════════════════════════════════════════</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="co"># BLOCKCHAIN</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="co"># ═══════════════════════════════════════════════════════════</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="va">NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID</span><span class="op">=</span>43113  <span class="co"># Fuji testnet</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Contratos Fuji</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a><span class="va">NEXT_PUBLIC_MARKETPLACE_ADDRESS_FUJI</span><span class="op">=</span>0x...</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="va">NEXT_PUBLIC_LICENSE_NFT_ADDRESS_FUJI</span><span class="op">=</span>0x...</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Contratos Mainnet</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a><span class="va">NEXT_PUBLIC_MARKETPLACE_ADDRESS_MAINNET</span><span class="op">=</span>0x...</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a><span class="va">NEXT_PUBLIC_LICENSE_NFT_ADDRESS_MAINNET</span><span class="op">=</span>0x...</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a><span class="co"># ═══════════════════════════════════════════════════════════</span></span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a><span class="co"># WALLET CONNECT</span></span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a><span class="co"># ═══════════════════════════════════════════════════════════</span></span>
+<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a><span class="va">NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID</span><span class="op">=</span>...</span>
+<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-19"><a href="#cb22-19" aria-hidden="true" tabindex="-1"></a><span class="co"># ═══════════════════════════════════════════════════════════</span></span>
+<span id="cb22-20"><a href="#cb22-20" aria-hidden="true" tabindex="-1"></a><span class="co"># IPFS / PINATA</span></span>
+<span id="cb22-21"><a href="#cb22-21" aria-hidden="true" tabindex="-1"></a><span class="co"># ═══════════════════════════════════════════════════════════</span></span>
+<span id="cb22-22"><a href="#cb22-22" aria-hidden="true" tabindex="-1"></a><span class="va">PINATA_API_KEY</span><span class="op">=</span>...</span>
+<span id="cb22-23"><a href="#cb22-23" aria-hidden="true" tabindex="-1"></a><span class="va">PINATA_SECRET_KEY</span><span class="op">=</span>...</span>
+<span id="cb22-24"><a href="#cb22-24" aria-hidden="true" tabindex="-1"></a><span class="va">PINATA_JWT</span><span class="op">=</span>...</span>
+<span id="cb22-25"><a href="#cb22-25" aria-hidden="true" tabindex="-1"></a><span class="va">NEXT_PUBLIC_PINATA_GATEWAY</span><span class="op">=</span>https://gateway.pinata.cloud</span>
+<span id="cb22-26"><a href="#cb22-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-27"><a href="#cb22-27" aria-hidden="true" tabindex="-1"></a><span class="co"># ═══════════════════════════════════════════════════════════</span></span>
+<span id="cb22-28"><a href="#cb22-28" aria-hidden="true" tabindex="-1"></a><span class="co"># RPC (opcional, tiene fallbacks)</span></span>
+<span id="cb22-29"><a href="#cb22-29" aria-hidden="true" tabindex="-1"></a><span class="co"># ═══════════════════════════════════════════════════════════</span></span>
+<span id="cb22-30"><a href="#cb22-30" aria-hidden="true" tabindex="-1"></a><span class="va">NEXT_PUBLIC_AVALANCHE_FUJI_RPC</span><span class="op">=</span>https://api.avax-test.network/ext/bc/C/rpc</span>
+<span id="cb22-31"><a href="#cb22-31" aria-hidden="true" tabindex="-1"></a><span class="va">NEXT_PUBLIC_AVALANCHE_MAINNET_RPC</span><span class="op">=</span>https://api.avax.network/ext/bc/C/rpc</span>
+<span id="cb22-32"><a href="#cb22-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-33"><a href="#cb22-33" aria-hidden="true" tabindex="-1"></a><span class="co"># ═══════════════════════════════════════════════════════════</span></span>
+<span id="cb22-34"><a href="#cb22-34" aria-hidden="true" tabindex="-1"></a><span class="co"># DATABASE (opcional, para cache)</span></span>
+<span id="cb22-35"><a href="#cb22-35" aria-hidden="true" tabindex="-1"></a><span class="co"># ═══════════════════════════════════════════════════════════</span></span>
+<span id="cb22-36"><a href="#cb22-36" aria-hidden="true" tabindex="-1"></a><span class="va">DATABASE_URL</span><span class="op">=</span>postgresql://...</span></code></pre></div>
+<h3 id="configuración-de-chains">13.2 Configuración de Chains</h3>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co">// src/config/chains.ts</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="im">export</span> <span class="kw">const</span> CHAIN_IDS <span class="op">=</span> {</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  AVALANCHE_FUJI<span class="op">:</span> <span class="dv">43113</span><span class="op">,</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  AVALANCHE_MAINNET<span class="op">:</span> <span class="dv">43114</span><span class="op">,</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>} <span class="im">as</span> <span class="kw">const</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a><span class="im">export</span> <span class="kw">const</span> CHAIN_NAMES<span class="op">:</span> <span class="bu">Record</span><span class="op">&lt;</span>ChainId<span class="op">,</span> <span class="dt">string</span><span class="op">&gt;</span> <span class="op">=</span> {</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>  [CHAIN_IDS<span class="op">.</span><span class="at">AVALANCHE_FUJI</span>]<span class="op">:</span> <span class="st">&#39;Avalanche Fuji&#39;</span><span class="op">,</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>  [CHAIN_IDS<span class="op">.</span><span class="at">AVALANCHE_MAINNET</span>]<span class="op">:</span> <span class="st">&#39;Avalanche&#39;</span><span class="op">,</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a><span class="im">export</span> <span class="kw">const</span> CHAIN_SYMBOLS<span class="op">:</span> <span class="bu">Record</span><span class="op">&lt;</span>ChainId<span class="op">,</span> <span class="dt">string</span><span class="op">&gt;</span> <span class="op">=</span> {</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>  [CHAIN_IDS<span class="op">.</span><span class="at">AVALANCHE_FUJI</span>]<span class="op">:</span> <span class="st">&#39;AVAX&#39;</span><span class="op">,</span></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>  [CHAIN_IDS<span class="op">.</span><span class="at">AVALANCHE_MAINNET</span>]<span class="op">:</span> <span class="st">&#39;AVAX&#39;</span><span class="op">,</span></span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="comandos-útiles">13.3 Comandos Útiles</h3>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Desarrollo</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run dev           <span class="co"># Iniciar en puerto 3000</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run dev:3002      <span class="co"># Iniciar en puerto 3002</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Build</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run build         <span class="co"># Build de producción</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run typecheck     <span class="co"># Verificar tipos</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Linting</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run lint          <span class="co"># Ejecutar ESLint</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run lint:fix      <span class="co"># Corregir errores</span></span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run format        <span class="co"># Formatear con Prettier</span></span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Database</span></span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a><span class="ex">npx</span> prisma generate   <span class="co"># Generar cliente Prisma</span></span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a><span class="ex">npx</span> prisma migrate    <span class="co"># Ejecutar migraciones</span></span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Utilidades</span></span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run clean         <span class="co"># Limpiar .next</span></span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run doctor:port   <span class="co"># Liberar puerto 3002</span></span></code></pre></div>
+<hr />
+<h2 id="apéndice-a-glosario">Apéndice A: Glosario</h2>
+<table>
+<thead>
+<tr>
+<th>Término</th>
+<th>Definición</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CID</strong></td>
+<td>Content Identifier - Hash único de contenido IPFS</td>
+</tr>
+<tr>
+<td><strong>NFT</strong></td>
+<td>Non-Fungible Token - Token único en blockchain</td>
+</tr>
+<tr>
+<td><strong>ABI</strong></td>
+<td>Application Binary Interface - Interfaz de contrato</td>
+</tr>
+<tr>
+<td><strong>SSR</strong></td>
+<td>Server-Side Rendering</td>
+</tr>
+<tr>
+<td><strong>RPC</strong></td>
+<td>Remote Procedure Call - Endpoint de blockchain</td>
+</tr>
+<tr>
+<td><strong>ViewModel</strong></td>
+<td>Capa de abstracción entre datos y UI</td>
+</tr>
+<tr>
+<td><strong>Perpetual</strong></td>
+<td>Licencia de pago único, acceso permanente</td>
+</tr>
+<tr>
+<td><strong>Subscription</strong></td>
+<td>Licencia de pago mensual recurrente</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="apéndice-b-tags-de-git">Apéndice B: Tags de Git</h2>
+<table>
+<colgroup>
+<col style="width: 27%" />
+<col style="width: 72%" />
+</colgroup>
+<thead>
+<tr>
+<th>Tag</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>v1.0.0-only-avax</code></td>
+<td>Versión Avalanche-only con wallet persistence fix</td>
+</tr>
+<tr>
+<td><code>milestone-evm-detail-v1</code></td>
+<td>EVM Model Detail page v1 (Udemy-style UX)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><strong>Documento generado para MarketplaceAI
+v1.0.0-only-avax</strong><br />
+<strong>Última actualización: Noviembre 2025</strong></p>
+</body>
+</html>

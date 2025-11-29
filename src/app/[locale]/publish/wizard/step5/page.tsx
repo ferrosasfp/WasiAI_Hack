@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { Box, Button, Paper, Typography, Stack, Grid, Chip, List, ListItem, ListItemText, Divider, Alert, Checkbox, FormControlLabel, Table, TableHead, TableRow, TableCell, TableBody, IconButton, Tooltip, Skeleton, SvgIcon, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CheckIcon from '@mui/icons-material/Check'
@@ -21,11 +21,16 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 // removed copy actions per request
 import { useLocale, useTranslations } from 'next-intl'
 import { useWalletAddress } from '@/hooks/useWalletAddress'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createViewModelFromDraft, UnifiedModelViewModel } from '@/viewmodels'
 import { ipfsToHttp } from '@/config'
 import { loadDraft as loadDraftUtil, deleteDraft as deleteDraftUtil, getDraftId } from '@/lib/draft-utils'
 import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
+import { useWizardDraft } from '@/hooks/useWizardDraft'
+// Wagmi hooks for wallet signing
+import { useWriteContract, useWaitForTransactionReceipt, useAccount, useSwitchChain } from 'wagmi'
+import { usePublicClient } from 'wagmi'
+import MARKET_ARTIFACT from '@/../contracts/evm/artifacts/contracts/Marketplace.sol/Marketplace.json'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,11 +103,29 @@ export default function Step5ReviewPublishLocalized() {
   const locale = useLocale()
   const base = `/${locale}/publish/wizard`
   const router = useRouter()
+  const searchParams = useSearchParams()
   
   // Helper to build URLs preserving upgrade query params
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
-  const upgradeMode = searchParams?.get('mode') === 'upgrade'
-  const upgradeModelId = searchParams?.get('modelId')
+  // Check both searchParams AND localStorage for upgrade mode (localStorage is set by step1)
+  const upgradeModeFromParams = searchParams?.get('mode') === 'upgrade'
+  const upgradeModelIdFromParams = searchParams?.get('modelId')
+  
+  // Also check localStorage as fallback (set by step1 when entering upgrade flow)
+  const [upgradeModeFromStorage, setUpgradeModeFromStorage] = useState(false)
+  const [upgradeModelIdFromStorage, setUpgradeModelIdFromStorage] = useState<string | null>(null)
+  
+  useEffect(() => {
+    try {
+      const storedMode = localStorage.getItem('wizard_upgrade_mode') === '1'
+      const storedModelId = localStorage.getItem('wizard_upgrade_model_id')
+      setUpgradeModeFromStorage(storedMode)
+      setUpgradeModelIdFromStorage(storedModelId)
+    } catch {}
+  }, [])
+  
+  // Use params if available, otherwise fall back to localStorage
+  const upgradeMode = upgradeModeFromParams || upgradeModeFromStorage
+  const upgradeModelId = upgradeModelIdFromParams || upgradeModelIdFromStorage
   const buildWizardUrl = (path: string) => {
     if (upgradeMode && upgradeModelId) {
       return `${path}?mode=upgrade&modelId=${upgradeModelId}`
@@ -113,7 +136,8 @@ export default function Step5ReviewPublishLocalized() {
   // Use navigation guard to warn when leaving wizard
   const { setDirty: setWizardDirty, clearDraftAndReset } = useWizardNavGuard(upgradeMode, upgradeModelId, true)
   
-  const [draft, setDraft] = useState<any>(null)
+  // Use centralized draft hook
+  const { draft, loading: draftLoading, error: draftError } = useWizardDraft(upgradeMode, upgradeModelId)
   
   // Mark as dirty when draft is loaded (user has data to publish)
   useEffect(() => {
@@ -130,6 +154,12 @@ export default function Step5ReviewPublishLocalized() {
   const [accepted, setAccepted] = useState(false)
   const { walletAddress } = useWalletAddress()
   const [mounted, setMounted] = useState(false)
+  
+  // Wagmi hooks for wallet signing
+  const { address: connectedAddress, isConnected, chain: connectedChain } = useAccount()
+  const { writeContractAsync } = useWriteContract()
+  const { switchChainAsync } = useSwitchChain()
+  const publicClient = usePublicClient()
   const [shouldFade, setShouldFade] = useState(true)
   const [loadedRemote, setLoadedRemote] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
@@ -284,65 +314,14 @@ export default function Step5ReviewPublishLocalized() {
   const draggingIdRef = useRef<string | null>(null)
   const saveOrderTmoRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Unified draft loading - Step 5 ALWAYS loads from draft (never directly from model)
-  // The draft contains data saved by steps 1-4, whether creating new or upgrading
+  // Sync loading state with hook
   useEffect(() => {
-    let alive = true
-    setLoading(true)
-    
-    // Determine the draftId based on mode
-    const draftId = getDraftId(upgradeMode, upgradeModelId)
-    const localStorageKey = `draft_step5_${draftId}`
-    
-    // Hydration from local cache to avoid empty initial render
-    try {
-      const raw = localStorage.getItem(localStorageKey)
-      if (raw) {
-        const cached = JSON.parse(raw)
-        if (cached && typeof cached === 'object') {
-          setDraft(cached)
-          setShouldFade(false)
-        }
-      }
-    } catch {}
-    
-    // Load from server draft (Redis)
-    loadDraftUtil(upgradeMode, upgradeModelId)
-      .then(r => {
-        if (!alive) return
-        
-        console.log('[Step5] Loaded draft:', {
-          draftId: r.draftId,
-          hasData: r?.ok && r.data && Object.keys(r.data).length > 0,
-          hasStep1: !!r.data?.step1,
-          hasStep2: !!r.data?.step2,
-          hasStep3: !!r.data?.step3,
-          hasStep4: !!r.data?.step4,
-          upgradeMode,
-          upgradeModelId
-        })
-        
-        if (r?.ok && r.data && Object.keys(r.data).length > 0) {
-          setDraft(r.data)
-          try { localStorage.setItem(localStorageKey, JSON.stringify(r.data)) } catch {}
-        } else {
-          // No draft found - this means user hasn't gone through steps 1-4 yet
-          console.warn('[Step5] No draft found. User should complete steps 1-4 first.')
-          setDraft({})
-        }
-      })
-      .catch(err => {
-        console.error('[Step5] Failed to load draft:', err)
-      })
-      .finally(() => {
-        if (alive) {
-          setLoading(false)
-          setLoadedRemote(true)
-        }
-      })
-    
-    return () => { alive = false }
-  }, [upgradeMode, upgradeModelId])
+    setLoading(draftLoading)
+    if (!draftLoading) {
+      setLoadedRemote(true)
+      setShouldFade(false)
+    }
+  }, [draftLoading])
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -619,8 +598,10 @@ export default function Step5ReviewPublishLocalized() {
             let step4 = draft?.step4 || {}
             
             // Fallback: Try to load from localStorage for ALL steps (user may have edited without full backend sync)
+            // Use correct draftId for upgrade mode
+            const draftId = getDraftId(true, upgradeModelId)
             try {
-              const cached1 = localStorage.getItem('draft_step1')
+              const cached1 = localStorage.getItem(`draft_step1_${draftId}`)
               if (cached1) {
                 const parsed1 = JSON.parse(cached1)
                 step1 = { ...step1, ...parsed1 }
@@ -631,7 +612,7 @@ export default function Step5ReviewPublishLocalized() {
             }
             
             try {
-              const cached2 = localStorage.getItem('draft_step2')
+              const cached2 = localStorage.getItem(`draft_step2_${draftId}`)
               if (cached2) {
                 const parsed2 = JSON.parse(cached2)
                 step2 = { ...step2, ...parsed2 }
@@ -642,7 +623,7 @@ export default function Step5ReviewPublishLocalized() {
             }
             
             try {
-              const cached3 = localStorage.getItem('draft_step3')
+              const cached3 = localStorage.getItem(`draft_step3_${draftId}`)
               if (cached3) {
                 const parsed3 = JSON.parse(cached3)
                 step3 = { ...step3, ...parsed3 }
@@ -653,7 +634,7 @@ export default function Step5ReviewPublishLocalized() {
             }
             
             try {
-              const cached4 = localStorage.getItem('draft_step4')
+              const cached4 = localStorage.getItem(`draft_step4_${draftId}`)
               if (cached4) {
                 const parsed4 = JSON.parse(cached4)
                 step4 = { ...step4, ...parsed4 }
@@ -666,7 +647,15 @@ export default function Step5ReviewPublishLocalized() {
             const lp = step4?.licensePolicy || {}
             
             // Get essential fields with fallbacks
-            const slugValue = step1.slug || ''
+            // IMPORTANT: For upgrade mode, use the original slug from localStorage to ensure we update the same model
+            let slugValue = step1.slug || ''
+            try {
+              const originalSlug = localStorage.getItem('wizard_upgrade_slug')
+              if (originalSlug && !slugValue) {
+                slugValue = originalSlug
+                console.log('[Upgrade] Using original slug from localStorage:', originalSlug)
+              }
+            } catch {}
             const nameValue = step1.name || ''
             
             console.log('[Upgrade] Final payload data:', {
@@ -811,43 +800,169 @@ export default function Step5ReviewPublishLocalized() {
             
             const sanitizedPayload = sanitizeForJSON(upgradePayload)
             
-            const r = await fetch(`/api/models/evm/${upgradeModelId}/upgrade?chainId=${chainId}`, {
+            // Check wallet connection for upgrade
+            if (!isConnected || !connectedAddress) {
+              setMsg(locale === 'es' ? 'Conecta tu wallet para actualizar' : 'Connect your wallet to upgrade')
+              setPublishing(false)
+              return
+            }
+            
+            // 1. Call API to upload to IPFS and get transaction params
+            const apiRes = await fetch(`/api/models/evm/${upgradeModelId}/upgrade?chainId=${chainId}`, {
               method: 'POST',
               headers: {
                 'content-type': 'application/json',
-                ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {})
+                'X-Wallet-Address': connectedAddress
               },
               body: JSON.stringify(sanitizedPayload)
             })
             
-            const result = await r.json()
-            const ok = !!result?.ok || !!result?.tx
-            if (!ok) allOk = false
+            const result = await apiRes.json()
+            
+            if (!result?.ok || !result?.txParams) {
+              allOk = false
+              setResults(prev=>[...prev, { 
+                chain: tnet.chain, 
+                network: tnet.network, 
+                ok: false, 
+                error: result?.error || 'Failed to prepare upgrade transaction' 
+              }])
+              continue
+            }
+            
+            // 2. Switch chain if needed
+            const targetChainId = result.txParams.chainId
+            if (connectedChain?.id !== targetChainId) {
+              try {
+                await switchChainAsync({ chainId: targetChainId })
+              } catch (switchErr: any) {
+                allOk = false
+                setResults(prev=>[...prev, { chain: tnet.chain, network: tnet.network, ok: false, error: 'Failed to switch network' }])
+                continue
+              }
+            }
+            
+            // 3. Execute transaction with user's wallet signature
+            const abi = (MARKET_ARTIFACT as any).abi
+            const txArgs = result.txParams.args
+            
+            const hash = await writeContractAsync({
+              address: result.txParams.contractAddress as `0x${string}`,
+              abi,
+              functionName: 'listOrUpgrade',
+              args: [
+                txArgs[0], // slug
+                txArgs[1], // name
+                txArgs[2], // uri
+                BigInt(txArgs[3]), // royaltyBps
+                BigInt(txArgs[4]), // pricePerpetual
+                BigInt(txArgs[5]), // priceSubscription
+                BigInt(txArgs[6]), // defaultDurationDays
+                Number(txArgs[7]), // rightsMask
+                Number(txArgs[8]), // deliveryModeHint
+                txArgs[9] as `0x${string}` // termsHash
+              ],
+              chainId: targetChainId
+            })
+            
+            // 4. Wait for transaction confirmation
+            if (publicClient && hash) {
+              await publicClient.waitForTransactionReceipt({ hash })
+            }
+            
             setResults(prev=>[...prev, { 
               chain: tnet.chain, 
               network: tnet.network, 
-              ok, 
-              tx: result?.tx || result?.onchain, 
-              error: result?.error 
+              ok: true, 
+              tx: { txHash: hash, market: result.txParams.contractAddress }
             }])
           } catch (err: any) {
             allOk = false
+            const errorMsg = err?.shortMessage || err?.message || 'Upgrade failed'
             setResults(prev=>[...prev, { 
               chain: tnet.chain, 
               network: tnet.network, 
               ok: false, 
-              error: err?.message || 'Upgrade failed' 
+              error: errorMsg 
             }])
           }
         }
         setMsg(locale === 'es' ? 'Actualización completada' : 'Upgrade completed')
       } else {
-        // Normal publish mode
+        // Normal publish mode - requires wallet signature
+        if (!isConnected || !connectedAddress) {
+          setMsg(locale === 'es' ? 'Conecta tu wallet para publicar' : 'Connect your wallet to publish')
+          setPublishing(false)
+          return
+        }
+        
         for (const tnet of targets) {
-          const r = await publishModel({ chain: tnet.chain, network: tnet.network, metadata, address: walletAddress })
-          const ok = !!r?.ok
-          if (!ok) allOk = false
-          setResults(prev=>[...prev, { chain: tnet.chain, network: tnet.network, ok, tx: r?.onchain, error: r?.error }])
+          try {
+            // 1. Call API to upload to IPFS and get transaction params
+            const apiRes = await fetch('/api/models/publish', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Wallet-Address': connectedAddress },
+              body: JSON.stringify({ chain: tnet.chain, network: tnet.network, metadata, address: connectedAddress })
+            })
+            const r = await apiRes.json()
+            
+            if (!r?.ok || !r?.txParams) {
+              allOk = false
+              setResults(prev=>[...prev, { chain: tnet.chain, network: tnet.network, ok: false, error: r?.error || 'Failed to prepare transaction' }])
+              continue
+            }
+            
+            // 2. Switch chain if needed
+            const targetChainId = r.txParams.chainId
+            if (connectedChain?.id !== targetChainId) {
+              try {
+                await switchChainAsync({ chainId: targetChainId })
+              } catch (switchErr: any) {
+                allOk = false
+                setResults(prev=>[...prev, { chain: tnet.chain, network: tnet.network, ok: false, error: 'Failed to switch network' }])
+                continue
+              }
+            }
+            
+            // 3. Execute transaction with user's wallet signature
+            const abi = (MARKET_ARTIFACT as any).abi
+            const [slug, name, uri, royaltyBps, pricePerpetual, priceSubscription, defaultDurationDays, rightsMask, deliveryModeHint, termsHash] = r.txParams.args
+            
+            const hash = await writeContractAsync({
+              address: r.txParams.contractAddress as `0x${string}`,
+              abi,
+              functionName: 'listOrUpgrade',
+              args: [
+                slug,
+                name,
+                uri,
+                BigInt(royaltyBps),
+                BigInt(pricePerpetual),
+                BigInt(priceSubscription),
+                BigInt(defaultDurationDays),
+                Number(rightsMask),
+                Number(deliveryModeHint),
+                termsHash as `0x${string}`
+              ],
+              chainId: targetChainId
+            })
+            
+            // 4. Wait for transaction confirmation
+            if (publicClient && hash) {
+              await publicClient.waitForTransactionReceipt({ hash })
+            }
+            
+            setResults(prev=>[...prev, { 
+              chain: tnet.chain, 
+              network: tnet.network, 
+              ok: true, 
+              tx: { txHash: hash, market: r.txParams.contractAddress }
+            }])
+          } catch (err: any) {
+            allOk = false
+            const errorMsg = err?.shortMessage || err?.message || 'Transaction failed'
+            setResults(prev=>[...prev, { chain: tnet.chain, network: tnet.network, ok: false, error: errorMsg }])
+          }
         }
         setMsg(t('wizard.step5.messages.publishDone'))
       }
@@ -1547,7 +1662,7 @@ export default function Step5ReviewPublishLocalized() {
               referencePerf: viewModel.step2.technical.referenceLatency
             }
           } : (metadata || {})
-          const step2Data = draft?.data?.step2 || {}
+          const step2Data = draft?.step2 || {}
           
           // Helper to display value or dash
           const displayValue = (val: any, isNumber = false): string | React.ReactNode => {
@@ -2053,7 +2168,7 @@ export default function Step5ReviewPublishLocalized() {
         
         if (secId==='artifacts') {
           const artifacts = viewModel?.step3.artifacts || metadata?.artifacts || []
-          const downloadNotes = viewModel?.step3.downloadInstructions || (draft?.data?.step3 as any)?.downloadNotes || ''
+          const downloadNotes = viewModel?.step3.downloadInstructions || (draft?.step3 as any)?.downloadNotes || ''
           
           // Helper to get file icon
           const getFileIcon = (filename: string) => {

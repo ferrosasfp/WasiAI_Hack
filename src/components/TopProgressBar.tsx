@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { LinearProgress, Box } from '@mui/material'
 
-export function TopProgressBar() {
+function TopProgressBarInner() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
@@ -98,5 +98,13 @@ export function TopProgressBar() {
         }}
       />
     </Box>
+  )
+}
+
+export function TopProgressBar() {
+  return (
+    <Suspense fallback={null}>
+      <TopProgressBarInner />
+    </Suspense>
   )
 }

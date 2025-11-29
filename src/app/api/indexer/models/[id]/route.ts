@@ -20,11 +20,28 @@ import { indexSingleModel } from '@/lib/indexer-single'
 
 export const dynamic = 'force-dynamic'
 
+// Admin token for indexer operations (optional - if set, requires auth)
+const INDEXER_ADMIN_TOKEN = process.env.INDEXER_ADMIN_TOKEN || ''
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Protect indexer endpoint if admin token is configured
+    if (INDEXER_ADMIN_TOKEN) {
+      const auth = request.headers.get('authorization') || ''
+      const token = request.headers.get('x-admin-token') || ''
+      const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7) : ''
+      const provided = token || bearer
+      if (provided !== INDEXER_ADMIN_TOKEN) {
+        return NextResponse.json(
+          { success: false, error: 'Unauthorized' },
+          { status: 401 }
+        )
+      }
+    }
+
     const modelId = parseInt(params.id, 10)
     if (isNaN(modelId) || modelId <= 0) {
       return NextResponse.json(

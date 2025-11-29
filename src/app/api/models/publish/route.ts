@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '../../../../server/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +29,17 @@ async function pinJSONToIPFS(payload: any) {
   return { cid, uri: `ipfs://${cid}` }
 }
 
+/**
+ * POST /api/models/publish
+ * 
+ * This API only uploads metadata to IPFS and returns transaction parameters.
+ * The actual blockchain transaction must be signed by the user's wallet in the frontend.
+ * 
+ * Returns:
+ * - cid: IPFS CID of the metadata
+ * - uri: Full IPFS URI (ipfs://<cid>)
+ * - txParams: Parameters for the listOrUpgrade smart contract call
+ */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({})) as any
   const metadata = body?.metadata
@@ -60,11 +70,9 @@ export async function POST(req: Request) {
 
     const chain = String(body?.chain || '')
     const network = String(body?.network || '')
-    let onchain: any = null
 
     if (chain === 'evm') {
-      // Lazy import ethers to keep edge compatibility if not used
-      const { JsonRpcProvider, Wallet, Contract, parseUnits } = await import('ethers') as any
+      const { parseUnits } = await import('ethers') as any
       const fs = await import('fs')
       const path = await import('path')
       const ROOT = process.cwd()
@@ -95,35 +103,32 @@ export async function POST(req: Request) {
       
       if (!marketAddr) throw new Error(`evm_market_address_missing:${network}`)
 
-      const rpc = network === 'base' ? (process.env.RPC_BASE || '') : network === 'avax' ? (process.env.RPC_AVAX || '') : ''
-      if (!rpc) throw new Error('evm_rpc_missing')
-      const pk = process.env.PRIVATE_KEY
-      if (!pk) throw new Error('evm_private_key_missing')
-
-      const provider = new JsonRpcProvider(rpc)
-      const wallet = new Wallet(pk, provider)
-
-      const abi = [
-        'function listOrUpgrade(string slug,string name,string uri,uint256 royaltyBps,uint256 pricePerpetual,uint256 priceSubscription,uint256 defaultDurationDays,uint8 deliveryRightsDefault,uint8 deliveryModeHint,bytes32 termsHash)'
-      ]
-      const market = new Contract(marketAddr, abi, wallet)
-
-      // Map metadata to params
+      // Build transaction parameters - DO NOT execute transaction here
+      // The frontend will use wagmi/viem to have the user sign the transaction
       const slug: string = metadata.slug || ''
       const name: string = metadata.name || ''
       const uri: string = pinned.uri
+      
       // royaltyBps comes from step 4 under licensePolicy.royaltyBps (basis points)
-      const royaltyBps: bigint = BigInt(Number(metadata.licensePolicy?.royaltyBps || 0))
-      const toWei = (v:any) => {
-        try { return parseUnits(String(v ?? '0').replace(/,/g,'').trim() || '0', 18) } catch { return 0n }
+      const royaltyBps: string = String(Number(metadata.licensePolicy?.royaltyBps || 0))
+      
+      const toWei = (v:any): string => {
+        try { 
+          const parsed = parseUnits(String(v ?? '0').replace(/,/g,'').trim() || '0', 18)
+          return parsed.toString()
+        } catch { return '0' }
       }
-      const pricePerpetual: bigint = toWei(metadata.licensePolicy?.perpetual?.priceRef)
-      const priceSubscription: bigint = toWei(metadata.licensePolicy?.subscription?.perMonthPriceRef)
-      const defaultDurationDays: bigint = BigInt(Number(metadata.licensePolicy?.defaultDurationDays || 0))
+      
+      const pricePerpetual: string = toWei(metadata.licensePolicy?.perpetual?.priceRef)
+      const priceSubscription: string = toWei(metadata.licensePolicy?.subscription?.perMonthPriceRef)
+      const defaultDurationDays: string = String(Number(metadata.licensePolicy?.defaultDurationDays || 0))
+      
       const rightsArr: string[] = Array.isArray(metadata.licensePolicy?.rights) ? metadata.licensePolicy.rights : []
       const rightsMask: number = (rightsArr.includes('API') ? 1 : 0) | (rightsArr.includes('Download') ? 2 : 0)
+      
       // Derive deliveryModeHint from rightsMask
       const deliveryModeHint: number = rightsMask === 1 ? 1 : rightsMask === 2 ? 2 : 3
+      
       let termsHash: string = String(metadata.licensePolicy?.termsHash || '0x')
       if (!termsHash.startsWith('0x')) termsHash = '0x' + termsHash
       if (termsHash.length !== 66) {
@@ -133,102 +138,47 @@ export async function POST(req: Request) {
         termsHash = '0x' + Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')
       }
 
-      const tx = await market.listOrUpgrade(
-        slug, name, uri,
-        royaltyBps,
-        pricePerpetual,
-        priceSubscription,
-        defaultDurationDays,
-        rightsMask,
-        deliveryModeHint,
-        termsHash
-      )
-      const receipt = await tx.wait()
-      onchain = { network, market: marketAddr, txHash: receipt?.hash }
-
-      // Index in DB
-      try {
-        await (prisma as any).modelIndex?.create?.({ data: {
-          chain: 'evm', network,
-          modelId: null, slug, name, uri,
-          version: null,
-          owner: await wallet.getAddress(),
-          txHash: receipt?.hash || null,
-        }})
-      } catch {}
-    }
-
-    if (chain === 'sui') {
-      const pkg = process.env.NEXT_PUBLIC_PACKAGE_ID
-      const marketId = process.env.NEXT_PUBLIC_MARKET_ID
-      const suiRpc = process.env.SUI_RPC_URL || process.env.NEXT_PUBLIC_SUI_RPC_URL || 'https://fullnode.testnet.sui.io:443'
-      const suiPriv = process.env.SUI_PRIVATE_KEY
-      if (!pkg || !marketId) throw new Error('sui_ids_missing')
-      if (!suiPriv) throw new Error('sui_private_key_missing')
-
-      const { SuiClient } = await import('@mysten/sui/client')
-      const { Transaction } = await import('@mysten/sui/transactions')
-      const { decodeSuiPrivateKey } = await import('@mysten/sui/cryptography')
-      const { Ed25519Keypair } = await import('@mysten/sui/keypairs/ed25519')
-
-      const client = new SuiClient({ url: suiRpc })
-      const decoded = decodeSuiPrivateKey(suiPriv)
-      const kp = Ed25519Keypair.fromSecretKey(decoded.secretKey)
-
-      // Map metadata to params for Move
-      const slug: string = metadata.slug || ''
-      const name: string = metadata.name || ''
-      const uri: string = pinned.uri
-      const royalty_bps: bigint = BigInt(Number(metadata.royalty_bps || 0))
-      const pricePerpetual: bigint = BigInt(Number(metadata.licensePolicy?.perpetual?.priceRef || 0))
-      const priceSubscription: bigint = BigInt(Number(metadata.licensePolicy?.subscription?.perMonthPriceRef || 0))
-      const defaultDurationDays: bigint = BigInt(Number(metadata.licensePolicy?.defaultDurationDays || 0))
-      const rightsArr: string[] = Array.isArray(metadata.licensePolicy?.rights) ? metadata.licensePolicy.rights : []
-      const rightsMask: number = (rightsArr.includes('API') ? 1 : 0) | (rightsArr.includes('Download') ? 2 : 0)
-      const hintStr: string = (metadata.delivery?.hint || '').toLowerCase()
-      const deliveryModeHint: number = hintStr === 'api' ? 1 : hintStr === 'download' ? 2 : 3
-      let termsHash: string = String(metadata.licensePolicy?.termsHash || '0x')
-      if (!termsHash.startsWith('0x')) termsHash = '0x' + termsHash
-      if (termsHash.length !== 66) {
-        const enc = new TextEncoder().encode(String(metadata.licensePolicy?.termsUrl || ''))
-        const buf = await crypto.subtle.digest('SHA-256', enc)
-        termsHash = '0x' + Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')
-      }
-      const termsBytes = Uint8Array.from(Buffer.from(termsHash.slice(2), 'hex'))
-
-      const tx = new Transaction()
-      tx.moveCall({
-        target: `${pkg}::marketplace::list_or_upgrade`,
-        arguments: [
-          tx.object(marketId),
-          tx.pure.string(slug),
-          tx.pure.string(name),
-          tx.pure.string(uri),
-          tx.pure.u64(royalty_bps),
-          tx.pure.u64(pricePerpetual),
-          tx.pure.u64(priceSubscription),
-          tx.pure.u64(defaultDurationDays),
-          tx.pure.u8(rightsMask),
-          tx.pure.u8(deliveryModeHint),
-          tx.pure.vector('u8', termsBytes),
+      // Return transaction parameters for frontend to execute with user's wallet
+      const txParams = {
+        functionName: 'listOrUpgrade',
+        args: [
+          slug,
+          name,
+          uri,
+          royaltyBps,
+          pricePerpetual,
+          priceSubscription,
+          defaultDurationDays,
+          rightsMask,
+          deliveryModeHint,
+          termsHash
         ],
-      })
-      const resp = await client.signAndExecuteTransaction({ signer: kp, transaction: tx, options: { showEffects: true } })
-      onchain = { network: 'testnet', digest: (resp as any)?.digest }
+        contractAddress: marketAddr,
+        chainId: Number(chainId)
+      }
 
-      // Index in DB
-      try {
-        await (prisma as any).modelIndex?.create?.({ data: {
-          chain: 'sui', network: 'testnet',
-          modelId: null, slug, name, uri,
-          version: Number(metadata.version || 1),
-          owner: kp.getPublicKey().toSuiAddress(),
-          txHash: (resp as any)?.digest || null,
-        }})
-      } catch {}
+      return NextResponse.json({ 
+        ok: true, 
+        ...pinned, 
+        chain, 
+        network, 
+        txParams,
+        // Include metadata for reference
+        metadata: {
+          slug,
+          name,
+          uri
+        }
+      })
     }
 
-    return NextResponse.json({ ok: true, ...pinned, chain, network, onchain })
+    // Sui support removed - EVM only
+    if (chain === 'sui') {
+      return NextResponse.json({ ok: false, error: 'sui_not_supported' }, { status: 400 })
+    }
+
+    // Non-EVM chains: just return IPFS data
+    return NextResponse.json({ ok: true, ...pinned, chain, network })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 })
   }

@@ -673,11 +673,31 @@ export default function ModelPageClient(props: ModelPageClientProps) {
       const licenseKind = buyKind === 'perpetual' ? 0 : 1
       const months = buyKind === 'subscription' ? buyMonths : 0
       const transferable = Boolean((data as any)?.rights?.transferable)
+      
+      // Prices come as wei (bigint strings or numbers) - must preserve exact precision
       const priceP = (data as any)?.price_perpetual
       const priceS = (data as any)?.price_subscription
+      
+      // Convert to BigInt preserving full precision (prices are in wei)
+      const toBigIntWei = (val: any): bigint => {
+        if (val === undefined || val === null) return 0n
+        if (typeof val === 'bigint') return val
+        if (typeof val === 'string') {
+          // Remove any decimals (shouldn't have any in wei)
+          const clean = val.split('.')[0]
+          return BigInt(clean || '0')
+        }
+        if (typeof val === 'number') {
+          // If it's a large number (wei), convert directly
+          // Use string conversion to avoid floating point issues
+          return BigInt(Math.round(val).toString())
+        }
+        return 0n
+      }
+      
       const valueWei = buyKind === 'perpetual'
-        ? (typeof priceP === 'number' ? BigInt(Math.max(0, Math.floor(priceP))) : 0n)
-        : (typeof priceS === 'number' ? BigInt(Math.max(0, Math.floor(priceS * months))) : 0n)
+        ? toBigIntWei(priceP)
+        : toBigIntWei(priceS) * BigInt(months)
       // Usar metadata del modelo para el NFT de licencia
       const tokenUri = (data as any)?.uri || ''
       setTxLoading(true)

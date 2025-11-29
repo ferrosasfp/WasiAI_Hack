@@ -231,126 +231,51 @@ export async function POST(
 
     console.log(`[Upgrade] New metadata uploaded to IPFS: ${uri}`)
 
-    // Execute transaction on blockchain (similar to publish endpoint)
-    const { JsonRpcProvider, Wallet, Contract } = await import('ethers')
-    
-    // Get RPC URL from environment based on chainId
-    // Try specific env var first, then fallback to generic
-    const rpcEnvKey = `RPC_CHAIN_${body.chainId}`
-    let rpc = process.env[rpcEnvKey]
-    
-    // Fallback: Try common naming patterns
-    if (!rpc) {
-      // Check for Avalanche mainnet/testnet
-      if (body.chainId === 43114 || body.chainId === 43113) {
-        rpc = process.env.RPC_AVAX || process.env.NEXT_PUBLIC_AVAX_RPC
-      }
-      // Check for Base mainnet/testnet  
-      else if (body.chainId === 8453 || body.chainId === 84532) {
-        rpc = process.env.RPC_BASE || process.env.NEXT_PUBLIC_BASE_RPC
-      }
-    }
-    
-    if (!rpc) {
-      throw new Error(`RPC URL not configured for chainId ${body.chainId}. Set RPC_CHAIN_${body.chainId} in .env`)
-    }
-    
-    const pk = process.env.PRIVATE_KEY
-    if (!pk) {
-      throw new Error('PRIVATE_KEY not configured in environment')
-    }
-    
     // Get marketplace contract address from environment
-    // Try chain-specific env var first, then fallback to generic
     const marketAddr = process.env[`NEXT_PUBLIC_EVM_MARKET_${body.chainId}`] 
       || process.env.NEXT_PUBLIC_EVM_MARKET
     
     if (!marketAddr) {
       throw new Error(`Marketplace address not configured for chainId ${body.chainId}. Set NEXT_PUBLIC_EVM_MARKET_${body.chainId} in .env`)
     }
-    
-    console.log(`[Upgrade] Executing transaction on chainId ${body.chainId}...`)
-    
-    const provider = new JsonRpcProvider(rpc)
-    const wallet = new Wallet(pk, provider)
-    
-    const abi = [
-      'function listOrUpgrade(string slug,string name,string uri,uint256 royaltyBps,uint256 pricePerpetual,uint256 priceSubscription,uint256 defaultDurationDays,uint8 deliveryRightsDefault,uint8 deliveryModeHint,bytes32 termsHash)'
-    ]
-    const market = new Contract(marketAddr, abi, wallet)
-    
-    // Execute transaction
-    const tx = await market.listOrUpgrade(
-      body.slug,
-      body.name,
-      uri,
-      royaltyBps,
-      pricePerpetual,
-      priceSubscription,
-      durationDays,
-      deliveryRightsDefault,
-      deliveryModeHint,
-      termsHash
-    )
-    
-    console.log(`[Upgrade] Transaction sent: ${tx.hash}`)
-    
-    const receipt = await tx.wait()
-    
-    console.log(`[Upgrade] Transaction confirmed: ${receipt.hash}`)
-    
-    // Update Neon database immediately (don't wait for indexer)
-    try {
-      const { query } = await import('@/lib/db')
-      
-      // Update the model record with new metadata
-      await query(
-        `UPDATE models 
-         SET name = $1,
-             uri = $2,
-             updated_at = NOW(),
-             version = version + 1
-         WHERE model_id = $3 AND chain_id = $4`,
-        [body.name, uri, modelId, body.chainId]
-      )
-      
-      console.log(`[Upgrade] Updated Neon DB for model ${modelId}:`, {
-        name: body.name,
-        uri: uri.substring(0, 50) + '...',
-        chainId: body.chainId
-      })
-    } catch (dbError: any) {
-      // Don't fail the whole request if DB update fails (indexer will catch it later)
-      console.error('[Upgrade] Failed to update Neon DB (non-critical):', dbError.message)
+
+    // Return transaction parameters for frontend to execute with user's wallet
+    // DO NOT execute transaction here - user must sign with their wallet
+    const txParams = {
+      functionName: 'listOrUpgrade',
+      args: [
+        body.slug,
+        body.name,
+        uri,
+        royaltyBps.toString(),
+        pricePerpetual.toString(),
+        priceSubscription.toString(),
+        durationDays.toString(),
+        deliveryRightsDefault,
+        deliveryModeHint,
+        termsHash
+      ],
+      contractAddress: marketAddr,
+      chainId: body.chainId
     }
-    
-    // Map chainId to network name for response
-    const getNetworkName = (chainId: number): string => {
-      // Avalanche
-      if (chainId === 43114) return 'avax-mainnet'
-      if (chainId === 43113) return 'avax-testnet'
-      // Base
-      if (chainId === 8453) return 'base-mainnet'
-      if (chainId === 84532) return 'base-testnet'
-      // Ethereum
-      if (chainId === 1) return 'eth-mainnet'
-      if (chainId === 11155111) return 'eth-sepolia'
-      // Generic fallback
-      return `chain-${chainId}`
-    }
+
+    console.log(`[Upgrade] Returning txParams for wallet signing:`, {
+      slug: body.slug,
+      name: body.name,
+      uri: uri.substring(0, 50) + '...',
+      chainId: body.chainId
+    })
 
     return NextResponse.json({
       ok: true,
-      success: true,
       uri,
-      onchain: {
-        network: getNetworkName(body.chainId),
-        chainId: body.chainId,
-        market: marketAddr,
-        txHash: receipt.hash
+      txParams,
+      metadata: {
+        slug: body.slug,
+        name: body.name,
+        uri
       },
-      tx: receipt.hash,
-      message: 'Model upgraded successfully on blockchain',
+      message: 'Transaction prepared - sign with your wallet',
     })
 
   } catch (error: any) {

@@ -1,10 +1,13 @@
 export const dynamic = 'force-dynamic';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { CACHE_TTLS } from '@/config';
 import { PrismaClient } from '@prisma/client';
 import { incCounter } from '@/lib/metrics';
 
 export const runtime = 'nodejs';
+
+// EVM-only: License verification via indexed DB or on-chain call
+// For now, we use bypass mode or DB lookup
 
 type KeyEntry = { keyB64: string; createdAt: number };
 type KeyStores = { byId: Map<string, KeyEntry>; bySlug: Map<string, KeyEntry> };
@@ -21,112 +24,32 @@ if (__ANY instanceof Map) {
 const __PRISMA__: PrismaClient | undefined = (globalThis as any).__PRISMA__ || (process.env.DATABASE_URL ? new PrismaClient() : undefined);
 (globalThis as any).__PRISMA__ = __PRISMA__;
 
-// Simple TTL cache for DB lookups (does not bypass license checks)
+// Simple TTL cache for DB lookups
 type CacheEntry = { keyB64: string; ts: number };
 const __KEY_DB_CACHE__: Map<string, CacheEntry> = (globalThis as any).__KEY_DB_CACHE__ || new Map<string, CacheEntry>();
 (globalThis as any).__KEY_DB_CACHE__ = __KEY_DB_CACHE__;
-// Use centralized cache TTL configuration
 const KEYS_CACHE_TTL = CACHE_TTLS.API_KEYS;
 
-const PKG = process.env.NEXT_PUBLIC_PACKAGE_ID || '';
-const MARKET_PARENT = process.env.SUI_MARKET_PARENT || process.env.NEXT_PUBLIC_MARKET_ID || '';
-const LICENSE_STRUCT = `${PKG}::marketplace::License`;
-const FAMILY_KEY = `${PKG}::marketplace::FamilyKey`;
-const LICENSE_FLAG_KEY = `${PKG}::marketplace::LicenseFlagKey`;
-
-const RPC_URL = process.env.SUI_RPC_URL || process.env.NEXT_PUBLIC_SUI_RPC_URL || 'https://fullnode.testnet.sui.io:443';
-
-async function rpc(method: string, params: any[]): Promise<any> {
-  const res = await fetch(RPC_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-  });
-  if (!res.ok) throw new Error(`rpc ${method} http ${res.status}`);
-  const json = await res.json();
-  if (json.error) throw new Error(`rpc ${method} error: ${JSON.stringify(json.error)}`);
-  return json.result;
-}
-
-function u64ToLeHex(u: number | string): string {
-  const v = BigInt(u);
-  const buf = new Uint8Array(8);
-  let x = v;
-  for (let i = 0; i < 8; i++) {
-    buf[i] = Number(x & 0xffn);
-    x >>= 8n;
-  }
-  return '0x' + Array.from(buf).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function isRevoked(licenseId: number | string): Promise<boolean> {
+/**
+ * EVM license check via indexed DB
+ * Returns true if user has a valid license for the model
+ */
+async function hasLicenseEvm(addr: string, modelId: number): Promise<boolean> {
+  if (!__PRISMA__) return false;
   try {
-    const name = {
-      type: LICENSE_FLAG_KEY,
-      value: u64ToLeHex(licenseId),
-    };
-    const res = await rpc('suix_getDynamicFieldObject', [{ parentId: MARKET_PARENT, name }]);
-    const revoked = Boolean(res?.data?.content?.fields?.value?.fields?.revoked);
-    return revoked;
-  } catch {
-    return false; // si no existe DF, no revocada
-  }
-}
-
-async function resolveModelIdBySlug(owner: string, slug: string): Promise<number | null> {
-  try {
-    // 1) Listar Dynamic Fields del parent y encontrar la entrada FamilyKey exacta
-    const list = await rpc('suix_getDynamicFields', [MARKET_PARENT, null, 200]);
-    const rows: any[] = list?.result?.data || list?.data || [];
-    const sWanted = String(slug ?? '').trim();
-    const match = rows.find((r: any) => {
-      const t = r?.name?.type;
-      const v = r?.name?.value;
-      const o = v?.owner || v?.fields?.owner;
-      const s = (v?.slug || v?.fields?.slug || '').trim();
-      return typeof t === 'string' && t.endsWith('::marketplace::FamilyKey') &&
-             typeof o === 'string' && typeof s === 'string' &&
-             o.toLowerCase() === owner.toLowerCase() && s === sWanted;
+    // Check indexed licenses table for this address and model
+    const license = await __PRISMA__.licenses.findFirst({
+      where: {
+        owner: addr.toLowerCase(),
+        model_id: modelId,
+        revoked: false,
+        // For subscriptions, could add: expires_at > Date.now()
+      },
     });
-    if (!match) return null;
-    const famMetaId = match?.objectId;
-    if (!famMetaId) return null;
-
-    // 2) Leer el objeto FamilyMeta para extraer latest_id
-    const obj = await rpc('sui_getObject', [famMetaId, { showType: true, showOwner: true, showContent: true }]);
-    const idA = obj?.result?.data?.content?.fields?.latest_id;
-    const idB = obj?.data?.content?.fields?.value?.fields?.latest_id; // diferentes nodos pueden anidar distinto
-    const id = idA ?? idB;
-    if (typeof id === 'string' || typeof id === 'number') return Number(id);
-    return null;
+    return !!license;
   } catch (e) {
-    console.error('[keys/get] resolveModelIdBySlug error', e);
-    return null;
-  }
-}
-
-async function hasLicense(addr: string, modelId: number): Promise<boolean> {
-  try {
-    const filter = { StructType: LICENSE_STRUCT } as const;
-    const options = { showType: true, showContent: true, showOwner: true } as const;
-    const result = await rpc('suix_getOwnedObjects', [addr, { filter, options }]);
-    const data: any[] = result?.data ?? [];
-    for (const it of data) {
-      const content = it?.data?.content || it?.content || it?.data?.content;
-      const fields = content?.fields;
-      const mid = fields?.model_id;
-      if (mid == null) continue;
-      if (Number(mid) !== Number(modelId)) continue;
-      const lid = fields?.license_id ?? fields?.id;
-      const revoked = await isRevoked(lid ?? 0);
-      if (revoked) continue;
-      // opcional: validar expires_at y rights aquí si lo deseas
-      return true;
-    }
+    console.error('[keys/get] hasLicenseEvm error', e);
     return false;
-  } catch (e) {
-    console.error('[keys/get] hasLicense rpc error', e);
-    return false; // tratar como sin licencia para evitar 500
   }
 }
 
@@ -141,15 +64,27 @@ export async function GET(req: NextRequest) {
     let modelId = modelIdQ ? Number(modelIdQ) : NaN;
     if (!addr) return new Response(JSON.stringify({ error: 'missing addr' }), { status: 400, headers: { 'content-type': 'application/json' } });
 
-    if (!Number.isFinite(modelId) && slugQ) {
-      if (!ownerQ) return new Response(JSON.stringify({ error: 'missing owner for slug' }), { status: 400, headers: { 'content-type': 'application/json' } });
-      const resolved = await resolveModelIdBySlug(ownerQ, slugQ);
-      if (resolved == null) return new Response(JSON.stringify({ error: 'modelId not found for slug (resolve failed or not exists)' }), { status: 404, headers: { 'content-type': 'application/json' } });
-      modelId = resolved;
+    // EVM: Resolve modelId from slug via indexed DB if needed
+    // Note: models table doesn't have slug, so we check model_metadata or use modelId directly
+    if (!Number.isFinite(modelId) && slugQ && __PRISMA__) {
+      try {
+        // Try to find by name match (slug is typically derived from name)
+        const model = await __PRISMA__.models.findFirst({ 
+          where: { name: { contains: slugQ, mode: 'insensitive' } } 
+        });
+        if (model) modelId = model.model_id;
+      } catch {
+        // ignore DB errors
+      }
+    }
+    
+    if (!Number.isFinite(modelId)) {
+      return new Response(JSON.stringify({ error: 'modelId not found' }), { status: 404, headers: { 'content-type': 'application/json' } });
     }
 
+    // Check license: bypass mode or EVM DB check
     const bypass = String(process.env.KEYS_BYPASS_ONCHAIN || '').toLowerCase() === 'true';
-    const ok = bypass ? true : await hasLicense(addr, Number(modelId));
+    const ok = bypass ? true : await hasLicenseEvm(addr, Number(modelId));
     if (!ok) {
       incCounter('keys_get_total' as any, { status: '403' } as any);
       return new Response(JSON.stringify({ error: 'no license' }), { status: 403, headers: { 'content-type': 'application/json' } });

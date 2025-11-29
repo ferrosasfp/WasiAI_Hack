@@ -34,3 +34,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Archivos sensibles
+.env
+.env.*
+!.env.example
+
+# Backups y duplicados
+*.bak*
+*-e
+package-lock\ 2.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+
+# Build artifacts
+tsconfig.tsbuildinfo

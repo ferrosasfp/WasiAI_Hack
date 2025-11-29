@@ -27,6 +27,7 @@ import WizardThemeProvider from '@/components/WizardThemeProvider'
 import { CHAIN_IDS, getChainConfig, getNativeSymbol, getMarketAddress, getRpcUrl, MARKETPLACE_FEE_BPS, ROYALTY_LIMITS, percentToBps, validateRoyaltyPercent, calculateRevenueSplit, formatAmount } from '@/config'
 import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
 import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
+import { saveStep as saveStepCentralized } from '@/lib/wizard-draft-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -343,11 +344,10 @@ export default function Step4LicensesTermsLocalized() {
     }
     setSaving(true)
     try {
-      await saveDraftUtil('step4', payload.data, upgradeMode, upgradeModelId)
+      // Use centralized service (handles localStorage + server sync)
+      await saveStepCentralized('step4', payload.data, upgradeMode, upgradeModelId)
       setMsg(t('wizard.common.saved'))
       lastSavedRef.current = payload.data
-      const localStorageKey = `draft_step4_${getDraftId(upgradeMode, upgradeModelId)}`
-      try { localStorage.setItem(localStorageKey, JSON.stringify(payload.data)) } catch {}
       return true
     } catch {
       setMsg(t('wizard.common.errorSaving'))
@@ -382,12 +382,119 @@ export default function Step4LicensesTermsLocalized() {
     if (text.length === 0) setMustSignError(false)
   }, [termsText])
 
-  // Load draft data (and fallback to existing model in upgrade mode if no draft)
+  // Load data: In upgrade mode, ALWAYS load from existing model first
   useEffect(() => {
     let alive = true
-    const draftId = getDraftId(upgradeMode, upgradeModelId)
+    loadingFromDraftRef.current = true
     
-    // Hydrate from cache first to avoid empty initial render
+    // Helper: Convert wei to native token (18 decimals)
+    const weiToNative = (wei: string | number | bigint): string => {
+      try {
+        const weiBig = BigInt(String(wei || '0'))
+        if (weiBig === 0n) return '0'
+        const weiStr = weiBig.toString().padStart(19, '0')
+        const intPart = weiStr.slice(0, -18) || '0'
+        const decPart = weiStr.slice(-18).replace(/0+$/, '')
+        if (!decPart) return intPart
+        return `${intPart}.${decPart}`
+      } catch {
+        return '0'
+      }
+    }
+    
+    // UPGRADE MODE: Load directly from existing model (ignore drafts)
+    if (upgradeMode && upgradeModelId) {
+      console.log('[Step4] UPGRADE MODE - Loading from model:', upgradeModelId)
+      fetch(`/api/indexed/models/${upgradeModelId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (!alive) return
+          const modelData = data?.model
+          if (!modelData) {
+            console.error('[Step4] Model not found')
+            return
+          }
+          const meta = modelData?.metadata || {}
+          
+          // === PRICES (convert from wei) ===
+          const pricePerpWei = String(modelData?.price_perpetual || '0')
+          const priceSubWei = String(modelData?.price_subscription || '0')
+          const perpNative = weiToNative(pricePerpWei)
+          const subNative = weiToNative(priceSubWei)
+          
+          console.log('[Step4] Prices:', { pricePerpWei, priceSubWei, perpNative, subNative })
+          setPricePerpetual(perpNative)
+          setPriceSubscription(subNative)
+          
+          // === DURATION (days to months) ===
+          const durationDays = Number(modelData?.default_duration_days || 0)
+          const durationMonths = durationDays > 0 ? Math.max(1, Math.round(durationDays / 30)) : 1
+          console.log('[Step4] Duration:', { durationDays, durationMonths })
+          setDefaultDurationDays(String(durationMonths))
+          
+          // === ROYALTY (bps to percent) ===
+          const royaltyBps = Number(modelData?.royalty_bps || 0)
+          const royaltyPct = validateRoyaltyPercent(royaltyBps / 100)
+          console.log('[Step4] Royalty:', { royaltyBps, royaltyPct })
+          setRoyaltyPercent(String(royaltyPct))
+          
+          // === RIGHTS & DELIVERY ===
+          const deliveryRightsMask = Number(modelData?.delivery_rights_default || 0)
+          const hasAPI = (deliveryRightsMask & 1) !== 0
+          const hasDownload = (deliveryRightsMask & 2) !== 0
+          console.log('[Step4] Rights:', { deliveryRightsMask, hasAPI, hasDownload })
+          setRightsAPI(hasAPI)
+          setRightsDownload(hasDownload)
+          
+          const deliveryModeHintValue = Number(modelData?.delivery_mode_hint || 1)
+          if (hasAPI && hasDownload) setDeliveryModeHint('Both')
+          else if (hasDownload) setDeliveryModeHint('Download')
+          else setDeliveryModeHint('API')
+          
+          // === TRANSFERABLE ===
+          const lp = meta?.licensePolicy || {}
+          const isTransferable = lp.transferable === true || (lp.rights?.transferable === true)
+          setTransferable(isTransferable)
+          
+          // === TERMS ===
+          const termsObj = lp.terms || {}
+          const termsTextValue = termsObj.textMarkdown || lp.termsText || meta.termsText || ''
+          const rawSummary = termsObj.summaryBullets || lp.termsSummary || meta.termsSummary || ''
+          const termsSummaryValue = Array.isArray(rawSummary) ? rawSummary.join('\n') : String(rawSummary || '')
+          const termsHashValue = termsObj.termsHash || lp.termsHash || modelData?.terms_hash || ''
+          
+          console.log('[Step4] Terms:', { 
+            termsTextValue: termsTextValue?.substring(0, 50), 
+            termsSummaryValue: termsSummaryValue?.substring(0, 50), 
+            termsHashValue 
+          })
+          
+          setTermsText(termsTextValue)
+          setTermsSummary(termsSummaryValue)
+          setTermsHash(termsHashValue)
+          
+          // === PRICING MODE ===
+          const hasPerpPrice = BigInt(pricePerpWei) > 0n
+          const hasSubPrice = BigInt(priceSubWei) > 0n
+          if (hasPerpPrice && hasSubPrice) setPricingMode('both')
+          else if (hasPerpPrice) setPricingMode('perpetual')
+          else if (hasSubPrice) setPricingMode('subscription')
+          else setPricingMode('both')
+          
+          setShouldFade(false)
+          setLoadedRemote(true)
+        })
+        .catch(err => {
+          console.error('[Step4] Failed to load model:', err)
+        })
+        .finally(() => {
+          loadingFromDraftRef.current = false
+        })
+      return () => { alive = false }
+    }
+    
+    // NON-UPGRADE MODE: Load from draft/localStorage
+    const draftId = getDraftId(false, null)
     if (!isResetting()) {
       try {
         const raw = localStorage.getItem(`draft_step4_${draftId}`) || localStorage.getItem('draft_step4')
@@ -402,14 +509,12 @@ export default function Step4LicensesTermsLocalized() {
           setPriceSubscription(String(sub.perMonthPriceRef ?? '0'))
           setPricePerpetual(String(perp.priceRef ?? '0'))
           const rbps = Number(lp.royaltyBps || 0)
-          const rInt = validateRoyaltyPercent(rbps / 100)
-          setRoyaltyPercent(String(rInt))
+          setRoyaltyPercent(String(validateRoyaltyPercent(rbps / 100)))
           const dd = Number(lp.defaultDurationDays || 0)
           setDefaultDurationDays(String(Math.max(0, Math.round(dd/30))))
           setTransferable(Boolean(lp.transferable))
           setTermsHash(String(lp.termsHash || ''))
           setTermsText(String(lp.termsText || ''))
-          // New fields with backward compatibility
           setPricingMode(((c.pricingMode as any) === 'free' ? 'both' : (c.pricingMode as any)) || 'both')
           setTermsSummary(String(c.termsSummary || ''))
           if (rights.includes('API') && rights.includes('Download')) setDeliveryModeHint('Both')
@@ -421,109 +526,10 @@ export default function Step4LicensesTermsLocalized() {
         }
       } catch {}
     }
-    loadingFromDraftRef.current = true
-    loadDraftUtil(upgradeMode, upgradeModelId).then(async (r)=>{
+    
+    loadDraftUtil(false, null).then(async (r) => {
       if (!alive) return
       const s4 = r?.data?.step4
-      
-      // If no draft data for step4 and in upgrade mode, load from existing model
-      if (!s4 && upgradeMode && upgradeModelId) {
-        console.log('[Step4] No draft data, loading from existing model...')
-        try {
-          const res = await fetch(`/api/indexed/models/${upgradeModelId}`)
-          if (!res.ok) throw new Error('Failed to load model')
-          const data = await res.json()
-          const modelData = data?.model
-          const meta = modelData?.metadata || {}
-          
-          if (!alive) return
-          
-          // Convert wei to native
-          const weiToNative = (wei: string) => {
-            const weiBig = BigInt(wei || '0')
-            if (weiBig === 0n) return '0'
-            const weiStr = weiBig.toString().padStart(19, '0')
-            const intPart = weiStr.slice(0, -18) || '0'
-            const decPart = weiStr.slice(-18).replace(/0+$/, '')
-            if (!decPart) return intPart
-            return `${intPart}.${decPart}`
-          }
-          
-          const pricePerpWei = modelData?.price_perpetual || '0'
-          const priceSubWei = modelData?.price_subscription || '0'
-          const durationDaysValue = modelData?.default_duration_days || 0
-          
-          // Duration is stored in days in blockchain (e.g., 30 = 1 month, 90 = 3 months)
-          // Convert to months for the UI field
-          const durationMonths = durationDaysValue > 0 ? Math.max(1, Math.round(durationDaysValue / 30)) : 1
-          
-          console.log('[Step4] Loaded from existing model:', { 
-            pricePerpWei, 
-            priceSubWei, 
-            durationDaysValue,
-            durationMonths,
-            modelData 
-          })
-          
-          setPricePerpetual(weiToNative(pricePerpWei))
-          setPriceSubscription(weiToNative(priceSubWei))
-          setDefaultDurationDays(String(durationMonths))
-          
-          const royaltyBpsValue = modelData?.royalty_bps || 0
-          setRoyaltyPercent(String(validateRoyaltyPercent(royaltyBpsValue / 100)))
-          
-          const deliveryRightsMask = modelData?.delivery_rights_default || 0
-          const hasAPI = (deliveryRightsMask & 1) !== 0
-          const hasDownload = (deliveryRightsMask & 2) !== 0
-          setRightsAPI(hasAPI)
-          setRightsDownload(hasDownload)
-          
-          const deliveryModeHintValue = modelData?.delivery_mode_hint || 1
-          if (deliveryModeHintValue === 3) setDeliveryModeHint('Both')
-          else if (deliveryModeHintValue === 2) setDeliveryModeHint('Download')
-          else setDeliveryModeHint('API')
-          
-          if (typeof meta.licensePolicy?.transferable === 'boolean') {
-            setTransferable(meta.licensePolicy.transferable)
-          }
-          
-          // Load terms from licensePolicy
-          const lp = meta.licensePolicy || {}
-          const termsObj = lp.terms || {}
-          
-          console.log('[Step4] Loading terms:', {
-            'meta.licensePolicy': !!meta.licensePolicy,
-            'lp.termsText': lp.termsText,
-            'lp.terms': lp.terms,
-            'termsObj.textMarkdown': termsObj.textMarkdown,
-            'termsObj.summaryBullets': termsObj.summaryBullets,
-          })
-          
-          // termsText can be at lp.termsText (old format) or lp.terms.textMarkdown (new format)
-          const termsTextValue = lp.termsText || termsObj.textMarkdown || meta.termsText || ''
-          // termsSummary can be array (summaryBullets) or string
-          const rawSummary = termsObj.summaryBullets || lp.termsSummary || meta.termsSummary || ''
-          const termsSummaryValue = Array.isArray(rawSummary) ? rawSummary.join('\n') : String(rawSummary)
-          const termsHashValue = lp.termsHash || termsObj.termsHash || meta.termsHash || ''
-          
-          console.log('[Step4] Terms loaded:', { termsTextValue: termsTextValue?.substring(0, 50), termsSummaryValue, termsHashValue })
-          
-          if (termsTextValue) setTermsText(termsTextValue)
-          if (termsSummaryValue) setTermsSummary(termsSummaryValue)
-          if (termsHashValue) setTermsHash(termsHashValue)
-          
-          const hasPerpPrice = BigInt(pricePerpWei) > 0n
-          const hasSubPrice = BigInt(priceSubWei) > 0n
-          if (hasPerpPrice && hasSubPrice) setPricingMode('both')
-          else if (hasPerpPrice) setPricingMode('perpetual')
-          else if (hasSubPrice) setPricingMode('subscription')
-          else setPricingMode('both')
-        } catch (err) {
-          console.error('[Step4] Failed to load existing model:', err)
-        }
-        return
-      }
-      
       if (!s4) return
       try {
         const lp = s4.licensePolicy || {}
@@ -536,37 +542,24 @@ export default function Step4LicensesTermsLocalized() {
         const perp = lp.perpetual || {}
         setPriceSubscription(String(sub.perMonthPriceRef ?? '0'))
         setPricePerpetual(String(perp.priceRef ?? '0'))
-        const rbps = Number(lp.royaltyBps || 0)
-        const rInt = validateRoyaltyPercent(rbps / 100)
-        setRoyaltyPercent(String(rInt))
+        setRoyaltyPercent(String(validateRoyaltyPercent(Number(lp.royaltyBps || 0) / 100)))
         const dd = Number(lp.defaultDurationDays || 0)
         setDefaultDurationDays(String(Math.max(0, Math.round(dd/30))))
         setTransferable(Boolean(lp.transferable))
         setTermsHash(String(lp.termsHash || ''))
         setTermsText(String(lp.termsText || ''))
-        // New fields with backward compatibility
         setPricingMode(((s4.pricingMode as any) === 'free' ? 'both' : (s4.pricingMode as any)) || 'both')
         setTermsSummary(String(s4.termsSummary || ''))
         if (rights.includes('API') && rights.includes('Download')) setDeliveryModeHint('Both')
         else if (rights.includes('API')) setDeliveryModeHint('API')
         else if (rights.includes('Download')) setDeliveryModeHint('Download')
         else setDeliveryModeHint('none')
-        lastSavedRef.current = {
-          licensePolicy: {
-            rights,
-            subscription: { perMonthPriceRef: String(sub.perMonthPriceRef ?? '0') },
-            perpetual: { priceRef: String(perp.priceRef ?? '0') },
-            defaultDurationDays: Number(lp.defaultDurationDays || 0),
-            transferable: Boolean(lp.transferable),
-            termsText: String(lp.termsText || ''),
-            termsHash: String(lp.termsHash || ''),
-            royaltyBps: rbps,
-            feeBps: Number(lp.feeBps || feeBpsEnv),
-            delivery: rights
-          }
-        }
       } catch {}
-    }).catch(()=>{}).finally(()=>{ loadingFromDraftRef.current = false; setLoadedRemote(true) })
+    }).catch(() => {}).finally(() => { 
+      loadingFromDraftRef.current = false
+      setLoadedRemote(true) 
+    })
+    
     return () => { alive = false }
   }, [upgradeMode, upgradeModelId])
 

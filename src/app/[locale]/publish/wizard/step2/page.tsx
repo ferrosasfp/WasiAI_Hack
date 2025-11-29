@@ -27,6 +27,7 @@ import WizardThemeProvider from '@/components/WizardThemeProvider'
 import { INDUSTRIES_ES, INDUSTRIES_EN, USE_CASES_ES, USE_CASES_EN, SUPPORTED_LANGS, DEPLOY_ES, DEPLOY_EN, TASKS as TASK_OPTIONS, MODALITIES as MODALITY_OPTIONS, FRAMEWORKS as FRAMEWORK_OPTIONS, FILE_FORMATS as FILE_FORMAT_OPTIONS, OS as OS_OPTIONS, ACCELERATORS as ACCELERATOR_OPTIONS, TECHNICAL_MODEL_TYPES, TaskValue, ModalityValue, DeployValue, FrameworkValue, FileFormatValue, OsValue, AcceleratorValue, TechnicalModelType } from '@/constants/step2'
 import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
 import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
+import { saveStep as saveStepCentralized } from '@/lib/wizard-draft-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -1182,15 +1183,15 @@ export default function Step2CompatibilityLocalized() {
     }
     try { console.log('[step2] payload to save:', payload) } catch {}
     try {
-      const r = await saveDraftUtil('step2', payload.data, upgradeMode, upgradeModelId)
-      setMsg(r?.ok ? t('wizard.common.saved') : t('wizard.common.errorSaving'))
+      // Use centralized service (handles localStorage + server sync)
+      await saveStepCentralized('step2', payload.data, upgradeMode, upgradeModelId)
+      setMsg(t('wizard.common.saved'))
       lastSavedRef.current = payload.data
-      const localStorageKey = `draft_step2_${getDraftId(upgradeMode, upgradeModelId)}`
-      try { localStorage.setItem(localStorageKey, JSON.stringify(payload.data)) } catch {}
       setDirty(false)
-      return !!r?.ok
+      return true
     } catch (e) {
       setMsg(t('wizard.common.errorSaving'))
+      return false
     } finally {
       setSaving(false)
     }
