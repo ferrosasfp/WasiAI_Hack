@@ -26,8 +26,8 @@ export default function LandingV2() {
   const L = React.useMemo(()=>({
     heroTitle: es ? 'Agentes de IA que cobran por uso.' : 'AI agents that get paid per use.',
     heroBody: es
-      ? 'WasiAI es el hogar de los agentes de IA en Avalanche. Publica tu modelo y cobra automáticamente cada vez que alguien lo usa — sin intermediarios, sin facturas, sin esperas. Cada agente tiene identidad verificada en blockchain.'
-      : 'WasiAI is the home of AI agents on Avalanche. Publish your model and get paid automatically every time someone uses it — no middlemen, no invoices, no waiting. Every agent has verified identity on blockchain.',
+      ? 'WasiAI es el hogar de los agentes de IA en Avalanche. Publica tu modelo y cobra automáticamente cada vez que alguien lo usa. Sin intermediarios. Sin facturas. Sin esperas. Cada agente tiene identidad verificada en blockchain.'
+      : 'WasiAI is the home of AI agents on Avalanche. Publish your model and get paid automatically every time someone uses it. No middlemen. No invoices. No waiting. Every agent has verified identity on blockchain.',
     ctaExplore: es ? 'Explorar modelos' : 'Explore models',
     ctaPublish: es ? 'Publica tu modelo' : 'Publish your model',
     howItWorks: es ? 'Cómo funciona' : 'How it works',
@@ -62,22 +62,22 @@ export default function LandingV2() {
     teamsSteps: es ? [
       { k: '1/3', t: 'Descubre agentes', d: 'Busca agentes verificados por caso de uso' },
       { k: '2/3', t: 'Prueba antes de pagar', d: 'Corre una demo gratuita en entorno seguro' },
-      { k: '3/3', t: 'Paga solo por lo que usas', d: 'Sin contratos, sin mínimos — pagas por cada llamada' },
+      { k: '3/3', t: 'Paga solo por lo que usas', d: 'Sin contratos. Sin mínimos. Pagas por cada llamada.' },
     ] : [
       { k: '1/3', t: 'Discover agents', d: 'Find verified agents by use case' },
       { k: '2/3', t: 'Try before you pay', d: 'Run a free demo in a safe environment' },
-      { k: '3/3', t: 'Pay only for what you use', d: 'No contracts, no minimums — pay per call' },
+      { k: '3/3', t: 'Pay only for what you use', d: 'No contracts. No minimums. Pay per call.' },
     ],
     whyList: es ? [
-      { t: '💰 Pago por uso (x402)', d: 'Cobra automáticamente cada vez que alguien usa tu modelo. Sin facturas, sin esperas — el dinero llega directo a tu wallet.' },
+      { t: '💰 Pago por uso (x402)', d: 'Cobra automáticamente cada vez que alguien usa tu modelo. Sin facturas. Sin esperas. El dinero llega directo a tu wallet.' },
       { t: '🪪 Identidad verificada (ERC-8004)', d: 'Cada agente tiene un "pasaporte digital" que prueba quién lo creó y su historial de uso. Confía en agentes verificados.' },
       { t: '🎮 Prueba gratis antes de pagar', d: 'Corre demos en un entorno seguro. Si te gusta, pagas. Si no, no gastas nada.' },
-      { t: '⚡ Pagos instantáneos en AVAX', d: 'Los creadores reciben su pago en segundos, no en 30 días. Sin intermediarios, sin comisiones ocultas.' },
+      { t: '⚡ Pagos instantáneos en AVAX', d: 'Los creadores reciben su pago en segundos, no en 30 días. Sin intermediarios. Sin comisiones ocultas.' },
     ] : [
-      { t: '💰 Pay per use (x402)', d: 'Get paid automatically every time someone uses your model. No invoices, no waiting — money goes straight to your wallet.' },
+      { t: '💰 Pay per use (x402)', d: 'Get paid automatically every time someone uses your model. No invoices. No waiting. Money goes straight to your wallet.' },
       { t: '🪪 Verified identity (ERC-8004)', d: 'Every agent has a "digital passport" proving who created it and its usage history. Trust verified agents.' },
       { t: '🎮 Try free before you pay', d: 'Run demos in a safe environment. If you like it, pay. If not, spend nothing.' },
-      { t: '⚡ Instant payments in AVAX', d: 'Creators get paid in seconds, not 30 days. No middlemen, no hidden fees.' },
+      { t: '⚡ Instant payments in AVAX', d: 'Creators get paid in seconds, not 30 days. No middlemen. No hidden fees.' },
     ],
     useCasesList: es ? [
       { t: 'Analítica y pronósticos', d: 'Modelos predictivos para ingresos, demanda y forecasting.' },
