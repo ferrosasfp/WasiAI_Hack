@@ -51,16 +51,16 @@ export default function LandingV2() {
   const L = React.useMemo(()=>({
     heroTitle: es ? 'Lanza IA más rápido con modelos con licencia.' : 'Ship AI faster with licensed models.',
     heroBody: es
-      ? 'MarketplaceAI es un marketplace donde los builders publican y monetizan modelos agentes, analíticas, bots de trading, copilots y más. Las empresas descubren, prueban demos alojadas y compran licencias on-chain con opciones de suscripción o perpetuas.'
-      : 'MarketplaceAI is a marketplace where AI builders publish and monetize models agents, analytics, trading bots, copilots, and more. Businesses discover, test hosted demos, and buy on-chain licenses with subscription or perpetual options.',
+      ? 'WasiAI es el hogar de los agentes de IA en Avalanche. Los builders publican y monetizan modelos, agentes, analíticas, bots de trading, copilots y más. Las empresas descubren, prueban demos y compran licencias on-chain con x402 pay-per-inference.'
+      : 'WasiAI is the home of AI agents on Avalanche. AI builders publish and monetize models, agents, analytics, trading bots, copilots, and more. Businesses discover, test demos, and buy on-chain licenses with x402 pay-per-inference.',
     ctaExplore: es ? 'Explorar modelos' : 'Explore models',
     ctaPublish: es ? 'Publica tu modelo' : 'Publish your model',
     howItWorks: es ? 'Cómo funciona' : 'How it works',
     forCreators: es ? 'Para creadores' : 'For creators',
     forTeams: es ? 'Para equipos' : 'For teams',
     featured: es ? 'Modelos destacados' : 'Featured models',
-    featuredSub: es ? 'Modelos populares seleccionados por el equipo de MarketplaceAI.' : 'Popular models curated by the MarketplaceAI team.',
-    whyTitle: es ? 'Por qué MarketplaceAI' : 'Why MarketplaceAI',
+    featuredSub: es ? 'Modelos populares seleccionados por el equipo de WasiAI.' : 'Popular models curated by the WasiAI team.',
+    whyTitle: es ? 'Por qué WasiAI' : 'Why WasiAI',
     useCases: es ? 'Hecho para casos reales' : 'Built for real use cases',
     seeModels: es ? 'Ver modelos →' : 'See models →',
     ctaBandTitle: es ? '¿Listo para publicar o probar tu primer modelo?' : 'Ready to publish or try your first model?',
@@ -136,7 +136,7 @@ export default function LandingV2() {
       { h: 'Company', items: ['About','Contact'] },
       { h: 'Community', items: ['X (Twitter)','Discord','Blog'] },
     ],
-    footerCopyright: (year: number) => es ? `© ${year} MarketplaceAI. Todos los derechos reservados.` : `© ${year} MarketplaceAI. All rights reserved.`,
+    footerCopyright: (year: number) => es ? `© ${year} WasiAI. Todos los derechos reservados.` : `© ${year} WasiAI. All rights reserved.`,
   }), [es])
 
   const gradientBg = (t: any) => ({
@@ -414,7 +414,7 @@ export default function LandingV2() {
             <Grid item xs={12} md={3}>
               <Stack spacing={1}>
                 <Typography variant="h6" fontWeight={800}>
-                  <Box component="span" sx={{ background: 'linear-gradient(90deg, #9b8cff, #50e1ff)', WebkitBackgroundClip: 'text', color: 'transparent' }}>MarketplaceAI</Box>
+                  <Box component="span" sx={{ background: 'linear-gradient(90deg, #9b8cff, #50e1ff)', WebkitBackgroundClip: 'text', color: 'transparent' }}>WasiAI</Box>
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'oklch(0.75 0 0)' }}>{L.footerTagline}</Typography>
               </Stack>

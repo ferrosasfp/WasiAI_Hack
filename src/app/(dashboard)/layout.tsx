@@ -2,10 +2,10 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: {
-    default: 'MarketplaceAI - Dashboard',
-    template: '%s | MarketplaceAI',
+    default: 'WasiAI - Dashboard',
+    template: '%s | WasiAI',
   },
-  description: 'Administra tus modelos, compras y ventas en el dashboard de MarketplaceAI.',
+  description: 'Administra tus modelos, compras y ventas en el dashboard de WasiAI.',
   robots: { index: false, follow: true },
 };
 

@@ -2,10 +2,10 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: {
-    default: 'MarketplaceAI - Marketing',
-    template: '%s | MarketplaceAI',
+    default: 'WasiAI - Marketing',
+    template: '%s | WasiAI',
   },
-  description: 'Descubre las ventajas de MarketplaceAI para comercializar modelos de IA.',
+  description: 'Descubre las ventajas de WasiAI para comercializar modelos de IA.',
 };
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {

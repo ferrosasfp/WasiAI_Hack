@@ -1,8 +1,8 @@
 // Constantes generales de la aplicación
 
 export const APP_CONFIG = {
-    name: 'MarketplaceAI',
-    description: 'Decentralized AI Model Marketplace on Sui Blockchain',
+    name: 'WasiAI',
+    description: 'AI Agent Marketplace on Avalanche',
     version: '1.0.0',
   } as const;
   

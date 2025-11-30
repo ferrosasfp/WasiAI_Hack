@@ -19,10 +19,10 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: 'MarketplaceAI - Decentralized AI Model Marketplace',
-  description: 'Buy and sell AI models on Avalanche blockchain with IPFS storage',
-  keywords: ['AI', 'Blockchain', 'Avalanche', 'AVAX', 'IPFS', 'Marketplace', 'Machine Learning'],
-  authors: [{ name: 'MarketplaceAI Team' }],
+  title: 'WasiAI - AI Agent Marketplace on Avalanche',
+  description: 'The home of AI agents on Avalanche. Monetize models with x402 pay-per-inference and ERC-8004 identity.',
+  keywords: ['AI', 'Blockchain', 'Avalanche', 'AVAX', 'IPFS', 'Marketplace', 'Machine Learning', 'x402', 'ERC-8004', 'AI Agents'],
+  authors: [{ name: 'WasiAI Team' }],
   icons: {
     icon: '/favicon.ico',
     apple: '/apple-touch-icon.png',
@@ -30,15 +30,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://marketplaceai.com',
-    title: 'MarketplaceAI',
-    description: 'Decentralized AI Model Marketplace on Avalanche',
-    siteName: 'MarketplaceAI',
+    url: 'https://wasiai.com',
+    title: 'WasiAI',
+    description: 'AI Agent Marketplace on Avalanche',
+    siteName: 'WasiAI',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'MarketplaceAI',
-    description: 'Decentralized AI Model Marketplace on Avalanche',
+    title: 'WasiAI',
+    description: 'AI Agent Marketplace on Avalanche',
   },
 };
 
