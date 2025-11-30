@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createPublicClient, http, encodeFunctionData, parseAbi } from 'viem'
-import { avalancheFuji } from 'viem/chains'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,7 +6,6 @@ export const dynamic = 'force-dynamic'
 
 const CHAIN_ID = 43113 // Avalanche Fuji
 const NETWORK = 'avalanche-fuji'
-const AVAX_RPC = process.env.RPC_AVAX || 'https://api.avax-test.network/ext/bc/C/rpc'
 
 // USDC on Avalanche Fuji (official x402 token)
 const USDC_ADDRESS = '0x5425890298aed601595a70AB815c96711a31Bc65'
@@ -47,13 +44,6 @@ function rateLimit(key: string, max: number, windowMs: number) {
   cur.count += 1
   return { ok: true, remaining: max - cur.count }
 }
-
-// ===== Viem Client =====
-
-const publicClient = createPublicClient({
-  chain: avalancheFuji,
-  transport: http(AVAX_RPC),
-})
 
 // ===== Helper Functions =====
 
@@ -258,7 +248,7 @@ async function verifyPaymentWithFacilitator(
       paymentRequirements: requirement
     }
     
-    console.log('[x402] Sending to facilitator:', JSON.stringify(settleRequest, null, 2))
+    console.log('[x402] Sending to facilitator for resource:', requirement.resource)
     
     const settleRes = await fetch(`${FACILITATOR_URL}/settle`, {
       method: 'POST',
