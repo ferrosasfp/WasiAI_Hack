@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { buildAgentMetadata, DEFAULT_PRICE_PER_INFERENCE } from '@/lib/erc8004'
 
 export const dynamic = 'force-dynamic'
 
@@ -157,17 +158,79 @@ export async function POST(req: Request) {
         chainId: Number(chainId)
       }
 
+      // Get AgentRegistry address from env or deploy file
+      let agentRegistryAddr: string | null = chainId ? (process.env[`NEXT_PUBLIC_EVM_AGENT_REGISTRY_${chainId}`] || null) : null
+      if (!agentRegistryAddr) {
+        const deployPath = path.join(ROOT, `contracts/evm/deploy.${network}.json`)
+        if (fs.existsSync(deployPath)) {
+          const deploy = JSON.parse(fs.readFileSync(deployPath, 'utf8'))
+          agentRegistryAddr = deploy.agentRegistry || null
+        }
+      }
+
+      // Build ERC-8004 agent metadata for AgentRegistry
+      // Note: agentId will be assigned by the contract, we use 0 as placeholder
+      const walletAddress = body?.address || ''
+      // Get price per inference from licensePolicy.inference.pricePerCall (Step 4) or fallback
+      const pricePerInference = metadata.licensePolicy?.inference?.pricePerCall || metadata.pricePerInference || DEFAULT_PRICE_PER_INFERENCE
+      
+      // Add pricePerInference to model metadata for x402 endpoint
+      metadata.pricePerInference = pricePerInference
+      // Also ensure it's in licensePolicy.pricing.inference for consistency
+      if (!metadata.licensePolicy) metadata.licensePolicy = {}
+      if (!metadata.licensePolicy.pricing) metadata.licensePolicy.pricing = {}
+      metadata.licensePolicy.pricing.inference = { pricePerCall: pricePerInference }
+      
+      // Re-pin metadata with pricePerInference included
+      const pinnedWithPrice = await pinJSONToIPFS(metadata)
+      
+      // Build agent metadata (will be pinned after we know the modelId)
+      const agentMetadataTemplate = {
+        name,
+        description: metadata.summary || metadata.description || `AI Agent: ${name}`,
+        wallet: walletAddress,
+        pricePerInference,
+        image: metadata.cover?.uri || metadata.image,
+        capabilities: {
+          tasks: metadata.technicalCategories || metadata.categories || [],
+          inputModalities: metadata.customer?.inputs ? [metadata.customer.inputs] : [],
+          outputModalities: metadata.customer?.outputs ? [metadata.customer.outputs] : []
+        },
+        creator: metadata.author || {}
+      }
+
+      // AgentRegistry transaction params (to be executed after Marketplace tx)
+      // The frontend will need to:
+      // 1. Execute Marketplace.listOrUpgrade to get modelId
+      // 2. Pin agent metadata to IPFS with the modelId
+      // 3. Execute AgentRegistry.registerAgent with the modelId and agent metadata URI
+      const agentTxParams = agentRegistryAddr ? {
+        functionName: 'registerAgent',
+        // Args will be filled by frontend after getting modelId from Marketplace tx
+        // [modelId, wallet, endpoint, metadataUri]
+        argsTemplate: {
+          wallet: walletAddress,
+          endpoint: `/api/inference/{modelId}`, // Placeholder, frontend fills with actual modelId
+          pricePerInference
+        },
+        contractAddress: agentRegistryAddr,
+        chainId: Number(chainId),
+        agentMetadataTemplate
+      } : null
+
       return NextResponse.json({ 
         ok: true, 
-        ...pinned, 
+        ...pinnedWithPrice, 
         chain, 
         network, 
         txParams,
+        agentTxParams, // New: AgentRegistry params
         // Include metadata for reference
         metadata: {
           slug,
           name,
-          uri
+          uri: pinnedWithPrice.uri,
+          pricePerInference
         }
       })
     }

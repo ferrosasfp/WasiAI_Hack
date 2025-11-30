@@ -266,10 +266,40 @@ export async function POST(
       chainId: body.chainId
     })
 
+    // Prepare AgentRegistry transaction params for ERC-8004 update
+    // The agent metadata will be updated with the new model metadata
+    const agentRegistryAddr = process.env[`NEXT_PUBLIC_EVM_AGENT_REGISTRY_${body.chainId}`]
+      || process.env.NEXT_PUBLIC_EVM_AGENT_REGISTRY
+    
+    let agentTxParams = null
+    if (agentRegistryAddr) {
+      // For upgrades, we'll update the agent's metadata URI
+      // The frontend will need to call updateAgentMetadata with the new URI
+      agentTxParams = {
+        functionName: 'updateAgentMetadata',
+        contractAddress: agentRegistryAddr,
+        chainId: body.chainId,
+        // Agent metadata template - frontend will fill in agentId
+        metadataTemplate: {
+          modelId: modelId,
+          chainId: body.chainId,
+          name: body.name,
+          description: body.tagline || body.summary || '',
+          version: versionTag,
+          capabilities: body.technical?.capabilities || {},
+          creator: body.author || {},
+          updatedAt: new Date().toISOString()
+        }
+      }
+      console.log(`[Upgrade] AgentRegistry params prepared for chain ${body.chainId}`)
+    }
+
     return NextResponse.json({
       ok: true,
       uri,
       txParams,
+      agentTxParams,
+      modelId, // Include modelId for agent lookup
       metadata: {
         slug: body.slug,
         name: body.name,

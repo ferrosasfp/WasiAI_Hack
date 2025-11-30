@@ -31,6 +31,8 @@ import { ModelEditControls } from '@/components/ModelEditControls'
 import { QuickEditDrawer } from '@/components/QuickEditDrawer'
 import { rightsBitmaskToArray } from '@/adapters/evm/write'
 import { IpfsImage } from '@/components/IpfsImage'
+import X402InferencePanel from '@/components/X402InferencePanel'
+import ERC8004Badge from '@/components/ERC8004Badge'
 
 export type ModelPageClientProps = {
   modelId: number
@@ -1045,6 +1047,14 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                             }} 
                           />
                         )}
+                        {/* ERC-8004 Agent Badge - shown if model has agent identity */}
+                        {data?.metadata?.agentId && (
+                          <ERC8004Badge 
+                            agentId={data.metadata.agentId} 
+                            variant="chip" 
+                            locale={locale} 
+                          />
+                        )}
                       </Stack>
                       {viewModel.step1.tagline && (
                         <Typography variant="h6" sx={{ color:'#ffffffcc', fontWeight:400, mb:1.5, fontSize:'1.1rem' }}>
@@ -1751,6 +1761,20 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                 currentAddress={currentAddress}
                 onQuickEdit={() => setQuickEditOpen(true)}
               />
+            )}
+
+            {/* x402 Inference Panel - Pay per use */}
+            {data?.metadata?.licensePolicy?.pricing?.inference?.pricePerCall && (
+              <Box sx={{ mb: 2 }}>
+                <X402InferencePanel
+                  modelId={id}
+                  modelName={viewModel.step1.name}
+                  pricePerInference={data.metadata.licensePolicy.pricing.inference.pricePerCall}
+                  recipientWallet={data.owner}
+                  chainId={evmChainId}
+                  locale={locale}
+                />
+              </Box>
             )}
 
             {/* Licenses - como Step 5 */}

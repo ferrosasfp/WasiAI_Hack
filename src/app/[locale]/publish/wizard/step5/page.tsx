@@ -30,7 +30,8 @@ import { useWizardDraft } from '@/hooks/useWizardDraft'
 // Wagmi hooks for wallet signing
 import { useWriteContract, useWaitForTransactionReceipt, useAccount, useSwitchChain } from 'wagmi'
 import { usePublicClient } from 'wagmi'
-import MARKET_ARTIFACT from '@/../contracts/evm/artifacts/contracts/Marketplace.sol/Marketplace.json'
+import MARKET_ARTIFACT from '@/abis/Marketplace.json'
+import AGENT_REGISTRY_ARTIFACT from '@/abis/AgentRegistry.json'
 
 export const dynamic = 'force-dynamic'
 
@@ -870,11 +871,65 @@ export default function Step5ReviewPublishLocalized() {
               await publicClient.waitForTransactionReceipt({ hash })
             }
             
+            // 5. Update AgentRegistry if agent exists (ERC-8004)
+            let agentTxHash: string | null = null
+            if (result.agentTxParams && result.modelId && publicClient) {
+              try {
+                setMsg(locale === 'es' ? 'Actualizando agente ERC-8004...' : 'Updating ERC-8004 agent...')
+                
+                // First, check if agent exists for this model
+                const AGENT_ABI = (await import('@/abis/AgentRegistry.json')).default.abi
+                const agentId = await publicClient.readContract({
+                  address: result.agentTxParams.contractAddress as `0x${string}`,
+                  abi: AGENT_ABI,
+                  functionName: 'modelToAgent',
+                  args: [BigInt(result.modelId)]
+                }) as bigint
+                
+                if (agentId && agentId > 0n) {
+                  // Agent exists - update its metadata
+                  // Pin updated agent metadata to IPFS
+                  const agentMetaRes = await fetch('/api/agents/metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      modelId: result.modelId,
+                      chainId: targetChainId,
+                      wallet: connectedAddress,
+                      ...result.agentTxParams.metadataTemplate
+                    })
+                  })
+                  
+                  if (agentMetaRes.ok) {
+                    const agentMeta = await agentMetaRes.json()
+                    if (agentMeta.uri) {
+                      // Update agent metadata on-chain
+                      const updateHash = await writeContractAsync({
+                        address: result.agentTxParams.contractAddress as `0x${string}`,
+                        abi: AGENT_ABI,
+                        functionName: 'updateMetadata',
+                        args: [agentId, agentMeta.uri],
+                        chainId: targetChainId
+                      })
+                      agentTxHash = updateHash
+                      
+                      if (publicClient && updateHash) {
+                        await publicClient.waitForTransactionReceipt({ hash: updateHash })
+                      }
+                    }
+                  }
+                }
+              } catch (agentErr) {
+                console.warn('[Upgrade] Failed to update agent metadata:', agentErr)
+                // Don't fail the whole upgrade if agent update fails
+              }
+            }
+            
             setResults(prev=>[...prev, { 
               chain: tnet.chain, 
               network: tnet.network, 
               ok: true, 
-              tx: { txHash: hash, market: result.txParams.contractAddress }
+              tx: { txHash: hash, market: result.txParams.contractAddress, agentTxHash }
             }])
           } catch (err: any) {
             allOk = false
@@ -947,16 +1002,130 @@ export default function Step5ReviewPublishLocalized() {
               chainId: targetChainId
             })
             
-            // 4. Wait for transaction confirmation
+            // 4. Wait for transaction confirmation and get modelId
+            let modelId: number | null = null
             if (publicClient && hash) {
-              await publicClient.waitForTransactionReceipt({ hash })
+              const receipt = await publicClient.waitForTransactionReceipt({ hash })
+              
+              // Parse logs to get modelId from ModelListed event
+              // Event: ModelListed(uint256 indexed modelId, address indexed owner, string slug)
+              // topics[0] = event signature hash
+              // topics[1] = modelId (indexed)
+              // topics[2] = owner (indexed)
+              for (const log of receipt.logs) {
+                if (log.topics && log.topics.length >= 2 && log.topics[1]) {
+                  // topics[1] is a hex string like "0x0000...0005"
+                  // Use Number() to convert hex string to number
+                  const parsedId = Number(BigInt(log.topics[1]))
+                  if (parsedId > 0 && parsedId < 1000000) { // Sanity check
+                    modelId = parsedId
+                    break
+                  }
+                }
+              }
+              
+              // Fallback: use nextId - 1 (the model we just created)
+              if (!modelId) {
+                try {
+                  // Read nextId from contract (the next ID to be assigned)
+                  // Our model is nextId - 1
+                  const nextId = await publicClient.readContract({
+                    address: r.txParams.contractAddress as `0x${string}`,
+                    abi: (MARKET_ARTIFACT as any).abi,
+                    functionName: 'nextId',
+                    args: []
+                  } as any)
+                  modelId = Number(nextId) - 1
+                } catch (e) {
+                  // Silently fail - modelId will remain null
+                }
+              }
+            }
+            
+            // 5. Register agent in AgentRegistry (ERC-8004)
+            let agentId: number | null = null
+            let agentTxHash: string | null = null
+            
+            if (r.agentTxParams && modelId) {
+              try {
+                setMsg(locale === 'es' ? 'Registrando agente ERC-8004...' : 'Registering ERC-8004 agent...')
+                
+                // Pin agent metadata to IPFS with actual modelId
+                const agentMetaRes = await fetch('/api/agents/metadata', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    modelId,
+                    chainId: targetChainId,
+                    wallet: connectedAddress,
+                    name: r.metadata?.name || slug,
+                    description: metadata?.summary || `AI Agent: ${r.metadata?.name || slug}`,
+                    pricePerInference: r.agentTxParams.argsTemplate?.pricePerInference,
+                    image: metadata?.cover?.uri,
+                    capabilities: {
+                      tasks: metadata?.technicalCategories || [],
+                    },
+                    creator: metadata?.author || {},
+                    marketplaceAddress: r.txParams.contractAddress,
+                    agentRegistryAddress: r.agentTxParams.contractAddress
+                  })
+                })
+                
+                const agentMetaData = await agentMetaRes.json()
+                
+                if (agentMetaData.ok && agentMetaData.uri) {
+                  // Execute AgentRegistry.registerAgent
+                  const agentAbi = (AGENT_REGISTRY_ARTIFACT as any).abi
+                  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin
+                  
+                  const agentHash = await writeContractAsync({
+                    address: r.agentTxParams.contractAddress as `0x${string}`,
+                    abi: agentAbi,
+                    functionName: 'registerAgent',
+                    args: [
+                      BigInt(modelId),
+                      connectedAddress as `0x${string}`,
+                      `${baseUrl}/api/inference/${modelId}`,
+                      agentMetaData.uri
+                    ],
+                    chainId: targetChainId
+                  })
+                  
+                  agentTxHash = agentHash
+                  
+                  // Wait for agent registration
+                  if (publicClient && agentHash) {
+                    const agentReceipt = await publicClient.waitForTransactionReceipt({ hash: agentHash })
+                    
+                    // Parse logs to get agentId from AgentRegistered event
+                    for (const log of agentReceipt.logs) {
+                      if (log.topics[1]) {
+                        agentId = parseInt(log.topics[1], 16)
+                        break
+                      }
+                    }
+                  }
+                  
+                  console.log('[Wizard] Agent registered:', { agentId, agentTxHash })
+                }
+              } catch (agentErr: any) {
+                // Agent registration failed but model was published - continue with warning
+                console.warn('[Wizard] Agent registration failed:', agentErr)
+              }
             }
             
             setResults(prev=>[...prev, { 
               chain: tnet.chain, 
               network: tnet.network, 
               ok: true, 
-              tx: { txHash: hash, market: r.txParams.contractAddress }
+              tx: { 
+                txHash: hash, 
+                market: r.txParams.contractAddress,
+                modelId,
+                agentId,
+                agentTxHash,
+                agentRegistry: r.agentTxParams?.contractAddress
+              }
             }])
           } catch (err: any) {
             allOk = false
@@ -1461,6 +1630,14 @@ export default function Step5ReviewPublishLocalized() {
                           
                           {/* Marketplace Fee */}
                           <Row label={t('wizard.step5.step4Summary.marketplaceFee')} value={<>{Math.round((feeBpsEff5||0)/100)}%</>} />
+                          
+                          {/* Inference Price (x402) */}
+                          {metadata?.licensePolicy?.inference?.pricePerCall && Number(metadata.licensePolicy.inference.pricePerCall) > 0 && (
+                            <Row 
+                              label={locale==='es' ? 'Precio por inferencia (x402)' : 'Price per inference (x402)'} 
+                              value={<Box component="span" sx={{ color: '#4fe1ff' }}>${metadata.licensePolicy.inference.pricePerCall} USDC</Box>} 
+                            />
+                          )}
                         </List>
                       </Box>
 

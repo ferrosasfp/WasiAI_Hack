@@ -7,7 +7,7 @@
 import { createPublicClient, http } from 'viem'
 import { query, queryOne } from './db'
 import MARKET_ARTIFACT from '@/abis/Marketplace.json'
-import { CHAIN_CONFIG, getChainConfig, getMarketAddress, isSupportedChain, ipfsToHttp, createTimeoutSignal, INDEXER_CONFIG, ZERO_ADDRESSES } from '@/config'
+import { CHAIN_CONFIG, getChainConfig, getMarketAddress, isSupportedChain, ipfsToHttp, createTimeoutSignal, INDEXER_CONFIG, ZERO_ADDRESSES, IPFS_GATEWAYS } from '@/config'
 
 interface IndexerOptions {
   chainId: number
@@ -221,8 +221,16 @@ async function indexModels(
         ]
       )
 
-      // TODO: Fetch and cache IPFS metadata in background
-      // This can be done asynchronously to not block indexing
+// Fetch and cache IPFS metadata
+      const uri = modelData[3]
+      if (uri) {
+        try {
+          await cacheModelMetadata(modelId)
+          console.log(`  │  └─ Cached IPFS metadata`)
+        } catch (metaErr) {
+          console.warn(`  │  └─ Failed to cache IPFS metadata`)
+        }
+      }
 
       indexed++
     } catch (error) {

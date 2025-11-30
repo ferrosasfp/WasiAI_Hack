@@ -5,5 +5,6 @@
   "licenseNFT": "0xB2F40cd0ba3c7c272FF3c818c89A3642E546eFBE",
   "feeBps": 2000,
   "feeRecipient": "0xfb652f4506731aC58E51b39DCa4F5ECDcb2C1543",
-  "modelsLimit": 0
+  "modelsLimit": 0,
+  "agentRegistry": "0x9B054Cbe7823086BB5f5b776347e589e11B6ABCf"
 }

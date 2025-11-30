@@ -53,6 +53,7 @@ export default function Step4LicensesTermsLocalized() {
   const [saving, setSaving] = useState(false)
   const [pricePerpetual, setPricePerpetual] = useState('0')
   const [priceSubscription, setPriceSubscription] = useState('0')
+  const [priceInference, setPriceInference] = useState('0.01') // x402 inference price in USDC
   const [defaultDurationDays, setDefaultDurationDays] = useState('1')
   const [royaltyPercent, setRoyaltyPercent] = useState('0')
   const [transferable, setTransferable] = useState(false)
@@ -328,6 +329,7 @@ export default function Step4LicensesTermsLocalized() {
           rights: rightsMask,
           subscription: { perMonthPriceRef: priceSubscription },
           perpetual: { priceRef: pricePerpetual },
+          inference: { pricePerCall: priceInference }, // x402 price in USDC
           defaultDurationDays: dDays,
           transferable,
           termsText,
@@ -375,7 +377,7 @@ export default function Step4LicensesTermsLocalized() {
       onSave('autosave')
     }, 700)
     return () => { if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current) }
-  }, [pricePerpetual, priceSubscription, defaultDurationDays, transferable, rightsAPI, rightsDownload, deliveryModeHint, termsText, termsHash, pricingMode, termsSummary])
+  }, [pricePerpetual, priceSubscription, priceInference, defaultDurationDays, transferable, rightsAPI, rightsDownload, deliveryModeHint, termsText, termsHash, pricingMode, termsSummary])
 
   useEffect(() => {
     const text = (termsText || '').trim()
@@ -508,6 +510,8 @@ export default function Step4LicensesTermsLocalized() {
           const perp = lp.perpetual || {}
           setPriceSubscription(String(sub.perMonthPriceRef ?? '0'))
           setPricePerpetual(String(perp.priceRef ?? '0'))
+          const inf = lp.inference || {}
+          setPriceInference(String(inf.pricePerCall ?? '0.01'))
           const rbps = Number(lp.royaltyBps || 0)
           setRoyaltyPercent(String(validateRoyaltyPercent(rbps / 100)))
           const dd = Number(lp.defaultDurationDays || 0)
@@ -542,6 +546,8 @@ export default function Step4LicensesTermsLocalized() {
         const perp = lp.perpetual || {}
         setPriceSubscription(String(sub.perMonthPriceRef ?? '0'))
         setPricePerpetual(String(perp.priceRef ?? '0'))
+        const inf = lp.inference || {}
+        setPriceInference(String(inf.pricePerCall ?? '0.01'))
         setRoyaltyPercent(String(validateRoyaltyPercent(Number(lp.royaltyBps || 0) / 100)))
         const dd = Number(lp.defaultDurationDays || 0)
         setDefaultDurationDays(String(Math.max(0, Math.round(dd/30))))
@@ -808,6 +814,19 @@ export default function Step4LicensesTermsLocalized() {
               inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', min: ROYALTY_LIMITS.MIN_PERCENT, max: ROYALTY_LIMITS.MAX_PERCENT }}
               InputProps={{ endAdornment: (<InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>%</InputAdornment>) }}
               helperText={`${ROYALTY_LIMITS.MIN_PERCENT}–${ROYALTY_LIMITS.MAX_PERCENT}%`}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              label={locale==='es' ? 'Precio por inferencia (x402)' : 'Price per inference (x402)'}
+              type="number"
+              fullWidth
+              value={priceInference}
+              onChange={(e)=>setPriceInference(e.target.value)}
+              inputProps={{ step: '0.01', min: 0 }}
+              InputProps={{ endAdornment: <InputAdornment position="end" sx={{ color:'#4fe1ff', '& .MuiTypography-root': { color:'#4fe1ff' } }}>USDC</InputAdornment> }}
+              helperText={locale==='es' ? 'Pago por uso via protocolo x402 (gasless)' : 'Pay-per-use via x402 protocol (gasless)'}
+              sx={{ '& .MuiOutlinedInput-root': { borderColor: 'rgba(79, 225, 255, 0.3)' } }}
             />
           </Grid>
         </Grid>
