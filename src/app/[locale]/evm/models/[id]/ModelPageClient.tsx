@@ -1764,13 +1764,13 @@ export default function ModelPageClient(props: ModelPageClientProps) {
             )}
 
             {/* x402 Inference Panel - Pay per use */}
-            {data?.metadata?.licensePolicy?.pricing?.inference?.pricePerCall && (
+            {data?.metadata?.licensePolicy?.inference?.pricePerCall && (
               <Box sx={{ mb: 2 }}>
                 <X402InferencePanel
                   modelId={id}
                   modelName={viewModel.step1.name}
-                  pricePerInference={data.metadata.licensePolicy.pricing.inference.pricePerCall}
-                  recipientWallet={data.owner}
+                  pricePerInference={data.metadata.licensePolicy.inference.pricePerCall}
+                  recipientWallet={data.creator || data.owner}
                   chainId={evmChainId}
                   locale={locale}
                 />

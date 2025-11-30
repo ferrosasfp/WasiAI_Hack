@@ -76,20 +76,55 @@ async function getModelInfo(modelId: string): Promise<ModelInfo | null> {
     if (!data.model) return null
     
     const model = data.model
+    const metadata = typeof model.metadata === 'string' 
+      ? JSON.parse(model.metadata) 
+      : model.metadata || {}
     
-    // Get price per inference from metadata or use default
+    // Get price per inference from metadata (multiple possible locations)
+    // Priority: licensePolicy.inference.pricePerCall > pricePerInference > default
     let pricePerInference = DEFAULT_PRICE_USDC
-    if (model.metadata?.pricePerInference) {
-      pricePerInference = String(model.metadata.pricePerInference)
+    
+    // Check new format: licensePolicy.inference.pricePerCall (human readable like "0.005")
+    const inferencePrice = metadata?.licensePolicy?.inference?.pricePerCall
+    if (inferencePrice) {
+      // Convert from human readable (e.g., "0.005") to USDC base units (6 decimals)
+      const priceFloat = parseFloat(inferencePrice)
+      if (!isNaN(priceFloat)) {
+        pricePerInference = Math.floor(priceFloat * Math.pow(10, USDC_DECIMALS)).toString()
+      }
+    }
+    // Fallback: legacy format pricePerInference
+    else if (metadata?.pricePerInference) {
+      const legacyPrice = parseFloat(metadata.pricePerInference)
+      if (!isNaN(legacyPrice)) {
+        // If it's already in base units (large number), use as is
+        // If it's human readable (small number), convert
+        if (legacyPrice > 1000) {
+          pricePerInference = Math.floor(legacyPrice).toString()
+        } else {
+          pricePerInference = Math.floor(legacyPrice * Math.pow(10, USDC_DECIMALS)).toString()
+        }
+      }
     }
     
+    // Get recipient wallet (creator gets paid)
     const recipientWallet = model.creator || model.owner
-    const agentId = model.metadata?.agentId || model.agentId || 0
+    
+    // Get agentId from AgentRegistry (stored in metadata or needs lookup)
+    const agentId = metadata?.agentId || model.agentId || 0
+    
+    console.log(`[x402] Model ${modelId} info:`, {
+      name: model.name,
+      pricePerInference,
+      priceFormatted: formatUsdcPrice(pricePerInference),
+      recipientWallet,
+      agentId
+    })
     
     return {
       pricePerInference,
       recipientWallet,
-      name: model.name || `Model #${modelId}`,
+      name: model.name || metadata?.name || `Model #${modelId}`,
       agentId,
     }
   } catch (e) {
@@ -123,12 +158,21 @@ interface X402PaymentRequirement {
   maxAmountRequired: string
   resource: string
   description: string
+  mimeType: string
   payTo: string
   asset: string
   maxTimeoutSeconds: number
 }
 
 // ===== x402 Verification via Facilitator =====
+
+// For local development with ngrok:
+// 1. Run: ngrok http 3000
+// 2. Set NEXT_PUBLIC_BASE_URL=https://your-ngrok-url.ngrok-free.app in .env.local
+// 3. Restart the dev server
+// 
+// Mock mode (X402_MOCK_MODE=true) skips facilitator for UI testing only
+const MOCK_MODE = process.env.X402_MOCK_MODE === 'true'
 
 async function verifyPaymentWithFacilitator(
   paymentHeader: string,
@@ -184,17 +228,42 @@ async function verifyPaymentWithFacilitator(
       return { valid: false, error: 'Payment expired' }
     }
     
+
+    if (MOCK_MODE) {
+      console.log('[x402 MOCK] Simulating successful payment settlement')
+      console.log('[x402 MOCK] Payer:', payment.payload.authorization.from)
+      console.log('[x402 MOCK] Amount:', payment.payload.authorization.value, 'USDC base units')
+      
+      // Mark nonce as used (replay protection still works in mock mode)
+      usedNonces.add(nonce)
+      
+      // Return mock success with fake txHash
+      return {
+        valid: true,
+        txHash: `0xmock_${Date.now().toString(16)}_${nonce.slice(2, 10)}`,
+        payer: payment.payload.authorization.from
+      }
+    }
+    
     // Call facilitator to verify and settle
+    // x402 spec: x402Version at root AND inside paymentPayload, NOT in paymentRequirements
+    const settleRequest = {
+      x402Version: payment.x402Version,
+      paymentPayload: {
+        x402Version: payment.x402Version,
+        scheme: payment.scheme,
+        network: payment.network,
+        payload: payment.payload
+      },
+      paymentRequirements: requirement
+    }
+    
+    console.log('[x402] Sending to facilitator:', JSON.stringify(settleRequest, null, 2))
+    
     const settleRes = await fetch(`${FACILITATOR_URL}/settle`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        x402Version: 1,
-        scheme: 'exact',
-        network: NETWORK,
-        payload: payment.payload,
-        paymentRequirements: requirement
-      })
+      body: JSON.stringify(settleRequest)
     })
     
     if (!settleRes.ok) {
@@ -259,12 +328,16 @@ function createPaymentRequirement(
   modelId: string,
   modelInfo: ModelInfo
 ): X402PaymentRequirement {
+  // Facilitator requires absolute URL for resource field
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://wasiai.com'
+  
   return {
     scheme: 'exact',
     network: NETWORK,
     maxAmountRequired: modelInfo.pricePerInference,
-    resource: `/api/inference/${modelId}`,
+    resource: `${baseUrl}/api/inference/${modelId}`,
     description: `AI inference on ${modelInfo.name}`,
+    mimeType: 'application/json',
     payTo: modelInfo.recipientWallet,
     asset: USDC_ADDRESS,
     maxTimeoutSeconds: MAX_TIMEOUT_SECONDS
