@@ -1,294 +1,221 @@
-# MarketPlaceAI Web (v0.1.0)
+# WasiAI - AI Agent Marketplace on Avalanche
 
-Marketplace de modelos de IA en Sui con compra de licencias Perpetua y Suscripción, listado optimizado (infinite scroll), y carga de modelos con validaciones e IPFS.
+> **Hack2Build: Payments x402 Hackathon Submission**
 
-## Stack
+WasiAI is the home of AI agents on Avalanche. It turns AI models into on-chain agents that get paid per inference using the x402 protocol and have verifiable identity via ERC-8004.
 
-- Next.js 14 (App Router) + React + TypeScript
-- Material UI (MUI)
-- TanStack Query
-- Sui (@mysten/dapp-kit, @mysten/sui.js)
-- IPFS (Pinata u otros gateways)
+## 🎯 Hackathon Submission
 
-## Features (v0.1.0)
+**Event:** Hack2Build: Payments x402  
+**Track:** AI Agent Monetization on Avalanche  
+**Team:** Fernando Rosas ([@ferrosasfp](https://github.com/ferrosasfp))
 
-- Home marketera con hero, beneficios, pasos, testimonios y CTA
-- Explorar modelos:
-  - Infinite scroll + “Cargar más”
-  - Búsqueda por nombre/slug (debounce 300ms)
-  - Orden y filtro “Solo listados” aplicados en backend
-  - 12 ítems por página + skeletons
-- Detalle/listado: compra de Perpetua y Suscripción (1–12 meses)
-- Publicación de modelos con validaciones y nombres de archivo únicos en IPFS
+## 🚀 What We're Building
 
-## Instalación
+WasiAI enables AI model creators to monetize their models through:
+
+1. **x402 Pay-per-Inference** - HTTP 402 payment flow for per-call billing in AVAX
+2. **ERC-8004 Agent Identity** - On-chain identity registry for AI agents
+3. **License NFTs** - Perpetual/subscription access via NFTs on Avalanche
+
+## 📋 Progress Tracker
+
+### Must Have
+- [ ] x402 inference endpoint (`/api/inference/[modelId]`)
+- [ ] On-chain payment verification
+- [ ] Per-inference pricing in metadata
+- [ ] Simple inference UI with payment flow
+- [ ] AgentRegistry.sol (ERC-8004 Identity)
+- [ ] Agent registration file (IPFS)
+- [ ] Wizard integration for agent registration
+- [ ] ERC-8004 badge in UI
+
+### Should Have
+- [ ] Replay protection (txHash caching)
+- [ ] Inference history view
+- [ ] Rate limiting
+- [ ] ReputationRegistry.sol (ERC-8004)
+- [ ] Feedback UI (👍/👎)
+- [ ] USDC payment support
+
+### Could Have
+- [ ] Real AI model (not mock)
+- [ ] LicenseNFT holder perks
+- [ ] Creator dashboard
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         WasiAI                               │
+├─────────────────────────────────────────────────────────────┤
+│  Frontend (Next.js 14 + Material UI)                         │
+│  ├── Publish Wizard (5 steps)                               │
+│  ├── Model Catalog (infinite scroll + filters)              │
+│  ├── Model Detail Page                                       │
+│  └── x402 Inference UI                                       │
+├─────────────────────────────────────────────────────────────┤
+│  Backend (Next.js API Routes)                                │
+│  ├── /api/inference/[modelId] ← x402 gateway                │
+│  ├── /api/agents/register ← ERC-8004 registration           │
+│  ├── /api/models/publish ← IPFS + tx params                 │
+│  └── Indexer (blockchain events → Postgres cache)           │
+├─────────────────────────────────────────────────────────────┤
+│  Smart Contracts (Avalanche Fuji / C-Chain)                  │
+│  ├── Marketplace.sol - Model registry + license sales       │
+│  ├── LicenseNFT.sol - ERC-721 license tokens                │
+│  ├── AgentRegistry.sol - ERC-8004 Identity (TBD)            │
+│  └── ReputationRegistry.sol - ERC-8004 Reputation (TBD)     │
+├─────────────────────────────────────────────────────────────┤
+│  Storage                                                     │
+│  ├── IPFS (Pinata) - Metadata, artifacts, agent files       │
+│  └── Neon Postgres - Indexed cache for fast queries         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 🔧 Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | Next.js 14 (App Router), React 18, TypeScript, Material UI |
+| **Blockchain** | Avalanche C-Chain, Solidity, wagmi, viem, RainbowKit |
+| **Storage** | IPFS (Pinata), Neon Postgres |
+| **Wallet** | RainbowKit + wagmi |
+| **i18n** | next-intl (English/Spanish) |
+
+## 🚀 Quick Start
 
 ```bash
-npm i
+# Install dependencies
+npm install
+
+# Set up environment
 cp .env.example .env.local
+# Edit .env.local with your keys (see below)
+
+# Run development server
 npm run dev
+
+# Open http://localhost:3000
 ```
 
-Abre http://localhost:3000
+## 📝 Environment Variables
 
-## Variables de entorno (.env.local)
+Create `.env.local` with:
 
-Consulta `.env.example` y ajusta según tu entorno. Claves principales:
+```bash
+# Blockchain (Avalanche Fuji)
+NEXT_PUBLIC_AVALANCHE_FUJI_RPC=https://api.avax-test.network/ext/bc/C/rpc
+NEXT_PUBLIC_MARKETPLACE_ADDRESS=0x...
+NEXT_PUBLIC_LICENSE_NFT_ADDRESS=0x...
 
-- NEXT_PUBLIC_MARKET_ID
-- NEXT_PUBLIC_PACKAGE_ID
-- NEXT_PUBLIC_SUI_RPC_URL
-- NEXT_PUBLIC_PINATA_GATEWAY
-- IPFS_GATEWAYS
+# IPFS (Pinata)
+PINATA_API_KEY=your_pinata_api_key
+PINATA_SECRET_KEY=your_pinata_secret_key
+NEXT_PUBLIC_PINATA_GATEWAY=https://gateway.pinata.cloud
 
-## Scripts
+# Database (Neon Postgres)
+DATABASE_URL=postgresql://...
 
-- dev – desarrollo
-- build – build producción
-- start – server producción
-
-## Notas de build
-
-- Para cortar v0.1 se ignoran errores de ESLint en build (`next.config.mjs`).
-- Algunas rutas API se marcan como dinámicas por uso de `request.url`.
-
-## Roadmap
-
- - Arquitectura multi‑chain (Base/EVM) mediante adapters
- - Centro de notificaciones y mejoras de UX
- - Endurecer tipos y reactivar ESLint en CI
-
-## Changelog
-
-Ver `CHANGELOG.md`.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## Dev server recovery playbook
-
-- Si el server se traba o no arranca:
-  - `npm run doctor:port` libera el puerto 3002.
-  - `npm run clean` limpia `.next/.turbo` de forma segura.
-  - `npm run dev:3002` o `npm run rebuild:dev` (clean + npm ci + dev).
-- Recomendaciones:
-  - Evitar matar el server durante “Compiling …”.
-  - Ejecutar solo una instancia de `next dev` por proyecto.
-  - Excluir `.next/` del antivirus/Spotlight si genera locks.
-
--
-# Secure Protected Content (Quick Guide)
-
-## Environment (.env.local)
-- Required
-  - `SUI_RPC_URL=https://fullnode.testnet.sui.io:443`
-  - `NEXT_PUBLIC_PACKAGE_ID=<Move package id>`
-  - `NEXT_PUBLIC_MARKET_ID=<Marketplace parent object id>`
-  - `KEYS_BYPASS_ONCHAIN=true` (dev only)
-- IPFS Gateways (primary + fallback)
-  - `NEXT_PUBLIC_PINATA_GATEWAY=https://gateway.pinata.cloud`
-  - `IPFS_GATEWAYS=https://gateway.pinata.cloud,https://ipfs.io,https://dweb.link`
-- Network tuning
-  - `IPFS_FETCH_TIMEOUT_MS=7000`
-  - `IPFS_FETCH_RETRIES=2`
-
-## API Endpoints
-- Register key (server-only in-memory demo)
-  - `POST /api/keys/put` body: `{ "modelId": 19, "slug": "MN8", "keyB64": "<base64>" }`
-- Get key (bypass on-chain in dev)
-  - `GET /api/keys/get?modelId=19&addr=<wallet>`
-  - or `GET /api/keys/get?slug=<slug>&owner=<creator>&addr=<wallet>`
-- Secure fetch (server decrypts, never exposes key)
-  - `GET /api/protected/fetch?modelId=19&addr=<wallet>&uri=ipfs://<CID_ENC>`
-  - Optional gateway override: `&gw=https://gateway.pinata.cloud`
-
-## Postman Test Flow
-1) Get model info: `GET /api/model-info?id=19` → copy `uri` (metadata CID)
-2) Open metadata: `https://ipfs.io/ipfs/<CID_METADATA>` → copy `encrypted_uri`
-3) Ensure key exists: `GET /api/keys/get?modelId=19&addr=<wallet>` (else do `POST /api/keys/put`)
-4) Secure fetch: `GET /api/protected/fetch?modelId=19&addr=<wallet>&uri=ipfs://<CID_ENC>`
-   - If a gateway fails, add `&gw=https://gateway.pinata.cloud`
-5) Validate response headers
-   - `content-type` should match (image/jpeg, image/png, application/pdf, etc.)
-   - Save response to file and open with a native viewer
-
-## Frontend Integration
-- The page `app/models/[id]/page.tsx` fetches decrypted bytes from
-  `GET /api/protected/fetch` and renders by type.
-- No keys are sent to the client. Content type is inferred from the
-  response header and magic bytes as a fallback.
-
-## Notes
-- In-memory key store is for development only. Use a database for staging/prod.
-- For real on-chain checks, disable `KEYS_BYPASS_ONCHAIN`.
-
-See also: [Testing Guide](./docs/TESTING.md) for quick cURL/Postman flows and Prometheus tips.
-
-### Env quick reference (Retries, timeouts, and CSP)
-
-- Server-side key lookup (in `/api/protected/fetch`):
-  - `PROTECTED_KEY_LOOKUP_RETRIES` number of attempts to locate key by id/slug. Example: `6`.
-  - `PROTECTED_KEY_LOOKUP_DELAY_MS` delay between attempts in ms. Example: `1200`.
-- IPFS gateway fetch tuning (server):
-  - `IPFS_FETCH_TIMEOUT_MS` per-attempt timeout in ms when downloading from gateways. Example: `8000`.
-  - `IPFS_FETCH_RETRIES` attempts per gateway before moving to the next. Example: `3`.
-- Client-side retries (model detail page):
-  - `NEXT_PUBLIC_PROTECTED_FETCH_RETRIES` attempts on 404 before surfacing the error. Example: `3`.
-  - `NEXT_PUBLIC_PROTECTED_FETCH_RETRY_DELAY_MS` delay between attempts in ms. Example: `1000`.
-- Cache/profile (server response):
-  - `PROTECTED_CACHE_PRIVATE`, `PROTECTED_CACHE_MAX_AGE`, `PROTECTED_CACHE_IMMUTABLE`, `PROTECTED_ENABLE_ETAG`, `PROTECTED_ENABLE_RANGE`.
-- CSP for media playback from decrypted blobs:
-  - `next.config.mjs` includes `media-src 'self' blob: https: data:` so `<video>`/`<audio>` with blob URLs work.
-
-Tip: add these to `.env.local` and restart the dev server.
-
----
-
-# Postman Tests (Detailed Flow)
-
-## Prerequisites
-- Server running locally, e.g. `npm run dev -p 3002`
-- `.env.local` includes:
-  - `NEXT_PUBLIC_PACKAGE_ID=...`
-  - `NEXT_PUBLIC_MARKET_ID=...`
-  - `SUI_RPC_URL=https://fullnode.testnet.sui.io:443`
-  - `NEXT_PUBLIC_PINATA_GATEWAY=https://gateway.pinata.cloud`
-  - `IPFS_GATEWAYS=https://gateway.pinata.cloud,https://ipfs.io,https://dweb.link`
-  - `IPFS_FETCH_TIMEOUT_MS=7000`
-  - `IPFS_FETCH_RETRIES=2`
-  - `DATABASE_URL=postgresql://<user>@localhost:5432/marketplaceai?schema=public`
-  - `KEYS_ADMIN_TOKEN=<your-token>` (for PUT)
-  - Cache profile (staging/prod):
-    - `PROTECTED_CACHE_PRIVATE=true`
-    - `PROTECTED_CACHE_MAX_AGE=60`
-    - `PROTECTED_CACHE_IMMUTABLE=false`
-    - `PROTECTED_ENABLE_ETAG=true`
-    - `PROTECTED_ENABLE_RANGE=true`
-
-## 1) Get model metadata and encrypted_uri
-- GET `http://localhost:3002/api/model-info?id=19`
-- Copy `uri` from response and open `https://ipfs.io/ipfs/<CID_METADATA>`
-- Copy `encrypted_uri` (e.g., `ipfs://Qm...`)
-
-## 2) Put key (DB) [Requires token]
-- POST `http://localhost:3002/api/keys/put`
-- Headers:
-  - `content-type: application/json`
-  - `authorization: Bearer <KEYS_ADMIN_TOKEN>` (or `x-admin-token: <KEYS_ADMIN_TOKEN>`)
-- Body:
-  ```json
-  { "modelId": 19, "slug": "MN8", "keyB64": "<base64>" }
-  ```
-- Expect: `200 { "ok": true }`
-
-## 3) Get key
-- GET `http://localhost:3002/api/keys/get?modelId=19&addr=<wallet>`
-- Expect: `200 { "keyB64": "..." }`
-
-## 4) Secure fetch (server-side decryption)
-- GET `http://localhost:3002/api/protected/fetch?modelId=19&addr=<wallet>&uri=ipfs://<CID_ENC>`
-- Optional: `&gw=https://gateway.pinata.cloud`
-- Validate headers:
-  - `content-type`: image/jpeg | image/png | application/pdf | etc.
-  - `cache-control`: according to env
-  - `accept-ranges: bytes`
-  - `etag: W/"<hash>"` (if enabled)
-- Save response to disk and open with native viewer.
-
-## 5) ETag validation (304)
-- Precondition: `PROTECTED_ENABLE_ETAG=true`
-- Step A: Perform step 4 and copy `etag` header value.
-- Step B: Repeat step 4 with header `If-None-Match: W/"<copied-hash>"`
-- Expect: `304 Not Modified` and empty body.
-
-## 6) HTTP Range (partial content)
-- Precondition: `PROTECTED_ENABLE_RANGE=true`
-- GET same URL as step 4 with header `Range: bytes=0-1023`
-- Expect:
-  - `206 Partial Content`
-  - `content-range: bytes 0-1023/<TOTAL_BYTES>`
-  - `content-length: 1024`
-- Repeat with another valid range: `Range: bytes=1024-2047`
-
-## 7) Negative cases
-- Gateway failure: invalid `uri` → `502 { error: "fetch-enc-failed" }`
-- No license (disable bypass): `KEYS_BYPASS_ONCHAIN=false` → `403 { error: "no license" }`
-- Key not found: skip step 2 → `404 { error: "not found" }`
-
----
-
-# Security Model (Protected Files)
-
-## Overview
-Protected assets are stored encrypted on IPFS and only decrypted server-side after verifying access rights. The decryption key is never exposed to the client.
-
-## Components
-- Encryption: AES‑GCM 256
-  - Layout: `[IV(12 bytes)] [CIPHERTEXT+TAG]`
-  - IV is prepended to the blob when uploading.
-- Key storage:
-  - Development: in-memory map for quick bootstrap.
-  - Production: Postgres table `model_keys` via Prisma (`ModelKey`), keyed by `modelId` (and optional `slug`).
-  - API:
-    - `POST /api/keys/put` (protegido con `KEYS_ADMIN_TOKEN`) para registrar claves.
-    - `GET /api/keys/get` valida licencia y devuelve la clave solo en entornos dev cuando `KEYS_BYPASS_ONCHAIN=true`.
-- License checks:
-  - En `GET /api/protected/fetch` se valida la licencia on‑chain (o `bypass` en dev) antes de descifrar.
-
-## Server-side Decryption Flow
-1. Cliente llama `GET /api/protected/fetch?modelId=<id>&addr=<wallet>&uri=ipfs://<CID_ENC>`.
-2. El servidor resuelve/valida `modelId` y verifica licencia del `addr`.
-3. Obtiene la `keyB64` de memoria o Postgres.
-4. Descarga el contenido cifrado desde IPFS usando gateways con fallback y timeouts.
-5. Separa `IV` (primeros 12 bytes) y `ciphertext`.
-6. Descifra con AES‑GCM usando la clave almacenada.
-7. Detecta MIME por magic bytes y responde con los bytes descifrados y `content-type` correcto.
-
-## Why server-side?
-- Evita exponer la clave en el navegador o bundles.
-- Permite validar licencia y aplicar políticas (caché, rate limiting, logging) antes de servir.
-- Facilita observabilidad y auditoría (Prometheus/Otel).
-
-## Cache & Transport
-- Headers configurables por `.env.local`:
-  - `PROTECTED_CACHE_PRIVATE`, `PROTECTED_CACHE_MAX_AGE`, `PROTECTED_CACHE_IMMUTABLE`
-  - `PROTECTED_ENABLE_ETAG` (If-None-Match → 304)
-  - `PROTECTED_ENABLE_RANGE` (descargas parciales 206)
-- Recomendado: `private, max-age=60`, ETag y Range habilitados. Evitar caches compartidas.
-
-## Operational Notes
-- Rotación de claves: soportada a nivel de DB; los contenidos subidos deben cifrarse con la nueva clave.
-- Si una clave no coincide, AES-GCM fallará (tag inválido) y el servidor devolverá 500/502 según el caso.
-- Gateways IPFS configurables (`NEXT_PUBLIC_PINATA_GATEWAY`, `IPFS_GATEWAYS`) con retry y timeout.
-
-## Diagrama (Mermaid)
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as Client (UI)
-  participant S as Next.js API (/api/protected/fetch)
-  participant K as Key Store (DB/Memory)
-  participant C as Chain (Sui RPC)
-  participant I as IPFS Gateways
-
-  U->>S: GET /api/protected/fetch?modelId, addr, uri
-  S->>C: Check License (owned License, not revoked)
-  C-->>S: License OK/Denied
-  alt License OK
-    S->>K: Lookup keyB64 (modelId | slug)
-    K-->>S: keyB64
-    S->>I: GET encrypted blob (multi-gateway, retries)
-    I-->>S: [IV(12)] + [CIPHERTEXT+TAG]
-    S->>S: AES-GCM Decrypt with keyB64 + IV
-    S->>S: Detect MIME (magic bytes)
-    S-->>U: 200 bytes (content-type + cache headers)
-  else License Denied
-    S-->>U: 403 { error: "no license" }
-  end
+# App
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
+
+See `.env.example` for all available options.
+
+## 🔗 Deployed Contracts (Avalanche Fuji)
+
+| Contract | Address | Status |
+|----------|---------|--------|
+| Marketplace | `0x...` | ✅ Deployed |
+| LicenseNFT | `0x...` | ✅ Deployed |
+| AgentRegistry | TBD | 🔄 In Progress |
+| ReputationRegistry | TBD | 📋 Planned |
+
+## 📁 Project Structure
+
+```
+├── contracts/evm/          # Solidity smart contracts
+│   ├── contracts/
+│   │   ├── Marketplace.sol
+│   │   └── LicenseNFT.sol
+│   └── scripts/
+├── src/
+│   ├── app/                # Next.js App Router pages
+│   │   ├── [locale]/       # i18n routes
+│   │   │   ├── evm/models/ # Model detail pages
+│   │   │   └── publish/    # Publish wizard
+│   │   └── api/            # API routes
+│   ├── components/         # React components
+│   ├── adapters/evm/       # Blockchain adapters
+│   ├── lib/                # Utilities
+│   └── config/             # Configuration
+├── db/                     # Database schema
+└── scripts/                # Indexer and utilities
+```
+
+## 🎮 Key Features
+
+### For Model Creators
+- **5-Step Publish Wizard** - Guided flow to publish AI models
+- **IPFS Storage** - Decentralized metadata and artifact storage
+- **Flexible Pricing** - Perpetual licenses, subscriptions, and per-inference
+- **Royalties** - Earn on every license sale
+
+### For Model Users
+- **Browse & Search** - Discover AI models with filters
+- **License NFTs** - Own perpetual or subscription access
+- **x402 Pay-per-Use** - Pay only for what you use
+- **Wallet Integration** - Seamless RainbowKit experience
+
+## 🛠️ Development
+
+```bash
+# Run dev server
+npm run dev
+
+# Run on specific port
+npm run dev -- -p 3002
+
+# Build for production
+npm run build
+
+# Run indexer (sync blockchain events)
+npm run indexer
+
+# Type check
+npm run typecheck
+```
+
+## 📖 Documentation
+
+- [Architecture Overview](./docs/ARCHITECTURE.md)
+- [Smart Contract Docs](./contracts/evm/README.md)
+- [API Reference](./docs/API.md)
+
+## 🔮 Roadmap
+
+### Hackathon (Current)
+- [x] Model marketplace with license NFTs
+- [x] 5-step publish wizard
+- [x] IPFS metadata storage
+- [ ] x402 pay-per-inference
+- [ ] ERC-8004 agent identity
+
+### Post-Hackathon
+- [ ] USDC payment support
+- [ ] ERC-8004 Reputation Registry
+- [ ] Real AI model integration
+- [ ] Creator analytics dashboard
+- [ ] Multi-chain support (Base, etc.)
+
+## 📄 License
+
+MIT
+
+## 🙏 Acknowledgments
+
+- [Avalanche](https://www.avax.network/) - Blockchain infrastructure
+- [x402 Protocol](https://www.x402.org/) - Payment standard
+- [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) - Agent identity standard
+- [Pinata](https://pinata.cloud/) - IPFS pinning service
