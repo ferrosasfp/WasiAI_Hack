@@ -22,37 +22,12 @@ export default function LandingV2() {
   const locale = useLocale()
   const to = (p: string) => `/${locale}${p}`
   const es = locale === 'es'
-  const [tokenSym, setTokenSym] = React.useState<'ETH'|'AVAX'>('ETH')
-  React.useEffect(()=>{
-    const compute = () => {
-      try {
-        const v = typeof window !== 'undefined' ? window.localStorage.getItem('preferred_net') : null
-        const id = v ? Number(v) : undefined
-        const isBase = id === 8453 || id === 84532
-        setTokenSym(isBase ? 'ETH' : 'AVAX')
-      } catch {}
-    }
-    compute()
-    const onFocus = () => compute()
-    const onVis = () => { if (document.visibilityState === 'visible') compute() }
-    const onEvt = (e: Event) => {
-      try {
-        const anyEvt = e as any
-        const id = Number(anyEvt?.detail?.id)
-        const isBase = id === 8453 || id === 84532
-        setTokenSym(isBase ? 'ETH' : 'AVAX')
-      } catch { compute() }
-    }
-    window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onVis)
-    window.addEventListener('preferred_net_changed', onEvt as any)
-    return () => { window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('preferred_net_changed', onEvt as any) }
-  }, [])
+  const tokenSym = 'AVAX'
   const L = React.useMemo(()=>({
-    heroTitle: es ? 'Lanza IA más rápido con modelos con licencia.' : 'Ship AI faster with licensed models.',
+    heroTitle: es ? 'Agentes de IA que cobran por uso.' : 'AI agents that get paid per use.',
     heroBody: es
-      ? 'WasiAI es el hogar de los agentes de IA en Avalanche. Los builders publican y monetizan modelos, agentes, analíticas, bots de trading, copilots y más. Las empresas descubren, prueban demos y compran licencias on-chain con x402 pay-per-inference.'
-      : 'WasiAI is the home of AI agents on Avalanche. AI builders publish and monetize models, agents, analytics, trading bots, copilots, and more. Businesses discover, test demos, and buy on-chain licenses with x402 pay-per-inference.',
+      ? 'WasiAI es el hogar de los agentes de IA en Avalanche. Publica tu modelo y cobra automáticamente cada vez que alguien lo usa — sin intermediarios, sin facturas, sin esperas. Cada agente tiene identidad verificada en blockchain.'
+      : 'WasiAI is the home of AI agents on Avalanche. Publish your model and get paid automatically every time someone uses it — no middlemen, no invoices, no waiting. Every agent has verified identity on blockchain.',
     ctaExplore: es ? 'Explorar modelos' : 'Explore models',
     ctaPublish: es ? 'Publica tu modelo' : 'Publish your model',
     howItWorks: es ? 'Cómo funciona' : 'How it works',
@@ -66,7 +41,7 @@ export default function LandingV2() {
     ctaBandTitle: es ? '¿Listo para publicar o probar tu primer modelo?' : 'Ready to publish or try your first model?',
     ctaBandExplore: es ? 'Explorar modelos' : 'Explore models',
     ctaBandPublish: es ? 'Publicar un modelo' : 'Publish a model',
-    subscription: es ? 'Suscripción' : 'Subscription',
+    subscription: es ? 'Pago por uso' : 'Pay per use',
     perpetual: es ? 'Licencia perpetua' : 'Perpetual License',
     from: es ? 'Desde' : 'From',
     runDemo: es ? 'Probar demo' : 'Run demo',
@@ -76,33 +51,33 @@ export default function LandingV2() {
       ? { name: 'Pronóstico de Ventas Pro', desc: 'Analítica predictiva para proyección de ingresos', tags: ['Analítica','Modelo ML','Enterprise'] }
       : { name: 'Sales Forecasting Pro', desc: 'Advanced AI model for predictive sales analytics', tags: ['Analytics','ML Model','Enterprise'] },
     creatorsSteps: es ? [
-      { k: '1/3', t: 'Publica tu modelo', d: 'Sube el artefacto, configura metadatos y precio' },
-      { k: '2/3', t: 'Elige licenciamiento', d: 'Suscripción o perpetua, define derechos' },
-      { k: '3/3', t: 'Cobra on-chain', d: 'Regalías on-chain y pagos transparentes' },
+      { k: '1/3', t: 'Publica tu modelo', d: 'Sube tu modelo, configura precio por uso y obtén identidad verificada' },
+      { k: '2/3', t: 'Elige cómo cobrar', d: 'Por cada uso, suscripción mensual o licencia perpetua' },
+      { k: '3/3', t: 'Cobra automáticamente', d: 'Recibe AVAX instantáneamente cada vez que usan tu modelo' },
     ] : [
-      { k: '1/3', t: 'Publish your model', d: 'Upload artifact, set metadata and price' },
-      { k: '2/3', t: 'Choose licensing', d: 'Subscription or perpetual, define rights' },
-      { k: '3/3', t: 'Get paid on-chain', d: 'On-chain royalties and transparent payouts' },
+      { k: '1/3', t: 'Publish your model', d: 'Upload your model, set price per use and get verified identity' },
+      { k: '2/3', t: 'Choose how to charge', d: 'Per use, monthly subscription, or perpetual license' },
+      { k: '3/3', t: 'Get paid automatically', d: 'Receive AVAX instantly every time someone uses your model' },
     ],
     teamsSteps: es ? [
-      { k: '1/3', t: 'Descubre modelos', d: 'Busca por caso de uso y stack tecnológico' },
-      { k: '2/3', t: 'Prueba demos alojadas', d: 'Corre una demo de inferencia en un entorno seguro' },
-      { k: '3/3', t: 'Compra una licencia', d: 'Prueba on-chain de que puedes usarlo en producción' },
+      { k: '1/3', t: 'Descubre agentes', d: 'Busca agentes verificados por caso de uso' },
+      { k: '2/3', t: 'Prueba antes de pagar', d: 'Corre una demo gratuita en entorno seguro' },
+      { k: '3/3', t: 'Paga solo por lo que usas', d: 'Sin contratos, sin mínimos — pagas por cada llamada' },
     ] : [
-      { k: '1/3', t: 'Discover models', d: 'Search by use case and tech stack' },
-      { k: '2/3', t: 'Test hosted demos', d: 'Run a safe, sandboxed inference demo' },
-      { k: '3/3', t: 'Buy a license', d: 'Get on-chain proof you can run it in production' },
+      { k: '1/3', t: 'Discover agents', d: 'Find verified agents by use case' },
+      { k: '2/3', t: 'Try before you pay', d: 'Run a free demo in a safe environment' },
+      { k: '3/3', t: 'Pay only for what you use', d: 'No contracts, no minimums — pay per call' },
     ],
     whyList: es ? [
-      { t: 'Licenciamiento on-chain', d: 'Propiedad verificable y regalías con pruebas on-chain transparentes.' },
-      { t: 'Demos alojadas incluidas', d: 'Prueba modelos de forma segura antes de comprar.' },
-      { t: 'Multi-chain listo', d: 'Soporte para Base, Avalanche y wallets EVM.' },
-      { t: 'Reparto justo de ingresos', d: 'Estructura de comisiones transparente para que los creadores ganen más.' },
+      { t: '💰 Pago por uso (x402)', d: 'Cobra automáticamente cada vez que alguien usa tu modelo. Sin facturas, sin esperas — el dinero llega directo a tu wallet.' },
+      { t: '🪪 Identidad verificada (ERC-8004)', d: 'Cada agente tiene un "pasaporte digital" que prueba quién lo creó y su historial de uso. Confía en agentes verificados.' },
+      { t: '🎮 Prueba gratis antes de pagar', d: 'Corre demos en un entorno seguro. Si te gusta, pagas. Si no, no gastas nada.' },
+      { t: '⚡ Pagos instantáneos en AVAX', d: 'Los creadores reciben su pago en segundos, no en 30 días. Sin intermediarios, sin comisiones ocultas.' },
     ] : [
-      { t: 'On-chain licensing', d: 'Verifiable ownership and royalties with transparent on-chain proofs.' },
-      { t: 'Hosted demos included', d: 'Run models safely in a sandboxed environment before you buy.' },
-      { t: 'Multi-chain ready', d: 'Support for Base, Avalanche and all EVM-compatible wallets.' },
-      { t: 'Fair revenue sharing', d: 'Transparent fee structure ensuring creators keep more of what they earn.' },
+      { t: '💰 Pay per use (x402)', d: 'Get paid automatically every time someone uses your model. No invoices, no waiting — money goes straight to your wallet.' },
+      { t: '🪪 Verified identity (ERC-8004)', d: 'Every agent has a "digital passport" proving who created it and its usage history. Trust verified agents.' },
+      { t: '🎮 Try free before you pay', d: 'Run demos in a safe environment. If you like it, pay. If not, spend nothing.' },
+      { t: '⚡ Instant payments in AVAX', d: 'Creators get paid in seconds, not 30 days. No middlemen, no hidden fees.' },
     ],
     useCasesList: es ? [
       { t: 'Analítica y pronósticos', d: 'Modelos predictivos para ingresos, demanda y forecasting.' },
@@ -116,15 +91,15 @@ export default function LandingV2() {
       { t: 'Internal tools & automations', d: 'Custom models to streamline workflows and internal operations.' },
     ],
     featuredModels: es ? [
-      { name: 'Pronóstico de Ventas Pro', desc: 'Analítica predictiva para proyección de ingresos', tags: ['Analítica','Modelo ML','Enterprise'], sub: '$29/mes', perp: '$399', chain: 'Base' },
-      { name: 'Agente de Riesgo DeFi', desc: 'Agente autónomo para gestión de riesgo de portafolio', tags: ['Agente','DeFi','Trading'], sub: '$49/mes', perp: '$599', chain: 'Base' },
-      { name: 'Copiloto de Soporte', desc: 'Automatización de atención al cliente con IA', tags: ['NLP','Copilot','SaaS'], sub: '$39/mes', perp: '$499', chain: 'Avalanche' },
+      { name: 'Pronóstico de Ventas Pro', desc: 'Analítica predictiva para proyección de ingresos', tags: ['Analítica','Verificado','Enterprise'], sub: '0.1 AVAX/uso', perp: '50 AVAX', chain: 'Avalanche' },
+      { name: 'Agente de Riesgo DeFi', desc: 'Agente autónomo para gestión de riesgo de portafolio', tags: ['Agente','DeFi','Verificado'], sub: '0.2 AVAX/uso', perp: '80 AVAX', chain: 'Avalanche' },
+      { name: 'Copiloto de Soporte', desc: 'Automatización de atención al cliente con IA', tags: ['NLP','Copilot','Verificado'], sub: '0.05 AVAX/uso', perp: '30 AVAX', chain: 'Avalanche' },
     ] : [
-      { name: 'Sales Forecasting Pro', desc: 'Predictive analytics for revenue forecasting', tags: ['Analytics','ML Model','Enterprise'], sub: '$29/mo', perp: '$399', chain: 'Base' },
-      { name: 'DeFi Risk Agent', desc: 'Autonomous agent for portfolio risk management', tags: ['Agent','DeFi','Trading'], sub: '$49/mo', perp: '$599', chain: 'Base' },
-      { name: 'Customer Support Copilot', desc: 'AI-powered customer service automation', tags: ['NLP','Copilot','SaaS'], sub: '$39/mo', perp: '$499', chain: 'Avalanche' },
+      { name: 'Sales Forecasting Pro', desc: 'Predictive analytics for revenue forecasting', tags: ['Analytics','Verified','Enterprise'], sub: '0.1 AVAX/use', perp: '50 AVAX', chain: 'Avalanche' },
+      { name: 'DeFi Risk Agent', desc: 'Autonomous agent for portfolio risk management', tags: ['Agent','DeFi','Verified'], sub: '0.2 AVAX/use', perp: '80 AVAX', chain: 'Avalanche' },
+      { name: 'Customer Support Copilot', desc: 'AI-powered customer service automation', tags: ['NLP','Copilot','Verified'], sub: '0.05 AVAX/use', perp: '30 AVAX', chain: 'Avalanche' },
     ],
-    footerTagline: es ? 'Lanza IA más rápido con modelos con licencia.' : 'Ship AI faster with licensed models.',
+    footerTagline: es ? 'Agentes de IA que cobran por uso en Avalanche.' : 'AI agents that get paid per use on Avalanche.',
     footerCols: es ? [
       { h: 'Producto', items: ['Explorar','Precios','Hoja de ruta'] },
       { h: 'Desarrolladores', items: ['Docs','API','GitHub'] },
@@ -195,8 +170,8 @@ export default function LandingV2() {
                 <Button variant="outlined" size="large" sx={{ borderColor: 'oklch(0.28 0 0)', color: 'oklch(0.90 0 0)', borderRadius: '12px', px: 3.5, py: 1.25, backgroundColor: 'rgba(255,255,255,0.02)' }} component={Link} href={to('/publish/wizard')}>{L.ctaPublish}</Button>
               </Stack>
               <Stack direction="row" spacing={1.2} sx={{ pt: 1 }}>
-                {['Base','Avalanche'].map((c)=> (
-                  <Chip key={c} size="small" label={c} sx={{ bgcolor: 'rgba(36,48,68,0.5)', color: '#b9d7ff', borderRadius: '999px', border: '1px solid rgba(120,150,200,0.25)' }} />
+                {['Avalanche','x402','ERC-8004'].map((c)=> (
+                  <Chip key={c} size="small" label={c} sx={{ bgcolor: c === 'Avalanche' ? 'rgba(232,65,66,0.15)' : 'rgba(36,48,68,0.5)', color: c === 'Avalanche' ? '#ff6b6b' : '#b9d7ff', borderRadius: '999px', border: c === 'Avalanche' ? '1px solid rgba(232,65,66,0.35)' : '1px solid rgba(120,150,200,0.25)' }} />
                 ))}
               </Stack>
             </Stack>
@@ -217,11 +192,11 @@ export default function LandingV2() {
                   <Stack spacing={1} sx={{ borderTop: '1px solid', borderColor: 'oklch(0.20 0 0)', pt: 1 }}>
                     <Stack direction="row" justifyContent="space-between">
                       <Typography variant="body2" sx={{ color: 'oklch(0.78 0 0)' }}>{L.subscription}</Typography>
-                      <Typography variant="body2" sx={{ color: '#4fe1ff', fontWeight: 700 }}>{L.from} {tokenSym==='ETH' ? '0.2 ETH/mo' : '2 AVAX/mo'}</Typography>
+                      <Typography variant="body2" sx={{ color: '#4fe1ff', fontWeight: 700 }}>{L.from} 0.1 AVAX/{es ? 'uso' : 'use'}</Typography>
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
                       <Typography variant="body2" sx={{ color: 'oklch(0.78 0 0)' }}>{L.perpetual}</Typography>
-                      <Typography variant="body2" sx={{ color: '#4fe1ff', fontWeight: 700 }}>{L.from} {(tokenSym==='ETH' ? '1 ETH' : '10 AVAX')}</Typography>
+                      <Typography variant="body2" sx={{ color: '#4fe1ff', fontWeight: 700 }}>{L.from} 10 AVAX</Typography>
                     </Stack>
                   </Stack>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -314,26 +289,14 @@ export default function LandingV2() {
                       </Stack>
                       <Stack spacing={1} sx={{ borderTop: '1px solid', borderColor: 'oklch(0.20 0 0)', pt: 1 }}>
                         <Stack direction="row" justifyContent="space-between">
-                          {(() => {
-                            const token = m.chain === 'Base' ? 'ETH' : 'AVAX'
-                            let sub = m.sub
-                            if (sub.includes('$29')) sub = `0.2 ETH/mo`
-                            else if (sub.includes('$49')) sub = `0.3 ETH/mo`
-                            else if (sub.includes('$39')) sub = `1 AVAX/mo`
-                            let perp = m.perp
-                            if (perp.includes('$399')) perp = (m.chain === 'Base' ? '1 ETH' : '5 AVAX')
-                            else if (perp.includes('$599')) perp = `2 ETH`
-                            else if (perp.includes('$499')) perp = `10 AVAX`
-                            return (
-                              <>
-                                <Typography variant="body2" sx={{ color: 'oklch(0.86 0 0)', fontSize: { xs: 14.5, md: 15.5 } }}>{es ? 'Desde' : 'From'} {sub}</Typography>
-                                <Typography variant="body2" sx={{ color: '#4fe1ff', fontWeight: 800, fontSize: { xs: 14.5, md: 15.5 } }}>{perp}</Typography>
-                              </>
-                            )
-                          })()}
+                          <Typography variant="body2" sx={{ color: 'oklch(0.86 0 0)', fontSize: { xs: 14.5, md: 15.5 } }}>{es ? 'Por uso' : 'Per use'}: {m.sub}</Typography>
+                          <Typography variant="body2" sx={{ color: '#4fe1ff', fontWeight: 800, fontSize: { xs: 14.5, md: 15.5 } }}>{m.perp}</Typography>
                         </Stack>
                       </Stack>
-                      <Chip label={m.chain} sx={{ width: 'fit-content', bgcolor: 'rgba(124,92,255,0.12)', color: '#c9b9ff', border: '1px solid rgba(124,92,255,0.35)', borderRadius: '999px' }} />
+                      <Stack direction="row" spacing={1}>
+                        <Chip label="Avalanche" size="small" sx={{ bgcolor: 'rgba(232,65,66,0.15)', color: '#ff6b6b', border: '1px solid rgba(232,65,66,0.35)', borderRadius: '999px' }} />
+                        <Chip label={es ? '✓ Verificado' : '✓ Verified'} size="small" sx={{ bgcolor: 'rgba(46,160,255,0.12)', color: '#4fe1ff', border: '1px solid rgba(46,160,255,0.35)', borderRadius: '999px' }} />
+                      </Stack>
                       <Stack direction="row" spacing={1}>
                         <Button variant="outlined" fullWidth sx={{ borderColor: 'oklch(0.26 0 0)', color: 'oklch(0.85 0 0)' }}>{L.viewModel}</Button>
                         <Button sx={{ minWidth: 40, bgcolor: 'oklch(0.28 0 0)', color: '#fff', '&:hover': { bgcolor: 'oklch(0.32 0 0)' } }}>▶</Button>
@@ -347,7 +310,7 @@ export default function LandingV2() {
         </Container>
       </Box>
 
-      {/* Why MarketplaceAI */}
+      {/* Why WasiAI */}
       <Box sx={{ borderTop: '1px solid', borderColor: 'oklch(0.20 0 0)' }}>
         <Container maxWidth="lg" sx={{ py: { xs: 8, md: 12 } }}>
           <Typography variant="h3" fontWeight={800} textAlign="center" sx={{ mb: 7, letterSpacing: '-0.014em', color: 'oklch(0.99 0 0)', fontSize: { xs: 30, md: 42 } }}>{L.whyTitle}</Typography>
