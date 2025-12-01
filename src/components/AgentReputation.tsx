@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Box, Typography, Stack, Chip, LinearProgress, Tooltip, Skeleton } from '@mui/material'
 import ThumbUpIcon from '@mui/icons-material/ThumbUp'
 import ThumbDownIcon from '@mui/icons-material/ThumbDown'
@@ -13,8 +14,15 @@ interface AgentReputationProps {
   compact?: boolean
 }
 
+interface ReputationData {
+  positiveCount: number
+  negativeCount: number
+  totalFeedback: number
+  score: number
+  fromCache: boolean
+}
+
 const REPUTATION_REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_REPUTATION_REGISTRY_ADDRESS as `0x${string}` | undefined
-// Avalanche Fuji testnet chainId
 const CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID || '43113', 10)
 
 export default function AgentReputation({
@@ -23,20 +31,61 @@ export default function AgentReputation({
   compact = false,
 }: AgentReputationProps) {
   const isES = locale === 'es'
+  
+  // State for API data
+  const [apiData, setApiData] = useState<ReputationData | null>(null)
+  const [apiLoading, setApiLoading] = useState(true)
+  const [apiError, setApiError] = useState(false)
 
-  // Get reputation data
-  const { data: reputationData, isLoading, error: repError } = useReadContract({
+  // Fetch from API first (fast, cached in DB)
+  useEffect(() => {
+    if (agentId <= 0) {
+      setApiLoading(false)
+      return
+    }
+
+    const fetchFromApi = async () => {
+      try {
+        const res = await fetch(`/api/reputation?agentId=${agentId}`)
+        if (res.ok) {
+          const json = await res.json()
+          if (json.success && json.data) {
+            setApiData({
+              positiveCount: json.data.positiveCount || 0,
+              negativeCount: json.data.negativeCount || 0,
+              totalFeedback: json.data.totalFeedback || 0,
+              score: json.data.score || 50,
+              fromCache: json.data.fromCache || false
+            })
+          }
+        } else {
+          setApiError(true)
+        }
+      } catch (err) {
+        console.error('[AgentReputation] API fetch error:', err)
+        setApiError(true)
+      } finally {
+        setApiLoading(false)
+      }
+    }
+
+    fetchFromApi()
+  }, [agentId])
+
+  // Fallback: Get reputation directly from blockchain if API fails
+  const { data: reputationData, isLoading: chainLoading, error: repError } = useReadContract({
     address: REPUTATION_REGISTRY_ADDRESS,
     abi: ReputationRegistryABI.abi,
     functionName: 'getReputation',
     args: [BigInt(agentId)],
     chainId: CHAIN_ID,
     query: {
-      enabled: !!REPUTATION_REGISTRY_ADDRESS && agentId > 0,
+      // Only fetch from chain if API failed or no data
+      enabled: !!REPUTATION_REGISTRY_ADDRESS && agentId > 0 && apiError && !apiData,
     },
   })
 
-  // Get score
+  // Fallback: Get score from blockchain
   const { data: scoreData, error: scoreError } = useReadContract({
     address: REPUTATION_REGISTRY_ADDRESS,
     abi: ReputationRegistryABI.abi,
@@ -44,7 +93,7 @@ export default function AgentReputation({
     args: [BigInt(agentId)],
     chainId: CHAIN_ID,
     query: {
-      enabled: !!REPUTATION_REGISTRY_ADDRESS && agentId > 0,
+      enabled: !!REPUTATION_REGISTRY_ADDRESS && agentId > 0 && apiError && !apiData,
     },
   })
   
@@ -52,27 +101,34 @@ export default function AgentReputation({
   if (repError) console.error('[AgentReputation] getReputation error:', repError)
   if (scoreError) console.error('[AgentReputation] calculateScore error:', scoreError)
 
-  // Parse data - handle both tuple array format and object format
+  // Determine final values - prefer API data, fallback to blockchain
   let positiveCount = 0
   let negativeCount = 0
   let totalFeedback = 0
+  let scoreValue = 50
   
-  if (reputationData) {
-    // wagmi returns tuple as array: [positiveCount, negativeCount, totalFeedback, lastFeedbackAt]
+  if (apiData) {
+    // Use API data (from DB cache or blockchain via API)
+    positiveCount = apiData.positiveCount
+    negativeCount = apiData.negativeCount
+    totalFeedback = apiData.totalFeedback
+    scoreValue = apiData.score
+  } else if (reputationData) {
+    // Fallback to direct blockchain read
     if (Array.isArray(reputationData)) {
       positiveCount = Number(reputationData[0] || 0n)
       negativeCount = Number(reputationData[1] || 0n)
       totalFeedback = Number(reputationData[2] || 0n)
     } else {
-      // Object format
       const rep = reputationData as { positiveCount: bigint; negativeCount: bigint; totalFeedback: bigint }
       positiveCount = Number(rep.positiveCount || 0n)
       negativeCount = Number(rep.negativeCount || 0n)
       totalFeedback = Number(rep.totalFeedback || 0n)
     }
+    scoreValue = scoreData !== undefined ? Number(scoreData) : 50
   }
   
-  const scoreValue = scoreData !== undefined ? Number(scoreData) : (totalFeedback > 0 ? 50 : 50)
+  const isLoading = apiLoading || (apiError && chainLoading)
 
   // If contract not deployed, show placeholder
   if (!REPUTATION_REGISTRY_ADDRESS) {

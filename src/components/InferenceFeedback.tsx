@@ -90,13 +90,27 @@ export default function InferenceFeedback({
 
   // Handle successful submission
   useEffect(() => {
-    if (isConfirmed && selectedFeedback) {
+    if (isConfirmed && selectedFeedback && txHash) {
       setSubmitted(true)
       refetchReputation()
       refetchScore()
       onFeedbackSubmitted?.(selectedFeedback === 'positive')
+      
+      // Sync reputation to database cache
+      fetch('/api/reputation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'feedback',
+          agentId,
+          userAddress: address,
+          positive: selectedFeedback === 'positive',
+          inferenceHash,
+          txHash
+        })
+      }).catch(err => console.error('[InferenceFeedback] Failed to sync reputation:', err))
     }
-  }, [isConfirmed, selectedFeedback, onFeedbackSubmitted, refetchReputation, refetchScore])
+  }, [isConfirmed, selectedFeedback, txHash, onFeedbackSubmitted, refetchReputation, refetchScore, agentId, address, inferenceHash])
 
   const handleFeedback = (positive: boolean) => {
     if (!REPUTATION_REGISTRY_ADDRESS || !isConnected) return
