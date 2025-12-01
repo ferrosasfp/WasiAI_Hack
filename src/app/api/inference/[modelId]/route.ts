@@ -115,16 +115,16 @@ interface ModelConfig {
 // All use HuggingFace free tier inference API
 
 const HARDCODED_MODELS: Record<string, ModelConfig> = {
-  // Model ID 14: Solidity Code Assistant
-  // Uses Flan-T5 for code explanation/generation (free tier friendly)
+  // Model ID 14: Smart Contract Security Classifier
+  // Uses BART for zero-shot classification of security topics
   '14': {
-    hfModel: 'google/flan-t5-base',
-    type: 'text2text-generation',
-    name: 'Solidity Code Assistant',
-    description: 'AI assistant for Solidity smart contract development. Explains code, suggests improvements, and helps with blockchain development.',
+    hfModel: 'facebook/bart-large-mnli',
+    type: 'zero-shot-classification',
+    name: 'Smart Contract Security Classifier',
+    description: 'Classifies smart contract and blockchain security topics. Identifies vulnerabilities, best practices, and security patterns.',
     priceUsdc: 0.02,
     agentId: 1,
-    systemPrompt: 'You are a Solidity smart contract expert. Help developers write, understand, and improve their blockchain code.'
+    defaultLabels: ['Reentrancy', 'Access Control', 'Integer Overflow', 'Front-running', 'Oracle Manipulation', 'Flash Loan Attack', 'Gas Optimization', 'Best Practice']
   },
   
   // Model ID 20: Crypto/Financial Sentiment Analyzer
@@ -444,7 +444,7 @@ async function verifyPaymentWithFacilitator(
 
 // ===== Real AI Inference via HuggingFace =====
 
-const HF_API_URL = 'https://api-inference.huggingface.co/models'
+const HF_API_URL = 'https://router.huggingface.co/hf-inference/models'
 const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN
 
 // Get model config - prioritize hardcoded, then fall back to dynamic lookup
