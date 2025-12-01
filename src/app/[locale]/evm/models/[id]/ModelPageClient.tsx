@@ -33,6 +33,7 @@ import { rightsBitmaskToArray } from '@/adapters/evm/write'
 import { IpfsImage } from '@/components/IpfsImage'
 import X402InferencePanel from '@/components/X402InferencePanel'
 import ERC8004Badge from '@/components/ERC8004Badge'
+import AgentReputation from '@/components/AgentReputation'
 
 export type ModelPageClientProps = {
   modelId: number
@@ -1055,6 +1056,12 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                             locale={locale} 
                           />
                         )}
+                        {/* On-chain Reputation Badge */}
+                        <AgentReputation 
+                          agentId={data?.metadata?.agentId || id} 
+                          locale={locale}
+                          compact
+                        />
                       </Stack>
                       {viewModel.step1.tagline && (
                         <Typography variant="h6" sx={{ color:'#ffffffcc', fontWeight:400, mb:1.5, fontSize:'1.1rem' }}>
@@ -1762,6 +1769,18 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                 onQuickEdit={() => setQuickEditOpen(true)}
               />
             )}
+
+            {/* On-chain Reputation - Full view */}
+            <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2, bgcolor:'rgba(255,255,255,0.02)' }}>
+              <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700, mb:2 }}>
+                {isES ? 'Reputación On-Chain' : 'On-Chain Reputation'}
+              </Typography>
+              <AgentReputation 
+                agentId={data?.metadata?.agentId || id} 
+                locale={locale}
+                compact={false}
+              />
+            </Paper>
 
             {/* x402 Inference Panel - Pay per use */}
             {data?.metadata?.licensePolicy?.inference?.pricePerCall && (
