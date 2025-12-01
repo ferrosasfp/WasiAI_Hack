@@ -1784,14 +1784,15 @@ export default function ModelPageClient(props: ModelPageClientProps) {
             </Paper>
 
             {/* x402 Inference Panel - Pay per use */}
-            {data?.metadata?.licensePolicy?.inference?.pricePerCall && (
+            {/* Show for hardcoded models (14, 20, 23) OR models with pricePerCall in metadata */}
+            {(['14', '20', '23'].includes(String(id)) || data?.metadata?.licensePolicy?.inference?.pricePerCall) && (
               <Box sx={{ mb: 2 }}>
                 <X402InferencePanel
                   modelId={id}
-                  modelName={viewModel.step1.name}
-                  agentId={data.metadata.agentId}
-                  pricePerInference={data.metadata.licensePolicy.inference.pricePerCall}
-                  recipientWallet={data.creator || data.owner}
+                  modelName={viewModel?.step1?.name || data?.name || `Model #${id}`}
+                  agentId={data?.metadata?.agentId}
+                  pricePerInference={data?.metadata?.licensePolicy?.inference?.pricePerCall}
+                  recipientWallet={data?.creator || data?.owner}
                   chainId={evmChainId}
                   locale={locale}
                 />
