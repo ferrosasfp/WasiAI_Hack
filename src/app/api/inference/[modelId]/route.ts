@@ -26,6 +26,57 @@ const usedNonces = new Set<string>()
 // Rate limiting
 const hits = new Map<string, { count: number; resetAt: number }>()
 
+// Inference history (in-memory, last 100 per model)
+interface InferenceRecord {
+  id: string
+  modelId: string
+  modelName: string
+  agentId: number
+  payer: string
+  txHash: string
+  amount: string
+  amountFormatted: string
+  inputPreview: string
+  outputPreview: string
+  latencyMs: number
+  timestamp: number
+}
+
+const inferenceHistory = new Map<string, InferenceRecord[]>()
+const MAX_HISTORY_PER_MODEL = 100
+
+function recordInference(record: InferenceRecord) {
+  const key = record.modelId
+  const history = inferenceHistory.get(key) || []
+  history.unshift(record)
+  if (history.length > MAX_HISTORY_PER_MODEL) {
+    history.pop()
+  }
+  inferenceHistory.set(key, history)
+}
+
+export function getInferenceHistory(modelId?: string, payer?: string, limit = 20): InferenceRecord[] {
+  let results: InferenceRecord[] = []
+  
+  if (modelId) {
+    results = inferenceHistory.get(modelId) || []
+  } else {
+    // Get all history across models
+    for (const records of inferenceHistory.values()) {
+      results.push(...records)
+    }
+    // Sort by timestamp descending
+    results.sort((a, b) => b.timestamp - a.timestamp)
+  }
+  
+  // Filter by payer if specified
+  if (payer) {
+    results = results.filter(r => r.payer.toLowerCase() === payer.toLowerCase())
+  }
+  
+  return results.slice(0, limit)
+}
+
 function identify(req: NextRequest) {
   const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0]?.trim()
   return ip || 'unknown'
@@ -586,6 +637,25 @@ export async function POST(
   }
   
   const result = await runInference(modelId, body.input, modelInfo.agentId)
+  
+  // Record inference in history
+  const inputStr = typeof body.input === 'string' ? body.input : JSON.stringify(body.input || '')
+  const outputStr = typeof result.output === 'string' ? result.output : JSON.stringify(result.output || '')
+  
+  recordInference({
+    id: `${modelId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    modelId,
+    modelName: modelInfo.name,
+    agentId: modelInfo.agentId,
+    payer: verification.payer || '',
+    txHash: verification.txHash || '',
+    amount: modelInfo.pricePerInference,
+    amountFormatted: formatUsdcPrice(modelInfo.pricePerInference),
+    inputPreview: inputStr.slice(0, 100) + (inputStr.length > 100 ? '...' : ''),
+    outputPreview: outputStr.slice(0, 200) + (outputStr.length > 200 ? '...' : ''),
+    latencyMs: result.latencyMs,
+    timestamp: Date.now(),
+  })
   
   // Success response with X-PAYMENT-RESPONSE header
   const response = NextResponse.json({

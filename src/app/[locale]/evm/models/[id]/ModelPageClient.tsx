@@ -34,6 +34,7 @@ import { IpfsImage } from '@/components/IpfsImage'
 import X402InferencePanel from '@/components/X402InferencePanel'
 import ERC8004Badge from '@/components/ERC8004Badge'
 import AgentReputation from '@/components/AgentReputation'
+import InferenceHistory from '@/components/InferenceHistory'
 
 export type ModelPageClientProps = {
   modelId: number
@@ -1796,6 +1797,15 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                 />
               </Box>
             )}
+
+            {/* Inference History */}
+            <Box sx={{ mb: 2 }}>
+              <InferenceHistory
+                modelId={id}
+                locale={locale}
+                maxRows={10}
+              />
+            </Box>
 
             {/* Licenses - como Step 5 */}
             <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2, bgcolor:'rgba(255,255,255,0.02)' }}>
