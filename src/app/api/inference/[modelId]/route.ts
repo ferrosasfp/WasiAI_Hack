@@ -446,6 +446,43 @@ async function verifyPaymentWithFacilitator(
 
 const HF_API_URL = 'https://router.huggingface.co/hf-inference/models'
 const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN
+const HF_TIMEOUT_MS = 30000 // 30 second timeout
+const HF_MAX_RETRIES = 2
+
+// Fetch with timeout and retry for HuggingFace API
+async function fetchWithRetry(
+  url: string, 
+  options: RequestInit, 
+  retries = HF_MAX_RETRIES
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), HF_TIMEOUT_MS)
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    })
+    clearTimeout(timeoutId)
+    
+    // Retry on 503 (model loading) or 504 (timeout)
+    if ((response.status === 503 || response.status === 504) && retries > 0) {
+      console.log(`[HuggingFace] Got ${response.status}, retrying... (${retries} left)`)
+      await new Promise(r => setTimeout(r, 2000)) // Wait 2s before retry
+      return fetchWithRetry(url, options, retries - 1)
+    }
+    
+    return response
+  } catch (error: any) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError' && retries > 0) {
+      console.log(`[HuggingFace] Timeout, retrying... (${retries} left)`)
+      await new Promise(r => setTimeout(r, 1000))
+      return fetchWithRetry(url, options, retries - 1)
+    }
+    throw error
+  }
+}
 
 // Get model config - prioritize hardcoded, then fall back to dynamic lookup
 function getModelConfig(modelId: string): ModelConfig {
@@ -495,7 +532,7 @@ async function runInference(modelId: string, input: InferenceInput, agentId: num
         ? `${config.systemPrompt}\n\nUser: ${text}\n\nAssistant:`
         : text
       
-      const response = await fetch(`${HF_API_URL}/${config.hfModel}`, {
+      const response = await fetchWithRetry(`${HF_API_URL}/${config.hfModel}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${HF_TOKEN}`,
@@ -543,7 +580,7 @@ async function runInference(modelId: string, input: InferenceInput, agentId: num
       // Zero-shot classification (BART, etc.)
       const candidateLabels = input.labels || config.defaultLabels || ['positive', 'negative', 'neutral']
       
-      const response = await fetch(`${HF_API_URL}/${config.hfModel}`, {
+      const response = await fetchWithRetry(`${HF_API_URL}/${config.hfModel}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${HF_TOKEN}`,
@@ -595,7 +632,7 @@ async function runInference(modelId: string, input: InferenceInput, agentId: num
       
     } else if (config.type === 'sentiment-analysis') {
       // Sentiment analysis (FinBERT, etc.)
-      const response = await fetch(`${HF_API_URL}/${config.hfModel}`, {
+      const response = await fetchWithRetry(`${HF_API_URL}/${config.hfModel}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${HF_TOKEN}`,
