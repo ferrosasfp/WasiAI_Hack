@@ -706,7 +706,52 @@ export default function ModelPageClient(props: ModelPageClientProps) {
       })
       
       if (hash && publicClient) {
-        await publicClient.waitForTransactionReceipt({ hash })
+        const receipt = await publicClient.waitForTransactionReceipt({ hash })
+        
+        // Extract tokenId from LicenseMinted event and register in Neon DB
+        try {
+          const licenseMintedEvent = abi.find((e: any) => e.type === 'event' && e.name === 'LicenseMinted')
+          if (licenseMintedEvent && receipt.logs) {
+            for (const log of receipt.logs) {
+              try {
+                // Parse the log to get licenseId
+                const { decodeEventLog } = await import('viem')
+                const decoded = decodeEventLog({
+                  abi: [licenseMintedEvent],
+                  data: log.data,
+                  topics: log.topics,
+                }) as { eventName: string; args: any }
+                if (decoded.eventName === 'LicenseMinted') {
+                  const args = decoded.args
+                  const tokenId = Number(args.licenseId || args.tokenId || 0)
+                  if (tokenId > 0 && currentAddress) {
+                    // Register license in Neon DB for instant display
+                    await fetch('/api/indexed/licenses', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        tokenId,
+                        modelId: Number(id),
+                        owner: currentAddress,
+                        kind: licenseKind,
+                        expiresAt: 0, // perpetual
+                        chainId: evmChainId,
+                        txHash: hash,
+                        validApi: true,
+                        validDownload: transferable,
+                      })
+                    })
+                    console.log(`[Purchase] License #${tokenId} registered in Neon DB`)
+                  }
+                  break
+                }
+              } catch {}
+            }
+          }
+        } catch (regErr) {
+          console.warn('[Purchase] Failed to register license in DB:', regErr)
+          // Don't fail the purchase if DB registration fails
+        }
       }
       setSnkSev('success'); setSnkMsg(L.purchaseSuccess); setSnkOpen(true)
       if (typeof mutateEntitlements === 'function') {
@@ -721,7 +766,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
     } finally {
       setTxLoading(false)
     }
-  }, [data, isConnected, L, id, evmChainId, marketAddress, chain?.id, switchChainAsync, writeContractAsync, publicClient, mutateEntitlements, locale])
+  }, [data, isConnected, L, id, evmChainId, marketAddress, chain?.id, switchChainAsync, writeContractAsync, publicClient, mutateEntitlements, locale, currentAddress])
 
   const handlePurchase = React.useCallback(async ()=>{
     try {

@@ -299,7 +299,9 @@ function EvmLicensesPageImpl() {
       const data = await response.json()
       
       // Transform to match existing UI format
-      const items = data.licenses.map((lic: any) => {
+      // Filter only perpetual licenses (kind === 0) for hackathon MVP
+      const perpetualLicenses = data.licenses.filter((lic: any) => lic.kind === 0)
+      const items = perpetualLicenses.map((lic: any) => {
         const metadata = lic.model_metadata || {}
         
         // Create viewModel from metadata if available
