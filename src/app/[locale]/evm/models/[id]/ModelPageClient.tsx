@@ -714,8 +714,9 @@ export default function ModelPageClient(props: ModelPageClientProps) {
       }
     } catch (e: any) {
       console.error('Purchase error:', e)
+      const msg = String(e?.shortMessage || e?.message || e || '')
       setSnkSev('error')
-      setSnkMsg(e?.shortMessage || e?.message || L.purchaseFailed)
+      setSnkMsg(L.purchaseErrorPrefix + msg)
       setSnkOpen(true)
     } finally {
       setTxLoading(false)
