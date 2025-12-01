@@ -23,6 +23,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import { useAccount, useSignTypedData } from 'wagmi'
+import InferenceFeedback from './InferenceFeedback'
 
 interface X402InferencePanelProps {
   modelId: number | string
@@ -388,6 +389,13 @@ export default function X402InferencePanel({
             </Stack>
           </Collapse>
           <Button size="small" onClick={() => setShowDetails(!showDetails)} endIcon={showDetails ? <ExpandLessIcon /> : <ExpandMoreIcon />} sx={{ mt: 1, color: '#ffffffaa' }}>{showDetails ? L.hideDetails : L.showDetails}</Button>
+          
+          {/* Feedback component for on-chain reputation */}
+          <InferenceFeedback
+            agentId={agentId || Number(modelId)}
+            inferenceHash={txHash || `inference-${modelId}-${Date.now()}`}
+            locale={locale}
+          />
         </Paper>
       )}
       

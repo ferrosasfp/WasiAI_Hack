@@ -1769,6 +1769,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                 <X402InferencePanel
                   modelId={id}
                   modelName={viewModel.step1.name}
+                  agentId={data.metadata.agentId}
                   pricePerInference={data.metadata.licensePolicy.inference.pricePerCall}
                   recipientWallet={data.creator || data.owner}
                   chainId={evmChainId}

@@ -6,5 +6,6 @@
   "feeBps": 2000,
   "feeRecipient": "0xfb652f4506731aC58E51b39DCa4F5ECDcb2C1543",
   "modelsLimit": 0,
-  "agentRegistry": "0x9B054Cbe7823086BB5f5b776347e589e11B6ABCf"
+  "agentRegistry": "0x9B054Cbe7823086BB5f5b776347e589e11B6ABCf",
+  "reputationRegistry": "0xf4D4c4b91BaE8863f508B772f0195b7D3Fbc6412"
 }
