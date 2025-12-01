@@ -16,6 +16,7 @@ import ShareIcon from '@mui/icons-material/Share'
 import StarIcon from '@mui/icons-material/Star'
 import FavoriteB from '@mui/icons-material/FavoriteBorder'
 import { usePrefetch } from '@/lib/prefetch'
+import AgentReputation from './AgentReputation'
 
 // Global controls to avoid bursts across many cards
 const __g: any = globalThis as any
@@ -67,6 +68,7 @@ export type ModelCardData = {
   rating?: number
   numRuns?: number
   version?: string
+  agentId?: number
 }
 
 function ConnectWalletInline({ }: { locale: string }) {
@@ -105,6 +107,7 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
   const [rating, setRating] = React.useState<number | undefined>(data.rating)
   const [numRuns, setNumRuns] = React.useState<number | undefined>(data.numRuns)
   const [version, setVersion] = React.useState<string | undefined>(data.version)
+  const [agentId, setAgentId] = React.useState<number | undefined>(data.agentId)
   const [showCopied, setShowCopied] = React.useState(false)
   const strMeta = React.useCallback((v: any): string => {
     if (v == null) return ''
@@ -554,9 +557,9 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
               </Stack>
             )}
 
-            {/* Rating / uso */}
-            {(rating || numRuns) && (
-              <Stack direction="row" spacing={1} alignItems="center">
+            {/* Rating / uso / Reputation */}
+            {(rating || numRuns || agentId) && (
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                 {rating && (
                   <Stack direction="row" spacing={0.25} alignItems="center">
                     <StarIcon sx={{ color: '#ffc107', fontSize: '1rem' }} />
@@ -569,6 +572,9 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
                   <Typography variant="caption" sx={{ color: '#ffffffb3', fontSize: '0.75rem' }}>
                     · {numRuns} {t('runs')}
                   </Typography>
+                )}
+                {agentId && agentId > 0 && (
+                  <AgentReputation agentId={agentId} locale={locale} compact />
                 )}
               </Stack>
             )}

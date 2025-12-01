@@ -27,6 +27,7 @@ const usedNonces = new Set<string>()
 const hits = new Map<string, { count: number; resetAt: number }>()
 
 // Inference history (in-memory, last 100 per model)
+// Using globalThis to persist across Next.js API route invocations
 interface InferenceRecord {
   id: string
   modelId: string
@@ -42,7 +43,15 @@ interface InferenceRecord {
   timestamp: number
 }
 
-const inferenceHistory = new Map<string, InferenceRecord[]>()
+// Extend globalThis type
+declare global {
+  var inferenceHistoryMap: Map<string, InferenceRecord[]> | undefined
+}
+
+// Use globalThis to persist the Map across hot-reloads and API invocations
+const inferenceHistory = globalThis.inferenceHistoryMap ?? new Map<string, InferenceRecord[]>()
+globalThis.inferenceHistoryMap = inferenceHistory
+
 const MAX_HISTORY_PER_MODEL = 100
 
 function recordInference(record: InferenceRecord) {
@@ -53,6 +62,7 @@ function recordInference(record: InferenceRecord) {
     history.pop()
   }
   inferenceHistory.set(key, history)
+  console.log(`[History] Recorded inference for model ${key}. Total: ${history.length}. All models:`, Array.from(inferenceHistory.keys()))
 }
 
 export function getInferenceHistory(modelId?: string, payer?: string, limit = 20): InferenceRecord[] {
