@@ -309,11 +309,74 @@ export default function X402InferencePanel({
             <Typography variant="body2" sx={{ fontWeight: 600, color: '#4caf50' }}>{L.success}</Typography>
             {latencyMs && <Chip label={`${latencyMs}ms`} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.7rem', height: 18 }} />}
           </Stack>
-          <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 1.5, borderRadius: 1, fontFamily: 'monospace', fontSize: '0.85rem', color: '#fff', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto' }}>
-            {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
-          </Box>
+          
+          {/* Visual result display for classification tasks */}
+          {result.task === 'zero-shot-classification' && result.labels && result.scores && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ color: '#ffffffaa', mb: 1.5 }}>
+                {isES ? 'Clasificación del texto:' : 'Text classification:'}
+              </Typography>
+              <Box sx={{ bgcolor: 'rgba(156, 39, 176, 0.15)', p: 2, borderRadius: 1, mb: 2 }}>
+                <Typography variant="h6" sx={{ color: '#ce93d8', fontWeight: 700 }}>
+                  {result.top_label}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#ffffffaa' }}>
+                  {isES ? 'Confianza' : 'Confidence'}: {(result.top_score * 100).toFixed(1)}%
+                </Typography>
+              </Box>
+              <Typography variant="caption" sx={{ color: '#ffffff88', display: 'block', mb: 1 }}>
+                {isES ? 'Todas las categorías:' : 'All categories:'}
+              </Typography>
+              <Stack spacing={0.5}>
+                {result.labels.map((label: string, idx: number) => (
+                  <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ flex: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1, overflow: 'hidden', height: 20 }}>
+                      <Box sx={{ width: `${result.scores[idx] * 100}%`, bgcolor: idx === 0 ? '#9c27b0' : 'rgba(156, 39, 176, 0.5)', height: '100%', transition: 'width 0.3s' }} />
+                    </Box>
+                    <Typography variant="caption" sx={{ color: '#fff', minWidth: 120 }}>{label}</Typography>
+                    <Typography variant="caption" sx={{ color: '#ffffffaa', minWidth: 45, textAlign: 'right' }}>{(result.scores[idx] * 100).toFixed(1)}%</Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          )}
+          
+          {/* Visual result display for sentiment analysis */}
+          {result.task === 'sentiment-analysis' && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ color: '#ffffffaa', mb: 1.5 }}>
+                {isES ? 'Análisis de sentimiento:' : 'Sentiment analysis:'}
+              </Typography>
+              <Box sx={{ 
+                bgcolor: result.sentiment === 'positive' ? 'rgba(76, 175, 80, 0.15)' : 
+                         result.sentiment === 'negative' ? 'rgba(244, 67, 54, 0.15)' : 'rgba(255, 193, 7, 0.15)', 
+                p: 2, borderRadius: 1 
+              }}>
+                <Typography variant="h6" sx={{ 
+                  color: result.sentiment === 'positive' ? '#4caf50' : 
+                         result.sentiment === 'negative' ? '#f44336' : '#ffc107',
+                  fontWeight: 700, textTransform: 'capitalize'
+                }}>
+                  {result.sentiment === 'positive' ? (isES ? '😊 Positivo' : '😊 Positive') :
+                   result.sentiment === 'negative' ? (isES ? '😞 Negativo' : '😞 Negative') :
+                   (isES ? '😐 Neutral' : '😐 Neutral')}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#ffffffaa' }}>
+                  {isES ? 'Confianza' : 'Confidence'}: {(result.confidence * 100).toFixed(1)}%
+                </Typography>
+              </Box>
+            </Box>
+          )}
+          
+          {/* Raw JSON for other tasks or details */}
+          <Collapse in={showDetails || (result.task !== 'zero-shot-classification' && result.task !== 'sentiment-analysis')}>
+            <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 1.5, borderRadius: 1, fontFamily: 'monospace', fontSize: '0.75rem', color: '#fff', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto', mb: 1 }}>
+              {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
+            </Box>
+          </Collapse>
+          
           <Collapse in={showDetails}>
-            <Stack spacing={1} sx={{ mt: 2 }}>
+            <Stack spacing={1} sx={{ mt: 1 }}>
               {txHash && (
                 <Stack direction="row" alignItems="center" spacing={1}>
                   <Typography variant="caption" sx={{ color: '#ffffffaa' }}>{L.txHashLabel}:</Typography>

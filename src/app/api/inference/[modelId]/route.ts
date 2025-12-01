@@ -281,29 +281,182 @@ async function verifyPaymentWithFacilitator(
   }
 }
 
-// ===== Mock Inference =====
+// ===== Real AI Inference via HuggingFace =====
 
-async function runInference(modelId: string, input: any, agentId: number) {
+const HF_API_URL = 'https://router.huggingface.co/hf-inference/models'
+const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN
+
+// Supported model types and their HuggingFace model IDs
+const MODEL_CONFIGS: Record<string, {
+  hfModel: string
+  type: 'zero-shot-classification' | 'text-generation' | 'sentiment-analysis'
+  defaultLabels?: string[]
+}> = {
+  // Default: Zero-shot classification for business use cases
+  'default': {
+    hfModel: 'facebook/bart-large-mnli',
+    type: 'zero-shot-classification',
+    defaultLabels: ['product quality', 'customer service', 'shipping', 'pricing', 'technical issue', 'feature request']
+  },
+  // Sentiment analysis
+  'sentiment': {
+    hfModel: 'cardiffnlp/twitter-roberta-base-sentiment-latest',
+    type: 'sentiment-analysis'
+  },
+  // Text generation (if needed)
+  'text-gen': {
+    hfModel: 'mistralai/Mistral-7B-Instruct-v0.2',
+    type: 'text-generation'
+  }
+}
+
+interface InferenceInput {
+  text?: string
+  labels?: string[]
+  prompt?: string
+  modelType?: string
+}
+
+async function runInference(modelId: string, input: InferenceInput, agentId: number) {
   const started = Date.now()
   
-  // TODO: Replace with real inference
-  await new Promise(r => setTimeout(r, 100 + Math.random() * 200))
+  // Get model config (default to zero-shot classification)
+  const modelType = input.modelType || 'default'
+  const config = MODEL_CONFIGS[modelType] || MODEL_CONFIGS['default']
   
-  const output = {
-    prediction: Math.random().toFixed(4),
-    confidence: (0.7 + Math.random() * 0.25).toFixed(4),
-    input_received: input,
-    model: `model-${modelId}`,
-    agent: `agent-${agentId}`,
-    timestamp: new Date().toISOString(),
-    note: 'x402 paid inference via USDC - replace with real model',
+  // If no HF token, fall back to mock
+  if (!HF_TOKEN) {
+    console.warn('[Inference] No HUGGINGFACE_API_TOKEN set, using mock response')
+    return runMockInference(modelId, input, agentId, started)
   }
   
+  try {
+    let hfResponse: any
+    
+    if (config.type === 'zero-shot-classification') {
+      // Zero-shot classification
+      const text = input.text || input.prompt || String(input)
+      const candidateLabels = input.labels || config.defaultLabels || ['positive', 'negative', 'neutral']
+      
+      const response = await fetch(`${HF_API_URL}/${config.hfModel}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${HF_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inputs: text,
+          parameters: { candidate_labels: candidateLabels }
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.text()
+        console.error('[HuggingFace] API error:', error)
+        throw new Error(`HuggingFace API error: ${response.status}`)
+      }
+      
+      hfResponse = await response.json()
+      
+      // Handle both array format (new API) and object format (old API)
+      let resultLabels: string[]
+      let resultScores: number[]
+      
+      if (Array.isArray(hfResponse)) {
+        // New format: [{label: "x", score: 0.9}, ...]
+        resultLabels = hfResponse.map((item: any) => item.label)
+        resultScores = hfResponse.map((item: any) => item.score)
+      } else {
+        // Old format: {labels: [...], scores: [...]}
+        resultLabels = hfResponse.labels
+        resultScores = hfResponse.scores
+      }
+      
+      // Format zero-shot response
+      return {
+        output: {
+          task: 'zero-shot-classification',
+          input_text: text,
+          labels: resultLabels,
+          scores: resultScores,
+          top_label: resultLabels[0],
+          top_score: resultScores[0],
+          model: config.hfModel,
+          agent: `agent-${agentId}`,
+          timestamp: new Date().toISOString()
+        },
+        latencyMs: Date.now() - started,
+        modelId,
+        agentId
+      }
+      
+    } else if (config.type === 'sentiment-analysis') {
+      // Sentiment analysis
+      const text = input.text || input.prompt || String(input)
+      
+      const response = await fetch(`${HF_API_URL}/${config.hfModel}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${HF_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ inputs: text })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HuggingFace API error: ${response.status}`)
+      }
+      
+      hfResponse = await response.json()
+      
+      // Format sentiment response
+      const sentiments = hfResponse[0] || []
+      const topSentiment = sentiments.reduce((a: any, b: any) => a.score > b.score ? a : b, { label: 'unknown', score: 0 })
+      
+      return {
+        output: {
+          task: 'sentiment-analysis',
+          input_text: text,
+          sentiment: topSentiment.label,
+          confidence: topSentiment.score,
+          all_scores: sentiments,
+          model: config.hfModel,
+          agent: `agent-${agentId}`,
+          timestamp: new Date().toISOString()
+        },
+        latencyMs: Date.now() - started,
+        modelId,
+        agentId
+      }
+      
+    } else {
+      // Fallback to mock for unsupported types
+      return runMockInference(modelId, input, agentId, started)
+    }
+    
+  } catch (error: any) {
+    console.error('[Inference] HuggingFace error:', error.message)
+    // Fall back to mock on error
+    return runMockInference(modelId, input, agentId, started, error.message)
+  }
+}
+
+// Fallback mock inference
+function runMockInference(modelId: string, input: any, agentId: number, started: number, error?: string) {
   return {
-    output,
+    output: {
+      task: 'mock',
+      input_received: input,
+      prediction: Math.random().toFixed(4),
+      confidence: (0.7 + Math.random() * 0.25).toFixed(4),
+      model: `model-${modelId}`,
+      agent: `agent-${agentId}`,
+      timestamp: new Date().toISOString(),
+      note: error ? `Fallback to mock: ${error}` : 'Mock inference (set HUGGINGFACE_API_TOKEN for real AI)'
+    },
     latencyMs: Date.now() - started,
     modelId,
-    agentId,
+    agentId
   }
 }
 
