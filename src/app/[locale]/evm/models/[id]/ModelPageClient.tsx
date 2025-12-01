@@ -627,7 +627,8 @@ export default function ModelPageClient(props: ModelPageClientProps) {
     } catch { return undefined }
   }, [evmChainId])
 
-  const handleOpenBuy = React.useCallback(() => {
+  // Direct purchase for perpetual license (no popup for hackathon MVP)
+  const handleOpenBuy = React.useCallback(async () => {
     // Check if wallet is connected before allowing purchase
     if (!isConnected) {
       setSnkSev('warning')
@@ -636,25 +637,90 @@ export default function ModelPageClient(props: ModelPageClientProps) {
       return
     }
     
-    // Decide default kind based on availability
-    let k: 'perpetual'|'subscription'|undefined = undefined
-    let m = 1
-    // Check price availability (handle both number and string)
+    // For hackathon MVP: only perpetual license, go directly to purchase
     const hasPerpetual = data?.price_perpetual && (typeof data.price_perpetual === 'number' ? data.price_perpetual > 0 : true)
-    const hasSubscription = data?.price_subscription && (typeof data.price_subscription === 'number' ? data.price_subscription > 0 : true)
     
-    if (hasSubscription) {
-      k = 'subscription'
-      m = data?.default_duration_days ? Math.ceil(data.default_duration_days / 30) || 1 : 1
-    } else if (hasPerpetual) {
-      k = 'perpetual'
+    if (!hasPerpetual) {
+      setSnkSev('error')
+      setSnkMsg(locale === 'es' ? 'Este modelo no tiene precio de licencia configurado' : 'This model has no license price configured')
+      setSnkOpen(true)
+      return
     }
 
-    setBuyMonths(m)
-    setBuyKind(k)
-    setBuyStep('select')
-    setBuyOpen(true)
-  }, [data, isConnected, L])
+    // Set perpetual as the kind and trigger purchase directly
+    setBuyKind('perpetual')
+    setBuyMonths(0)
+    
+    // Execute purchase directly (same logic as handlePurchase but inline)
+    try {
+      if (!id || typeof evmChainId !== 'number') return
+      if (!marketAddress) { setSnkSev('error'); setSnkMsg(L.marketAddressMissing); setSnkOpen(true); return }
+      
+      // validate network and auto-switch
+      const currentChainId = chain?.id
+      const desiredChainId = evmChainId
+      if (currentChainId !== desiredChainId) {
+        try {
+          await switchChainAsync({ chainId: desiredChainId })
+        } catch {
+          setSnkSev('warning'); setSnkMsg(L.wrongNetwork); setSnkOpen(true)
+          return
+        }
+      }
+      
+      const abi = (MARKET_ARTIFACT as any).abi
+      const licenseKind = 0 // perpetual
+      const months = 0
+      const transferable = Boolean((data as any)?.rights?.transferable)
+      
+      // Prices come as wei (bigint strings or numbers) - must preserve exact precision
+      const priceP = (data as any)?.price_perpetual
+      
+      // Convert to BigInt preserving full precision (prices are in wei)
+      const toBigIntWei = (val: any): bigint => {
+        if (typeof val === 'bigint') return val
+        if (typeof val === 'string') {
+          if (val.includes('.')) {
+            const [whole, dec] = val.split('.')
+            return BigInt(whole || '0')
+          }
+          return BigInt(val)
+        }
+        if (typeof val === 'number') return BigInt(Math.floor(val))
+        return BigInt(0)
+      }
+      
+      const pricePWei = toBigIntWei(priceP)
+      const totalValue = pricePWei
+      
+      // Get tokenURI from model data
+      const tokenUri = data?.uri || ''
+      
+      setTxLoading(true)
+      const hash = await writeContractAsync({
+        address: marketAddress as `0x${string}`,
+        abi,
+        functionName: 'buyLicenseWithURI',
+        args: [BigInt(id), licenseKind, months, transferable, tokenUri],
+        value: totalValue
+      })
+      
+      if (hash && publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash })
+      }
+      setSnkSev('success'); setSnkMsg(L.purchaseSuccess); setSnkOpen(true)
+      if (typeof mutateEntitlements === 'function') {
+        mutateEntitlements()
+      }
+    } catch (e: any) {
+      console.error('Purchase error:', e)
+      setSnkSev('error')
+      setSnkMsg(e?.shortMessage || e?.message || L.purchaseFailed)
+      setSnkOpen(true)
+    } finally {
+      setTxLoading(false)
+    }
+  }, [data, isConnected, L, id, evmChainId, marketAddress, chain?.id, switchChainAsync, writeContractAsync, publicClient, mutateEntitlements, locale])
 
   const handlePurchase = React.useCallback(async ()=>{
     try {
