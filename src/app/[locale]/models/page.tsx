@@ -556,7 +556,7 @@ export default function ExploreModelsPage() {
                   pricePerpetual: m.price_perpetual ? `${(m.price_perpetual/1e18).toFixed(4)} ${evmSymbol}` : undefined,
                   priceSubscription: m.price_subscription ? `${(m.price_subscription/1e18).toFixed(4)} ${evmSymbol}/${isES?'mes':'mo'}` : undefined,
                   version: m.version || undefined,
-                  agentId: m.agentId || (m.modelId === 14 ? 1 : m.modelId === 20 ? 2 : m.modelId === 23 ? 3 : undefined),
+                  agentId: m.agentId || m.modelId,
                 }} href={m.modelId ? `/${locale}/evm/models/${m.modelId}` : undefined} priority={idx < 3} onMeta={onCardMeta} preMeta={(m as any).__preMeta} />
               </Grid>
             ))}

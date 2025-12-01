@@ -14,6 +14,8 @@ interface AgentReputationProps {
 }
 
 const REPUTATION_REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_REPUTATION_REGISTRY_ADDRESS as `0x${string}` | undefined
+// Avalanche Fuji testnet chainId
+const CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID || '43113', 10)
 
 export default function AgentReputation({
   agentId,
@@ -23,34 +25,54 @@ export default function AgentReputation({
   const isES = locale === 'es'
 
   // Get reputation data
-  const { data: reputationData, isLoading } = useReadContract({
+  const { data: reputationData, isLoading, error: repError } = useReadContract({
     address: REPUTATION_REGISTRY_ADDRESS,
     abi: ReputationRegistryABI.abi,
     functionName: 'getReputation',
     args: [BigInt(agentId)],
+    chainId: CHAIN_ID,
     query: {
       enabled: !!REPUTATION_REGISTRY_ADDRESS && agentId > 0,
     },
   })
 
   // Get score
-  const { data: scoreData } = useReadContract({
+  const { data: scoreData, error: scoreError } = useReadContract({
     address: REPUTATION_REGISTRY_ADDRESS,
     abi: ReputationRegistryABI.abi,
     functionName: 'calculateScore',
     args: [BigInt(agentId)],
+    chainId: CHAIN_ID,
     query: {
       enabled: !!REPUTATION_REGISTRY_ADDRESS && agentId > 0,
     },
   })
+  
+  // Log errors only
+  if (repError) console.error('[AgentReputation] getReputation error:', repError)
+  if (scoreError) console.error('[AgentReputation] calculateScore error:', scoreError)
 
-  // Parse data
-  const reputation = reputationData as { positiveCount: bigint; negativeCount: bigint; totalFeedback: bigint } | undefined
-  const score = scoreData as bigint | undefined
-  const positiveCount = reputation ? Number(reputation.positiveCount) : 0
-  const negativeCount = reputation ? Number(reputation.negativeCount) : 0
-  const totalFeedback = reputation ? Number(reputation.totalFeedback) : 0
-  const scoreValue = score !== undefined ? Number(score) : 50
+  // Parse data - handle both tuple array format and object format
+  let positiveCount = 0
+  let negativeCount = 0
+  let totalFeedback = 0
+  
+  if (reputationData) {
+    // wagmi returns tuple as array: [positiveCount, negativeCount, totalFeedback, lastFeedbackAt]
+    if (Array.isArray(reputationData)) {
+      positiveCount = Number(reputationData[0] || 0n)
+      negativeCount = Number(reputationData[1] || 0n)
+      totalFeedback = Number(reputationData[2] || 0n)
+    } else {
+      // Object format
+      const rep = reputationData as { positiveCount: bigint; negativeCount: bigint; totalFeedback: bigint }
+      positiveCount = Number(rep.positiveCount || 0n)
+      negativeCount = Number(rep.negativeCount || 0n)
+      totalFeedback = Number(rep.totalFeedback || 0n)
+    }
+  }
+  
+  const scoreValue = scoreData !== undefined ? Number(scoreData) : (totalFeedback > 0 ? 50 : 50)
 
   // If contract not deployed, show placeholder
   if (!REPUTATION_REGISTRY_ADDRESS) {
