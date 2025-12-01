@@ -694,7 +694,9 @@ export default function Step4LicensesTermsLocalized() {
         )}
         <Box sx={{ transition:'opacity 150ms ease 60ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1, minHeight: 220 }}>
         
-        {/* Pricing Mode Selector */}
+        {/* Pricing Mode - Simplified: Only perpetual + x402 pay-per-use */}
+        {/* Subscription mode hidden for hackathon MVP - kept in code for future use */}
+        {false && (
         <FormControl component="fieldset" sx={{ mb: 3 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('wizard.step4.pricingMode.label')}</Typography>
           <ToggleButtonGroup
@@ -752,6 +754,7 @@ export default function Step4LicensesTermsLocalized() {
             </ToggleButton>
           </ToggleButtonGroup>
         </FormControl>
+        )}
 
         <Grid container spacing={2}>
           <Grid item xs={12} md={4}>
@@ -768,6 +771,9 @@ export default function Step4LicensesTermsLocalized() {
               InputProps={{ endAdornment: <InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>{unit}</InputAdornment> }}
             />
           </Grid>
+          {/* Subscription fields hidden for hackathon MVP - only perpetual + x402 */}
+          {false && (
+          <>
           <Grid item xs={12} md={4}>
             <TextField
               label={t('wizard.step4.fields.subscriptionPerMonth')}
@@ -796,6 +802,8 @@ export default function Step4LicensesTermsLocalized() {
               helperText={subNeedsDuration ? t('wizard.step4.validation.durationRequired') : invalidDur ? t('wizard.step4.validation.durationRange') : ' '}
             />
           </Grid>
+          </>
+          )}
           <Grid item xs={12} md={4}>
             <TextField
               label={locale==='es' ? 'Royalty del creador (%)' : 'Creator royalty (%)'}

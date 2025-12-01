@@ -581,18 +581,12 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
 
             <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.08)', pt: 1.5, mt: 'auto' }}>
               {/* Precios */}
-              {!showConnect && (data.pricePerpetual || data.priceSubscription) && (
+              {/* Prices - subscription hidden for hackathon MVP (only perpetual + x402) */}
+              {!showConnect && data.pricePerpetual && (
                 <Stack spacing={0.5} sx={{ mb: 1.5 }}>
-                  {data.pricePerpetual && (
-                    <Typography variant="body2" fontWeight={700} sx={{ color: '#4fe1ff', fontSize: '0.95rem' }}>
-                      {formatPriceDisplay(data.pricePerpetual)} · {t('oneTime')}
-                    </Typography>
-                  )}
-                  {data.priceSubscription && (
-                    <Typography variant="body2" sx={{ color: '#ffffffcc', fontSize: '0.85rem' }}>
-                      {formatPriceDisplay(data.priceSubscription)}{t('perMonth')}
-                    </Typography>
-                  )}
+                  <Typography variant="body2" fontWeight={700} sx={{ color: '#4fe1ff', fontSize: '0.95rem' }}>
+                    {formatPriceDisplay(data.pricePerpetual)} · {t('oneTime')}
+                  </Typography>
                 </Stack>
               )}
               {showConnect && (

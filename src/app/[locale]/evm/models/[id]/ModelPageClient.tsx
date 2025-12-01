@@ -1299,7 +1299,8 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                               </Box>
                             </Grid>
                           )}
-                          {(viewModel?.step4?.pricing?.subscription?.available || (data?.price_subscription && data.price_subscription > 0)) && (
+                          {/* Subscription card hidden for hackathon MVP - only perpetual + x402 pay-per-use */}
+                          {false && (viewModel?.step4?.pricing?.subscription?.available || (data?.price_subscription && data.price_subscription > 0)) && (
                             <Grid item xs={12} sm={(viewModel?.step4?.pricing?.perpetual?.available || (data?.price_perpetual && data.price_perpetual > 0)) ? 6 : 12}>
                               <Box sx={{ 
                                 p:2, 
@@ -1825,7 +1826,8 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                         value={`${viewModel?.step4?.pricing?.perpetual?.priceFormatted || formatPrice(data?.price_perpetual)} ${evmSymbol}`}
                       />
                     )}
-                    {(viewModel?.step4?.pricing?.subscription?.available || (data?.price_subscription && data.price_subscription > 0)) && (
+                    {/* Subscription row hidden for hackathon MVP */}
+                    {false && (viewModel?.step4?.pricing?.subscription?.available || (data?.price_subscription && data.price_subscription > 0)) && (
                       <Row 
                         label={isES ? 'Suscripción (por mes)' : 'Subscription (per month)'} 
                         value={`${viewModel?.step4?.pricing?.subscription?.pricePerMonthFormatted || formatPrice(data?.price_subscription)} ${evmSymbol}/mes`}
