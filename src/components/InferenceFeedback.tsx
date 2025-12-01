@@ -41,6 +41,7 @@ export default function InferenceFeedback({
   const { address, isConnected } = useAccount()
   const [submitted, setSubmitted] = useState(false)
   const [selectedFeedback, setSelectedFeedback] = useState<'positive' | 'negative' | null>(null)
+  const [syncedTxHash, setSyncedTxHash] = useState<string | null>(null)
 
   // Convert inferenceHash to bytes32
   const inferenceHashBytes32 = inferenceHash.startsWith('0x') 
@@ -90,27 +91,35 @@ export default function InferenceFeedback({
 
   // Handle successful submission
   useEffect(() => {
-    if (isConfirmed && selectedFeedback && txHash) {
+    // Only sync if confirmed, has feedback, has txHash, and hasn't been synced yet
+    if (isConfirmed && selectedFeedback && txHash && txHash !== syncedTxHash) {
+      console.log('[InferenceFeedback] TX confirmed, syncing...', { txHash, agentId, selectedFeedback })
+      
       setSubmitted(true)
+      setSyncedTxHash(txHash) // Mark as synced to prevent duplicate calls
       refetchReputation()
       refetchScore()
       onFeedbackSubmitted?.(selectedFeedback === 'positive')
       
       // Sync reputation to database cache
+      console.log('[InferenceFeedback] Syncing reputation to DB...', { agentId, address, positive: selectedFeedback === 'positive' })
       fetch('/api/reputation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'feedback',
           agentId,
-          userAddress: address,
+          userAddress: address || '',
           positive: selectedFeedback === 'positive',
           inferenceHash,
           txHash
         })
-      }).catch(err => console.error('[InferenceFeedback] Failed to sync reputation:', err))
+      })
+        .then(res => res.json())
+        .then(data => console.log('[InferenceFeedback] Sync result:', data))
+        .catch(err => console.error('[InferenceFeedback] Failed to sync reputation:', err))
     }
-  }, [isConfirmed, selectedFeedback, txHash, onFeedbackSubmitted, refetchReputation, refetchScore, agentId, address, inferenceHash])
+  }, [isConfirmed, selectedFeedback, txHash, syncedTxHash, onFeedbackSubmitted, refetchReputation, refetchScore, agentId, address, inferenceHash])
 
   const handleFeedback = (positive: boolean) => {
     if (!REPUTATION_REGISTRY_ADDRESS || !isConnected) return
