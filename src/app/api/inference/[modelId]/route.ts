@@ -96,6 +96,72 @@ function rateLimit(key: string, max: number, windowMs: number) {
   return { ok: true, remaining: max - cur.count }
 }
 
+// ===== Model Configuration =====
+
+// Model configuration type for HuggingFace inference
+interface ModelConfig {
+  hfModel: string
+  type: 'zero-shot-classification' | 'text-generation' | 'sentiment-analysis' | 'text2text-generation'
+  defaultLabels?: string[]
+  name: string
+  description: string
+  priceUsdc: number // Price in USDC (e.g., 0.01 = $0.01)
+  agentId: number
+  systemPrompt?: string
+}
+
+// ===== HARDCODED MODELS FOR MVP =====
+// These 3 models are pre-configured for the hackathon demo
+// All use HuggingFace free tier inference API
+
+const HARDCODED_MODELS: Record<string, ModelConfig> = {
+  // Model ID 14: Solidity Code Assistant
+  // Uses Flan-T5 for code explanation/generation (free tier friendly)
+  '14': {
+    hfModel: 'google/flan-t5-base',
+    type: 'text2text-generation',
+    name: 'Solidity Code Assistant',
+    description: 'AI assistant for Solidity smart contract development. Explains code, suggests improvements, and helps with blockchain development.',
+    priceUsdc: 0.02,
+    agentId: 1,
+    systemPrompt: 'You are a Solidity smart contract expert. Help developers write, understand, and improve their blockchain code.'
+  },
+  
+  // Model ID 20: Crypto/Financial Sentiment Analyzer
+  // Uses FinBERT - specifically trained for financial sentiment (free tier)
+  '20': {
+    hfModel: 'ProsusAI/finbert',
+    type: 'sentiment-analysis',
+    name: 'Crypto Sentiment Analyzer',
+    description: 'Analyzes sentiment of crypto and financial news. Returns positive, negative, or neutral classification with confidence scores.',
+    priceUsdc: 0.005,
+    agentId: 2
+  },
+  
+  // Model ID 23: Blockchain Topic Classifier
+  // Uses BART for zero-shot classification with blockchain-specific labels
+  '23': {
+    hfModel: 'facebook/bart-large-mnli',
+    type: 'zero-shot-classification',
+    name: 'Blockchain Topic Classifier',
+    description: 'Classifies blockchain-related text into categories: DeFi, NFT, Layer2, Security, Governance, Trading, Development.',
+    priceUsdc: 0.01,
+    agentId: 3,
+    defaultLabels: ['DeFi', 'NFT', 'Layer 2', 'Security', 'Governance', 'Trading', 'Development', 'Tokenomics']
+  }
+}
+
+// Fallback config for non-hardcoded models
+const DEFAULT_MODEL_CONFIG: ModelConfig = {
+  hfModel: 'facebook/bart-large-mnli',
+  type: 'zero-shot-classification',
+  name: 'AI Classifier',
+  description: 'General purpose text classification',
+  priceUsdc: 0.01,
+  agentId: 0,
+  defaultLabels: ['positive', 'negative', 'neutral', 'question', 'statement']
+}
+
 // ===== Helper Functions =====
 
 interface ModelInfo {
@@ -105,7 +171,51 @@ interface ModelInfo {
   agentId: number
 }
 
+// Default recipient wallet for hardcoded models (can be overridden per model)
+const DEFAULT_RECIPIENT_WALLET = process.env.X402_DEFAULT_RECIPIENT || '0x0000000000000000000000000000000000000000'
+
 async function getModelInfo(modelId: string): Promise<ModelInfo | null> {
+  // First check if this is a hardcoded model
+  const hardcodedConfig = HARDCODED_MODELS[modelId]
+  
+  if (hardcodedConfig) {
+    // Use hardcoded config - convert price from USDC to base units
+    const pricePerInference = Math.floor(hardcodedConfig.priceUsdc * Math.pow(10, USDC_DECIMALS)).toString()
+    
+    console.log(`[x402] Using hardcoded model ${modelId}:`, {
+      name: hardcodedConfig.name,
+      priceUsdc: hardcodedConfig.priceUsdc,
+      pricePerInference,
+      priceFormatted: formatUsdcPrice(pricePerInference),
+      agentId: hardcodedConfig.agentId
+    })
+    
+    // Try to get recipient wallet from indexed model, fall back to default
+    let recipientWallet = DEFAULT_RECIPIENT_WALLET
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+      const res = await fetch(`${baseUrl}/api/indexed/models/${modelId}`, {
+        headers: { 'Cache-Control': 'no-cache' }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.model?.creator || data.model?.owner) {
+          recipientWallet = data.model.creator || data.model.owner
+        }
+      }
+    } catch (e) {
+      console.warn(`[x402] Could not fetch recipient wallet for model ${modelId}, using default`)
+    }
+    
+    return {
+      pricePerInference,
+      recipientWallet,
+      name: hardcodedConfig.name,
+      agentId: hardcodedConfig.agentId,
+    }
+  }
+  
+  // Not a hardcoded model - try to fetch from indexed data
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
     const res = await fetch(`${baseUrl}/api/indexed/models/${modelId}`, {
@@ -154,7 +264,7 @@ async function getModelInfo(modelId: string): Promise<ModelInfo | null> {
     // Get agentId from AgentRegistry (stored in metadata or needs lookup)
     const agentId = metadata?.agentId || model.agentId || 0
     
-    console.log(`[x402] Model ${modelId} info:`, {
+    console.log(`[x402] Model ${modelId} info from index:`, {
       name: model.name,
       pricePerInference,
       priceFormatted: formatUsdcPrice(pricePerInference),
@@ -334,31 +444,20 @@ async function verifyPaymentWithFacilitator(
 
 // ===== Real AI Inference via HuggingFace =====
 
-const HF_API_URL = 'https://router.huggingface.co/hf-inference/models'
+const HF_API_URL = 'https://api-inference.huggingface.co/models'
 const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN
 
-// Supported model types and their HuggingFace model IDs
-const MODEL_CONFIGS: Record<string, {
-  hfModel: string
-  type: 'zero-shot-classification' | 'text-generation' | 'sentiment-analysis'
-  defaultLabels?: string[]
-}> = {
-  // Default: Zero-shot classification for business use cases
-  'default': {
-    hfModel: 'facebook/bart-large-mnli',
-    type: 'zero-shot-classification',
-    defaultLabels: ['product quality', 'customer service', 'shipping', 'pricing', 'technical issue', 'feature request']
-  },
-  // Sentiment analysis
-  'sentiment': {
-    hfModel: 'cardiffnlp/twitter-roberta-base-sentiment-latest',
-    type: 'sentiment-analysis'
-  },
-  // Text generation (if needed)
-  'text-gen': {
-    hfModel: 'mistralai/Mistral-7B-Instruct-v0.2',
-    type: 'text-generation'
+// Get model config - prioritize hardcoded, then fall back to dynamic lookup
+function getModelConfig(modelId: string): ModelConfig {
+  // Check hardcoded models first
+  if (HARDCODED_MODELS[modelId]) {
+    console.log(`[x402] Using hardcoded config for model ${modelId}:`, HARDCODED_MODELS[modelId].name)
+    return HARDCODED_MODELS[modelId]
   }
+  
+  // Fall back to default
+  console.log(`[x402] Model ${modelId} not in hardcoded list, using default config`)
+  return { ...DEFAULT_MODEL_CONFIG, agentId: parseInt(modelId) || 0 }
 }
 
 interface InferenceInput {
@@ -371,22 +470,77 @@ interface InferenceInput {
 async function runInference(modelId: string, input: InferenceInput, agentId: number) {
   const started = Date.now()
   
-  // Get model config (default to zero-shot classification)
-  const modelType = input.modelType || 'default'
-  const config = MODEL_CONFIGS[modelType] || MODEL_CONFIGS['default']
+  // Get model config from hardcoded list or default
+  const config = getModelConfig(modelId)
+  
+  // Override agentId from config if available
+  const effectiveAgentId = config.agentId || agentId
   
   // If no HF token, fall back to mock
   if (!HF_TOKEN) {
     console.warn('[Inference] No HUGGINGFACE_API_TOKEN set, using mock response')
-    return runMockInference(modelId, input, agentId, started)
+    return runMockInference(modelId, input, effectiveAgentId, started, config)
   }
   
   try {
     let hfResponse: any
+    const text = input.text || input.prompt || String(input)
     
-    if (config.type === 'zero-shot-classification') {
-      // Zero-shot classification
-      const text = input.text || input.prompt || String(input)
+    console.log(`[Inference] Running ${config.type} on model ${modelId} (${config.name})`)
+    
+    if (config.type === 'text2text-generation') {
+      // Text-to-text generation (Flan-T5, etc.)
+      // Add system prompt context if available
+      const prompt = config.systemPrompt 
+        ? `${config.systemPrompt}\n\nUser: ${text}\n\nAssistant:`
+        : text
+      
+      const response = await fetch(`${HF_API_URL}/${config.hfModel}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${HF_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          inputs: prompt,
+          parameters: {
+            max_new_tokens: 256,
+            temperature: 0.7,
+            do_sample: true
+          }
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.text()
+        console.error('[HuggingFace] API error:', error)
+        throw new Error(`HuggingFace API error: ${response.status}`)
+      }
+      
+      hfResponse = await response.json()
+      
+      // Handle response format
+      const generatedText = Array.isArray(hfResponse) 
+        ? hfResponse[0]?.generated_text || hfResponse[0]
+        : hfResponse.generated_text || hfResponse
+      
+      return {
+        output: {
+          task: 'text2text-generation',
+          input_text: text,
+          generated_text: typeof generatedText === 'string' ? generatedText : JSON.stringify(generatedText),
+          model: config.hfModel,
+          model_name: config.name,
+          agent: `agent-${effectiveAgentId}`,
+          timestamp: new Date().toISOString()
+        },
+        latencyMs: Date.now() - started,
+        modelId,
+        agentId: effectiveAgentId
+      }
+      
+    } else if (config.type === 'zero-shot-classification') {
+      // Zero-shot classification (BART, etc.)
       const candidateLabels = input.labels || config.defaultLabels || ['positive', 'negative', 'neutral']
       
       const response = await fetch(`${HF_API_URL}/${config.hfModel}`, {
@@ -414,16 +568,13 @@ async function runInference(modelId: string, input: InferenceInput, agentId: num
       let resultScores: number[]
       
       if (Array.isArray(hfResponse)) {
-        // New format: [{label: "x", score: 0.9}, ...]
         resultLabels = hfResponse.map((item: any) => item.label)
         resultScores = hfResponse.map((item: any) => item.score)
       } else {
-        // Old format: {labels: [...], scores: [...]}
-        resultLabels = hfResponse.labels
-        resultScores = hfResponse.scores
+        resultLabels = hfResponse.labels || []
+        resultScores = hfResponse.scores || []
       }
       
-      // Format zero-shot response
       return {
         output: {
           task: 'zero-shot-classification',
@@ -433,18 +584,17 @@ async function runInference(modelId: string, input: InferenceInput, agentId: num
           top_label: resultLabels[0],
           top_score: resultScores[0],
           model: config.hfModel,
-          agent: `agent-${agentId}`,
+          model_name: config.name,
+          agent: `agent-${effectiveAgentId}`,
           timestamp: new Date().toISOString()
         },
         latencyMs: Date.now() - started,
         modelId,
-        agentId
+        agentId: effectiveAgentId
       }
       
     } else if (config.type === 'sentiment-analysis') {
-      // Sentiment analysis
-      const text = input.text || input.prompt || String(input)
-      
+      // Sentiment analysis (FinBERT, etc.)
       const response = await fetch(`${HF_API_URL}/${config.hfModel}`, {
         method: 'POST',
         headers: {
@@ -455,13 +605,15 @@ async function runInference(modelId: string, input: InferenceInput, agentId: num
       })
       
       if (!response.ok) {
+        const error = await response.text()
+        console.error('[HuggingFace] API error:', error)
         throw new Error(`HuggingFace API error: ${response.status}`)
       }
       
       hfResponse = await response.json()
       
-      // Format sentiment response
-      const sentiments = hfResponse[0] || []
+      // Format sentiment response - FinBERT returns [[{label, score}, ...]]
+      const sentiments = Array.isArray(hfResponse[0]) ? hfResponse[0] : hfResponse
       const topSentiment = sentiments.reduce((a: any, b: any) => a.score > b.score ? a : b, { label: 'unknown', score: 0 })
       
       return {
@@ -472,35 +624,38 @@ async function runInference(modelId: string, input: InferenceInput, agentId: num
           confidence: topSentiment.score,
           all_scores: sentiments,
           model: config.hfModel,
-          agent: `agent-${agentId}`,
+          model_name: config.name,
+          agent: `agent-${effectiveAgentId}`,
           timestamp: new Date().toISOString()
         },
         latencyMs: Date.now() - started,
         modelId,
-        agentId
+        agentId: effectiveAgentId
       }
       
     } else {
       // Fallback to mock for unsupported types
-      return runMockInference(modelId, input, agentId, started)
+      return runMockInference(modelId, input, effectiveAgentId, started, config)
     }
     
   } catch (error: any) {
     console.error('[Inference] HuggingFace error:', error.message)
     // Fall back to mock on error
-    return runMockInference(modelId, input, agentId, started, error.message)
+    return runMockInference(modelId, input, effectiveAgentId, started, config, error.message)
   }
 }
 
 // Fallback mock inference
-function runMockInference(modelId: string, input: any, agentId: number, started: number, error?: string) {
+function runMockInference(modelId: string, input: any, agentId: number, started: number, config?: ModelConfig, error?: string) {
+  const modelName = config?.name || `Model #${modelId}`
   return {
     output: {
       task: 'mock',
       input_received: input,
       prediction: Math.random().toFixed(4),
       confidence: (0.7 + Math.random() * 0.25).toFixed(4),
-      model: `model-${modelId}`,
+      model: config?.hfModel || `model-${modelId}`,
+      model_name: modelName,
       agent: `agent-${agentId}`,
       timestamp: new Date().toISOString(),
       note: error ? `Fallback to mock: ${error}` : 'Mock inference (set HUGGINGFACE_API_TOKEN for real AI)'

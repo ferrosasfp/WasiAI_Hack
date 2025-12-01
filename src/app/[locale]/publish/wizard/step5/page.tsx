@@ -871,56 +871,100 @@ export default function Step5ReviewPublishLocalized() {
               await publicClient.waitForTransactionReceipt({ hash })
             }
             
-            // 5. Update AgentRegistry if agent exists (ERC-8004)
+            // 5. Update or Register AgentRegistry (ERC-8004)
             let agentTxHash: string | null = null
+            let registeredAgentId: number | null = null
             if (result.agentTxParams && result.modelId && publicClient) {
               try {
-                setMsg(locale === 'es' ? 'Actualizando agente ERC-8004...' : 'Updating ERC-8004 agent...')
-                
                 // First, check if agent exists for this model
                 const AGENT_ABI = (await import('@/abis/AgentRegistry.json')).default.abi
-                const agentId = await publicClient.readContract({
-                  address: result.agentTxParams.contractAddress as `0x${string}`,
-                  abi: AGENT_ABI,
-                  functionName: 'modelToAgent',
-                  args: [BigInt(result.modelId)]
-                }) as bigint
+                let existingAgentId: bigint = 0n
+                try {
+                  existingAgentId = await publicClient.readContract({
+                    address: result.agentTxParams.contractAddress as `0x${string}`,
+                    abi: AGENT_ABI,
+                    functionName: 'modelToAgent',
+                    args: [BigInt(result.modelId)]
+                  }) as bigint
+                } catch {
+                  // modelToAgent might not exist or return 0
+                }
                 
-                if (agentId && agentId > 0n) {
-                  // Agent exists - update its metadata
-                  // Pin updated agent metadata to IPFS
-                  const agentMetaRes = await fetch('/api/agents/metadata', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      modelId: result.modelId,
-                      chainId: targetChainId,
-                      wallet: connectedAddress,
-                      ...result.agentTxParams.metadataTemplate
-                    })
+                // Pin agent metadata to IPFS
+                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin
+                const agentMetaRes = await fetch('/api/agents/metadata', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    modelId: result.modelId,
+                    chainId: targetChainId,
+                    wallet: connectedAddress,
+                    name: result.metadata?.name || upgradePayload.name,
+                    description: upgradePayload.summary || `AI Agent: ${upgradePayload.name}`,
+                    pricePerInference: result.agentTxParams.argsTemplate?.pricePerInference,
+                    image: upgradePayload.cover?.uri,
+                    capabilities: {
+                      tasks: upgradePayload.categories || [],
+                    },
+                    creator: upgradePayload.author || {},
+                    marketplaceAddress: result.txParams.contractAddress,
+                    agentRegistryAddress: result.agentTxParams.contractAddress
                   })
-                  
-                  if (agentMetaRes.ok) {
-                    const agentMeta = await agentMetaRes.json()
-                    if (agentMeta.uri) {
-                      // Update agent metadata on-chain
+                })
+                
+                if (agentMetaRes.ok) {
+                  const agentMeta = await agentMetaRes.json()
+                  if (agentMeta.uri) {
+                    if (existingAgentId && existingAgentId > 0n) {
+                      // Agent exists - update its metadata
+                      setMsg(locale === 'es' ? 'Actualizando agente ERC-8004...' : 'Updating ERC-8004 agent...')
                       const updateHash = await writeContractAsync({
                         address: result.agentTxParams.contractAddress as `0x${string}`,
                         abi: AGENT_ABI,
                         functionName: 'updateMetadata',
-                        args: [agentId, agentMeta.uri],
+                        args: [existingAgentId, agentMeta.uri],
                         chainId: targetChainId
                       })
                       agentTxHash = updateHash
+                      registeredAgentId = Number(existingAgentId)
                       
                       if (publicClient && updateHash) {
                         await publicClient.waitForTransactionReceipt({ hash: updateHash })
                       }
+                      console.log('[Upgrade] Agent metadata updated:', { agentId: registeredAgentId, agentTxHash })
+                    } else {
+                      // Agent doesn't exist - register new agent
+                      setMsg(locale === 'es' ? 'Registrando agente ERC-8004...' : 'Registering ERC-8004 agent...')
+                      const registerHash = await writeContractAsync({
+                        address: result.agentTxParams.contractAddress as `0x${string}`,
+                        abi: AGENT_ABI,
+                        functionName: 'registerAgent',
+                        args: [
+                          BigInt(result.modelId),
+                          connectedAddress as `0x${string}`,
+                          `${baseUrl}/api/inference/${result.modelId}`,
+                          agentMeta.uri
+                        ],
+                        chainId: targetChainId
+                      })
+                      agentTxHash = registerHash
+                      
+                      // Wait and parse agentId from event
+                      if (publicClient && registerHash) {
+                        const agentReceipt = await publicClient.waitForTransactionReceipt({ hash: registerHash })
+                        for (const log of agentReceipt.logs) {
+                          if (log.topics[1]) {
+                            registeredAgentId = parseInt(log.topics[1], 16)
+                            break
+                          }
+                        }
+                      }
+                      console.log('[Upgrade] New agent registered:', { agentId: registeredAgentId, agentTxHash })
                     }
                   }
                 }
               } catch (agentErr) {
-                console.warn('[Upgrade] Failed to update agent metadata:', agentErr)
+                console.warn('[Upgrade] Failed to update/register agent:', agentErr)
                 // Don't fail the whole upgrade if agent update fails
               }
             }
@@ -929,7 +973,14 @@ export default function Step5ReviewPublishLocalized() {
               chain: tnet.chain, 
               network: tnet.network, 
               ok: true, 
-              tx: { txHash: hash, market: result.txParams.contractAddress, agentTxHash }
+              tx: { 
+                txHash: hash, 
+                market: result.txParams.contractAddress, 
+                modelId: result.modelId,
+                agentId: registeredAgentId,
+                agentTxHash,
+                agentRegistry: result.agentTxParams?.contractAddress
+              }
             }])
           } catch (err: any) {
             allOk = false
