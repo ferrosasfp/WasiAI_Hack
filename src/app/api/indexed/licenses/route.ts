@@ -132,14 +132,15 @@ export async function POST(request: NextRequest) {
       RETURNING token_id
     `
 
-    const expiresAtTimestamp = expiresAt ? new Date(expiresAt * 1000) : null
+    // expires_at is stored as BIGINT (unix timestamp), 0 means perpetual/no expiration
+    const expiresAtValue = expiresAt ? Number(expiresAt) : 0
 
     await query(insertQuery, [
       tokenId,
       modelId,
       owner.toLowerCase(),
       kind ?? 0, // default to perpetual
-      expiresAtTimestamp,
+      expiresAtValue,
       chainId,
       validApi ?? true,
       validDownload ?? true,

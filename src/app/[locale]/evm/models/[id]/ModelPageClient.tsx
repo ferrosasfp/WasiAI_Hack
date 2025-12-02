@@ -711,6 +711,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
         // Extract tokenId from LicenseMinted event and register in Neon DB
         try {
           const licenseMintedEvent = abi.find((e: any) => e.type === 'event' && e.name === 'LicenseMinted')
+          console.log('[Purchase] Looking for LicenseMinted event, found ABI:', !!licenseMintedEvent, 'logs:', receipt.logs?.length)
           if (licenseMintedEvent && receipt.logs) {
             for (const log of receipt.logs) {
               try {
@@ -745,7 +746,10 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                   }
                   break
                 }
-              } catch {}
+              } catch (decodeErr) {
+                // Log decode errors for debugging - most logs won't be LicenseMinted
+                console.debug('[Purchase] Log decode skip:', (decodeErr as any)?.message?.slice(0, 50))
+              }
             }
           }
         } catch (regErr) {
