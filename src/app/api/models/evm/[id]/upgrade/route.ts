@@ -239,10 +239,21 @@ export async function POST(
       throw new Error(`Marketplace address not configured for chainId ${body.chainId}. Set NEXT_PUBLIC_EVM_MARKET_${body.chainId} in .env`)
     }
 
+    // Get wallet address from header for agent params
+    const walletAddress = request.headers.get('X-Wallet-Address') || ''
+    
+    // Get inference price from metadata (x402 pay-per-use)
+    const priceInferenceUsdc = body.demo?.pricePerInference 
+      ? BigInt(Math.round(parseFloat(body.demo.pricePerInference) * 1_000_000)) // Convert to USDC 6 decimals
+      : 0n
+    
+    // Prepare agent metadata URI (will be uploaded separately or use model URI)
+    const agentMetadataUri = uri // Use same metadata URI for agent
+    
     // Return transaction parameters for frontend to execute with user's wallet
-    // DO NOT execute transaction here - user must sign with their wallet
+    // Use listOrUpgradeWithAgent for single-signature flow (model + agent in one TX)
     const txParams = {
-      functionName: 'listOrUpgrade',
+      functionName: 'listOrUpgradeWithAgent',
       args: [
         body.slug,
         body.name,
@@ -253,59 +264,38 @@ export async function POST(
         durationDays.toString(),
         deliveryRightsDefault,
         deliveryModeHint,
-        termsHash
+        termsHash,
+        priceInferenceUsdc.toString(), // priceInference in USDC (6 decimals)
+        walletAddress || '0x0000000000000000000000000000000000000000', // inferenceWallet
+        {
+          endpoint: `${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/inference/${modelId}`,
+          wallet: walletAddress || '0x0000000000000000000000000000000000000000',
+          metadataUri: agentMetadataUri
+        }
       ],
       contractAddress: marketAddr,
       chainId: body.chainId
     }
 
-    console.log(`[Upgrade] Returning txParams for wallet signing:`, {
+    console.log(`[Upgrade] Returning txParams for wallet signing (single-signature flow):`, {
       slug: body.slug,
       name: body.name,
       uri: uri.substring(0, 50) + '...',
-      chainId: body.chainId
+      chainId: body.chainId,
+      functionName: 'listOrUpgradeWithAgent'
     })
-
-    // Prepare AgentRegistry transaction params for ERC-8004 update
-    // The agent metadata will be updated with the new model metadata
-    const agentRegistryAddr = process.env[`NEXT_PUBLIC_EVM_AGENT_REGISTRY_${body.chainId}`]
-      || process.env.NEXT_PUBLIC_EVM_AGENT_REGISTRY
-    
-    let agentTxParams = null
-    if (agentRegistryAddr) {
-      // For upgrades, we'll update the agent's metadata URI
-      // The frontend will need to call updateAgentMetadata with the new URI
-      agentTxParams = {
-        functionName: 'updateAgentMetadata',
-        contractAddress: agentRegistryAddr,
-        chainId: body.chainId,
-        // Agent metadata template - frontend will fill in agentId
-        metadataTemplate: {
-          modelId: modelId,
-          chainId: body.chainId,
-          name: body.name,
-          description: body.tagline || body.summary || '',
-          version: versionTag,
-          capabilities: body.technical?.capabilities || {},
-          creator: body.author || {},
-          updatedAt: new Date().toISOString()
-        }
-      }
-      console.log(`[Upgrade] AgentRegistry params prepared for chain ${body.chainId}`)
-    }
 
     return NextResponse.json({
       ok: true,
       uri,
       txParams,
-      agentTxParams,
-      modelId, // Include modelId for agent lookup
+      modelId, // Include modelId for reference
       metadata: {
         slug: body.slug,
         name: body.name,
         uri
       },
-      message: 'Transaction prepared - sign with your wallet',
+      message: 'Transaction prepared - sign with your wallet (single signature)',
     })
 
   } catch (error: any) {

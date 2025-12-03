@@ -845,134 +845,69 @@ export default function Step5ReviewPublishLocalized() {
             }
             
             // 3. Execute transaction with user's wallet signature
+            // Single-signature flow: listOrUpgradeWithAgent handles both model and agent in one TX
             const abi = (MARKET_ARTIFACT as any).abi
             const txArgs = result.txParams.args
+            const functionName = result.txParams.functionName || 'listOrUpgradeWithAgent'
             
-            const hash = await writeContractAsync({
-              address: result.txParams.contractAddress as `0x${string}`,
-              abi,
-              functionName: 'listOrUpgrade',
-              args: [
-                txArgs[0], // slug
-                txArgs[1], // name
-                txArgs[2], // uri
-                BigInt(txArgs[3]), // royaltyBps
-                BigInt(txArgs[4]), // pricePerpetual
-                BigInt(txArgs[5]), // priceSubscription
-                BigInt(txArgs[6]), // defaultDurationDays
-                Number(txArgs[7]), // rightsMask
-                Number(txArgs[8]), // deliveryModeHint
-                txArgs[9] as `0x${string}` // termsHash
-              ],
-              chainId: targetChainId
-            })
+            let hash: `0x${string}`
+            
+            if (functionName === 'listOrUpgradeWithAgent' && txArgs.length >= 13) {
+              // Single-signature flow: model + agent in one TX
+              const agentParams = txArgs[12] || {}
+              hash = await writeContractAsync({
+                address: result.txParams.contractAddress as `0x${string}`,
+                abi,
+                functionName: 'listOrUpgradeWithAgent',
+                args: [
+                  txArgs[0], // slug
+                  txArgs[1], // name
+                  txArgs[2], // uri
+                  BigInt(txArgs[3]), // royaltyBps
+                  BigInt(txArgs[4]), // pricePerpetual
+                  BigInt(txArgs[5]), // priceSubscription
+                  BigInt(txArgs[6]), // defaultDurationDays
+                  Number(txArgs[7]), // rightsMask
+                  Number(txArgs[8]), // deliveryModeHint
+                  txArgs[9] as `0x${string}`, // termsHash
+                  BigInt(txArgs[10] || '0'), // priceInferenceUsdc
+                  (txArgs[11] || connectedAddress) as `0x${string}`, // inferenceWallet
+                  {
+                    endpoint: agentParams.endpoint || '',
+                    wallet: (agentParams.wallet || connectedAddress) as `0x${string}`,
+                    metadataUri: agentParams.metadataUri || ''
+                  }
+                ],
+                chainId: targetChainId
+              })
+              console.log('[Upgrade] Single-signature TX submitted:', hash)
+            } else {
+              // Legacy flow: model only (backward compatible)
+              hash = await writeContractAsync({
+                address: result.txParams.contractAddress as `0x${string}`,
+                abi,
+                functionName: 'listOrUpgrade',
+                args: [
+                  txArgs[0], // slug
+                  txArgs[1], // name
+                  txArgs[2], // uri
+                  BigInt(txArgs[3]), // royaltyBps
+                  BigInt(txArgs[4]), // pricePerpetual
+                  BigInt(txArgs[5]), // priceSubscription
+                  BigInt(txArgs[6]), // defaultDurationDays
+                  Number(txArgs[7]), // rightsMask
+                  Number(txArgs[8]), // deliveryModeHint
+                  txArgs[9] as `0x${string}` // termsHash
+                ],
+                chainId: targetChainId
+              })
+              console.log('[Upgrade] Legacy TX submitted:', hash)
+            }
             
             // 4. Wait for transaction confirmation
             if (publicClient && hash) {
               await publicClient.waitForTransactionReceipt({ hash })
-            }
-            
-            // 5. Update or Register AgentRegistry (ERC-8004)
-            // For upgrades: Reuse the agent from the ORIGINAL model to preserve reputation
-            let agentTxHash: string | null = null
-            let registeredAgentId: number | null = null
-            if (result.agentTxParams && result.modelId && publicClient) {
-              try {
-                const AGENT_ABI = (await import('@/abis/AgentRegistry.json')).default.abi
-                let existingAgentId: bigint = 0n
-                
-                // IMPORTANT: For upgrades, look for agent of the ORIGINAL model (upgradeModelId)
-                // This preserves the reputation history across model versions
-                const originalModelId = upgradeModelId ? BigInt(upgradeModelId) : BigInt(result.modelId)
-                try {
-                  existingAgentId = await publicClient.readContract({
-                    address: result.agentTxParams.contractAddress as `0x${string}`,
-                    abi: AGENT_ABI,
-                    functionName: 'modelToAgent',
-                    args: [originalModelId]
-                  }) as bigint
-                  console.log('[Upgrade] Found existing agent for original model:', { originalModelId: originalModelId.toString(), agentId: existingAgentId.toString() })
-                } catch {
-                  // modelToAgent might not exist or return 0
-                }
-                
-                // Pin agent metadata to IPFS
-                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin
-                const agentMetaRes = await fetch('/api/agents/metadata', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    modelId: result.modelId,
-                    chainId: targetChainId,
-                    wallet: connectedAddress,
-                    name: result.metadata?.name || upgradePayload.name,
-                    description: upgradePayload.summary || `AI Agent: ${upgradePayload.name}`,
-                    pricePerInference: result.agentTxParams.argsTemplate?.pricePerInference,
-                    image: upgradePayload.cover?.uri,
-                    capabilities: {
-                      tasks: upgradePayload.categories || [],
-                    },
-                    creator: upgradePayload.author || {},
-                    marketplaceAddress: result.txParams.contractAddress,
-                    agentRegistryAddress: result.agentTxParams.contractAddress
-                  })
-                })
-                
-                if (agentMetaRes.ok) {
-                  const agentMeta = await agentMetaRes.json()
-                  if (agentMeta.uri) {
-                    if (existingAgentId && existingAgentId > 0n) {
-                      // Agent exists - update its metadata
-                      setMsg(locale === 'es' ? 'Actualizando agente ERC-8004...' : 'Updating ERC-8004 agent...')
-                      const updateHash = await writeContractAsync({
-                        address: result.agentTxParams.contractAddress as `0x${string}`,
-                        abi: AGENT_ABI,
-                        functionName: 'updateMetadata',
-                        args: [existingAgentId, agentMeta.uri],
-                        chainId: targetChainId
-                      })
-                      agentTxHash = updateHash
-                      registeredAgentId = Number(existingAgentId)
-                      
-                      if (publicClient && updateHash) {
-                        await publicClient.waitForTransactionReceipt({ hash: updateHash })
-                      }
-                      console.log('[Upgrade] Agent metadata updated:', { agentId: registeredAgentId, agentTxHash })
-                    } else {
-                      // Agent doesn't exist - register new agent
-                      setMsg(locale === 'es' ? 'Registrando agente ERC-8004...' : 'Registering ERC-8004 agent...')
-                      const registerHash = await writeContractAsync({
-                        address: result.agentTxParams.contractAddress as `0x${string}`,
-                        abi: AGENT_ABI,
-                        functionName: 'registerAgent',
-                        args: [
-                          BigInt(result.modelId),
-                          connectedAddress as `0x${string}`,
-                          `${baseUrl}/api/inference/${result.modelId}`,
-                          agentMeta.uri
-                        ],
-                        chainId: targetChainId
-                      })
-                      agentTxHash = registerHash
-                      
-                      // Wait and parse agentId from event
-                      if (publicClient && registerHash) {
-                        const agentReceipt = await publicClient.waitForTransactionReceipt({ hash: registerHash })
-                        for (const log of agentReceipt.logs) {
-                          if (log.topics[1]) {
-                            registeredAgentId = parseInt(log.topics[1], 16)
-                            break
-                          }
-                        }
-                      }
-                      console.log('[Upgrade] New agent registered:', { agentId: registeredAgentId, agentTxHash })
-                    }
-                  }
-                }
-              } catch (agentErr) {
-                console.warn('[Upgrade] Failed to update/register agent:', agentErr)
-                // Don't fail the whole upgrade if agent update fails
-              }
+              console.log('[Upgrade] TX confirmed:', hash)
             }
             
             // Trigger indexer to sync blockchain state (updates listed status of old versions)
@@ -987,10 +922,7 @@ export default function Step5ReviewPublishLocalized() {
               tx: { 
                 txHash: hash, 
                 market: result.txParams.contractAddress, 
-                modelId: result.modelId,
-                agentId: registeredAgentId,
-                agentTxHash,
-                agentRegistry: result.agentTxParams?.contractAddress
+                modelId: result.modelId
               }
             }])
           } catch (err: any) {
