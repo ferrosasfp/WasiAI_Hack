@@ -303,7 +303,16 @@ export async function saveStep(
   const draftId = getDraftId(upgradeMode, modelId)
   currentDraftId = draftId
   
-  // Update memory cache
+  // If memory cache is empty, load from localStorage first to preserve other steps' data
+  if (!memoryCache || memoryCache.draftId !== draftId) {
+    const existingDraft = readLocalCache(draftId)
+    if (existingDraft) {
+      memoryCache = existingDraft
+      console.log(`[WizardDraft] Loaded existing draft from localStorage for ${draftId}`)
+    }
+  }
+  
+  // Update memory cache, preserving other steps
   memoryCache = {
     ...memoryCache,
     [step]: data,
