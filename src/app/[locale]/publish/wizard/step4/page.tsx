@@ -411,10 +411,52 @@ export default function Step4LicensesTermsLocalized() {
       }
     }
     
-    // UPGRADE MODE: Load directly from existing model (ignore drafts)
+    // UPGRADE MODE: First check for saved draft, then fall back to original model
     if (upgradeMode && upgradeModelId) {
-      console.log('[Step4] UPGRADE MODE - Loading from model:', upgradeModelId)
-      fetch(`/api/indexed/models/${upgradeModelId}`)
+      const draftId = getDraftId(true, upgradeModelId)
+      
+      // Check if there's a saved draft first (user may have edited and navigated away)
+      let hasSavedDraft = false
+      try {
+        const savedDraft = localStorage.getItem(`draft_step4_${draftId}`)
+        if (savedDraft) {
+          const parsed = JSON.parse(savedDraft)
+          if (parsed?.licensePolicy) {
+            console.log('[Step4] UPGRADE MODE - Found saved draft, loading from localStorage')
+            const lp = parsed.licensePolicy || {}
+            const rights = Array.isArray(lp.rights) ? lp.rights : (Array.isArray(lp.delivery) ? lp.delivery : [])
+            setRightsAPI(rights.includes('API'))
+            setRightsDownload(rights.includes('Download'))
+            setPriceSubscription(String(lp.subscription?.perMonthPriceRef ?? '0'))
+            setPricePerpetual(String(lp.perpetual?.priceRef ?? '0'))
+            setPriceInference(String(lp.inference?.pricePerCall ?? '0.01'))
+            setRoyaltyPercent(String(validateRoyaltyPercent(Number(lp.royaltyBps || 0) / 100)))
+            const dd = Number(lp.defaultDurationDays || 0)
+            setDefaultDurationDays(String(Math.max(0, Math.round(dd/30))))
+            setTransferable(Boolean(lp.transferable))
+            setTermsHash(String(lp.termsHash || ''))
+            setTermsText(String(lp.termsText || ''))
+            setPricingMode(((parsed.pricingMode as any) === 'free' ? 'both' : (parsed.pricingMode as any)) || 'both')
+            setTermsSummary(String(parsed.termsSummary || ''))
+            if (rights.includes('API') && rights.includes('Download')) setDeliveryModeHint('Both')
+            else if (rights.includes('API')) setDeliveryModeHint('API')
+            else if (rights.includes('Download')) setDeliveryModeHint('Download')
+            else setDeliveryModeHint('none')
+            lastSavedRef.current = parsed
+            hasSavedDraft = true
+            setShouldFade(false)
+            setLoadedRemote(true)
+            loadingFromDraftRef.current = false
+          }
+        }
+      } catch (e) {
+        console.warn('[Step4] Failed to load draft from localStorage:', e)
+      }
+      
+      // If no saved draft, load from original model
+      if (!hasSavedDraft) {
+        console.log('[Step4] UPGRADE MODE - No saved draft, loading from model:', upgradeModelId)
+        fetch(`/api/indexed/models/${upgradeModelId}`)
         .then(res => res.json())
         .then(data => {
           if (!alive) return
@@ -499,6 +541,7 @@ export default function Step4LicensesTermsLocalized() {
         .finally(() => {
           loadingFromDraftRef.current = false
         })
+      } // end if (!hasSavedDraft)
       return () => { alive = false }
     }
     
