@@ -42,6 +42,7 @@ export default async function EvmModelDetailPage(props: PageProps) {
         m.delivery_mode_hint,
         m.terms_hash,
         m.version,
+        m.agent_id,
         mm.metadata,
         mm.image_url,
         mm.categories,
@@ -75,7 +76,8 @@ export default async function EvmModelDetailPage(props: PageProps) {
         imageUrl: data.image_url,
         metadata: data.metadata,
         categories: data.categories,
-        tags: data.tags
+        tags: data.tags,
+        agent_id: data.agent_id,
       }
     }
   } catch (error) {
