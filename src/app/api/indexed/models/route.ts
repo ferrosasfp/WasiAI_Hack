@@ -107,15 +107,16 @@ export async function GET(request: NextRequest) {
 
     // Get total count of unique model families (by owner + slug)
     // Count distinct families, not distinct model_ids (which would count all versions)
+    // IMPORTANT: Use LOWER(m.owner) to normalize address case (Ethereum addresses are case-insensitive)
     const countQuery = `
       SELECT COUNT(*) as total
       FROM (
-        SELECT DISTINCT ON (COALESCE(m.slug, m.model_id::text), m.owner)
+        SELECT DISTINCT ON (COALESCE(m.slug, m.model_id::text), LOWER(m.owner))
           m.model_id
         FROM models m
         LEFT JOIN model_metadata mm ON m.model_id = mm.model_id
         ${whereClause}
-        ORDER BY COALESCE(m.slug, m.model_id::text), m.owner, m.version DESC
+        ORDER BY COALESCE(m.slug, m.model_id::text), LOWER(m.owner), m.version DESC
       ) subq
     `
     
@@ -129,9 +130,10 @@ export async function GET(request: NextRequest) {
 
     // Get paginated results with agent data from AgentRegistryV2
     // Use DISTINCT ON to get only the latest version of each model family (by owner + slug)
+    // IMPORTANT: Use LOWER(m.owner) to normalize address case (Ethereum addresses are case-insensitive)
     params.push(limit, offset)
     const dataQuery = `
-      SELECT DISTINCT ON (COALESCE(m.slug, m.model_id::text), m.owner)
+      SELECT DISTINCT ON (COALESCE(m.slug, m.model_id::text), LOWER(m.owner))
         m.*,
         mm.metadata,
         mm.image_url,
@@ -150,7 +152,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN model_metadata mm ON m.model_id = mm.model_id
       LEFT JOIN agents a ON m.agent_id = a.agent_id
       ${whereClause}
-      ORDER BY COALESCE(m.slug, m.model_id::text), m.owner, m.version DESC
+      ORDER BY COALESCE(m.slug, m.model_id::text), LOWER(m.owner), m.version DESC
     `
     
     // Wrap in subquery to apply pagination and final ordering
