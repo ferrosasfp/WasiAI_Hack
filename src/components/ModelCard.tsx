@@ -352,8 +352,8 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
             || meta?.licensePolicy?.inference?.pricePerCall
             || meta?.pricePerInference
           if (inferencePrice) setPricePerInference(String(inferencePrice))
-          // Extract agentId from metadata
-          if (meta?.agentId && typeof meta.agentId === 'number') setAgentId(meta.agentId)
+          // NOTE: agentId comes from DB (propagated across model versions), not from IPFS metadata
+          // Do NOT override agentId from metadata as it may contain stale/incorrect values
         }
       } catch {}
       io.disconnect()
