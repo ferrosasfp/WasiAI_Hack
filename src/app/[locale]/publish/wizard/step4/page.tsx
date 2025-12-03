@@ -416,11 +416,13 @@ export default function Step4LicensesTermsLocalized() {
       const draftId = getDraftId(true, upgradeModelId)
       
       // Check if there's a saved draft first (user may have edited and navigated away)
+      // The centralized service saves to `wizard_draft_${draftId}` with structure { step4: {...} }
       let hasSavedDraft = false
       try {
-        const savedDraft = localStorage.getItem(`draft_step4_${draftId}`)
+        const savedDraft = localStorage.getItem(`wizard_draft_${draftId}`)
         if (savedDraft) {
-          const parsed = JSON.parse(savedDraft)
+          const fullDraft = JSON.parse(savedDraft)
+          const parsed = fullDraft?.step4
           if (parsed?.licensePolicy) {
             console.log('[Step4] UPGRADE MODE - Found saved draft, loading from localStorage')
             const lp = parsed.licensePolicy || {}
