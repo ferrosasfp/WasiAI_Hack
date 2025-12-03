@@ -1198,16 +1198,16 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                           />
                         )}
                         {/* ERC-8004 Agent Badge - shown if model has agent identity */}
-                        {data?.metadata?.agentId && (
+                        {data?.agent_id && (
                           <ERC8004Badge 
-                            agentId={data.metadata.agentId} 
+                            agentId={data.agent_id} 
                             variant="chip" 
                             locale={locale} 
                           />
                         )}
                         {/* On-chain Reputation Badge */}
                         <AgentReputation 
-                          agentId={data?.metadata?.agentId || Number(id)} 
+                          agentId={data?.agent_id || Number(id)} 
                           locale={locale}
                           compact
                         />
@@ -1582,7 +1582,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
 
                     {/* On-Chain Reputation - in right column - Full detailed view */}
                     <AgentReputation 
-                      agentId={data?.metadata?.agentId || Number(id)} 
+                      agentId={data?.agent_id || Number(id)} 
                       locale={locale}
                       compact={false}
                     />
@@ -1603,7 +1603,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                   <X402InferencePanel
                     modelId={id}
                     modelName={viewModel?.step1?.name || data?.name || `Model #${id}`}
-                    agentId={data?.metadata?.agentId}
+                    agentId={data?.agent_id}
                     pricePerInference={pricePerCall}
                     recipientWallet={data?.creator || data?.owner}
                     chainId={evmChainId}

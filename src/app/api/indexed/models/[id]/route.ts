@@ -55,9 +55,14 @@ export async function GET(
         mm.industries,
         mm.use_cases,
         mm.frameworks,
-        mm.architectures
+        mm.architectures,
+        a.agent_id,
+        a.wallet as agent_wallet,
+        a.endpoint as agent_endpoint,
+        a.active as agent_active
       FROM models m
       LEFT JOIN model_metadata mm ON m.model_id = mm.model_id
+      LEFT JOIN agents a ON m.agent_id = a.agent_id
       WHERE m.model_id = $1
     `
     const params_array: any[] = [modelId]

@@ -24,9 +24,14 @@ async function getModelFromNeon(modelId: number, chainId: number): Promise<any |
         mm.use_cases,
         mm.frameworks,
         mm.architectures,
-        mm.cached_at
+        mm.cached_at,
+        a.agent_id,
+        a.wallet as agent_wallet,
+        a.endpoint as agent_endpoint,
+        a.active as agent_active
       FROM models m
       LEFT JOIN model_metadata mm ON m.model_id = mm.model_id
+      LEFT JOIN agents a ON m.agent_id = a.agent_id
       WHERE m.model_id = $1 AND m.chain_id = $2`,
       [modelId, chainId]
     )
@@ -59,6 +64,11 @@ async function getModelFromNeon(modelId: number, chainId: number): Promise<any |
       frameworks: row.frameworks,
       architectures: row.architectures,
       cached_at: row.cached_at,
+      // Agent data
+      agent_id: row.agent_id,
+      agent_wallet: row.agent_wallet,
+      agent_endpoint: row.agent_endpoint,
+      agent_active: row.agent_active,
     }
   } catch (error) {
     console.warn('[API models/evm/[id]] Neon query failed, falling back to blockchain:', error)
