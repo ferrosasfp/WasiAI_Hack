@@ -396,14 +396,14 @@ export default function Step4LicensesTermsLocalized() {
     let alive = true
     loadingFromDraftRef.current = true
     
-    // Helper: Convert wei to native token (18 decimals)
-    const weiToNative = (wei: string | number | bigint): string => {
+    // Helper: Convert USDC (6 decimals) to human-readable
+    const usdcToHuman = (usdc: string | number | bigint): string => {
       try {
-        const weiBig = BigInt(String(wei || '0'))
-        if (weiBig === 0n) return '0'
-        const weiStr = weiBig.toString().padStart(19, '0')
-        const intPart = weiStr.slice(0, -18) || '0'
-        const decPart = weiStr.slice(-18).replace(/0+$/, '')
+        const usdcBig = BigInt(String(usdc || '0'))
+        if (usdcBig === 0n) return '0'
+        const usdcStr = usdcBig.toString().padStart(7, '0')
+        const intPart = usdcStr.slice(0, -6) || '0'
+        const decPart = usdcStr.slice(-6).replace(/0+$/, '')
         if (!decPart) return intPart
         return `${intPart}.${decPart}`
       } catch {
@@ -425,15 +425,15 @@ export default function Step4LicensesTermsLocalized() {
           }
           const meta = modelData?.metadata || {}
           
-          // === PRICES (convert from wei) ===
-          const pricePerpWei = String(modelData?.price_perpetual || '0')
-          const priceSubWei = String(modelData?.price_subscription || '0')
-          const perpNative = weiToNative(pricePerpWei)
-          const subNative = weiToNative(priceSubWei)
+          // === PRICES (convert from USDC 6 decimals) ===
+          const pricePerpUsdc = String(modelData?.price_perpetual || '0')
+          const priceSubUsdc = String(modelData?.price_subscription || '0')
+          const perpHuman = usdcToHuman(pricePerpUsdc)
+          const subHuman = usdcToHuman(priceSubUsdc)
           
-          console.log('[Step4] Prices:', { pricePerpWei, priceSubWei, perpNative, subNative })
-          setPricePerpetual(perpNative)
-          setPriceSubscription(subNative)
+          console.log('[Step4] Prices:', { pricePerpUsdc, priceSubUsdc, perpHuman, subHuman })
+          setPricePerpetual(perpHuman)
+          setPriceSubscription(subHuman)
           
           // === DURATION (days to months) ===
           const durationDays = Number(modelData?.default_duration_days || 0)
@@ -483,8 +483,8 @@ export default function Step4LicensesTermsLocalized() {
           setTermsHash(termsHashValue)
           
           // === PRICING MODE ===
-          const hasPerpPrice = BigInt(pricePerpWei) > 0n
-          const hasSubPrice = BigInt(priceSubWei) > 0n
+          const hasPerpPrice = BigInt(pricePerpUsdc) > 0n
+          const hasSubPrice = BigInt(priceSubUsdc) > 0n
           if (hasPerpPrice && hasSubPrice) setPricingMode('both')
           else if (hasPerpPrice) setPricingMode('perpetual')
           else if (hasSubPrice) setPricingMode('subscription')

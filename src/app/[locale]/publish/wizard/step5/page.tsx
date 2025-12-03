@@ -509,10 +509,8 @@ export default function Step5ReviewPublishLocalized() {
   }, [metadata, t])
 
   // Unit and split helpers (align with step 4)
-  const unit = useMemo<'AVAX'|'ETH'>(() => {
-    const n = targets[0]?.network
-    return n === 'avax' ? 'AVAX' : 'ETH'
-  }, [targets])
+  // License payments are now in USDC, not native token
+  const unit = 'USDC'
   const feeBpsEnv = useMemo(()=> parseInt(process.env.NEXT_PUBLIC_MARKETPLACE_FEE_BPS || process.env.NEXT_PUBLIC_MARKET_FEE_BPS || '1000') || 1000, [])
   const feeBpsEff5 = Number(metadata?.licensePolicy?.feeBps || feeBpsEnv)
   const royaltyBps = Number(metadata?.licensePolicy?.royaltyBps || 0)
