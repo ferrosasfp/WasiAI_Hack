@@ -113,15 +113,16 @@ export async function POST(req: Request) {
       // royaltyBps comes from step 4 under licensePolicy.royaltyBps (basis points)
       const royaltyBps: string = String(Number(metadata.licensePolicy?.royaltyBps || 0))
       
-      const toWei = (v:any): string => {
+      // Convert price to USDC base units (6 decimals)
+      const toUsdc = (v:any): string => {
         try { 
-          const parsed = parseUnits(String(v ?? '0').replace(/,/g,'').trim() || '0', 18)
+          const parsed = parseUnits(String(v ?? '0').replace(/,/g,'').trim() || '0', 6)
           return parsed.toString()
         } catch { return '0' }
       }
       
-      const pricePerpetual: string = toWei(metadata.licensePolicy?.perpetual?.priceRef)
-      const priceSubscription: string = toWei(metadata.licensePolicy?.subscription?.perMonthPriceRef)
+      const pricePerpetual: string = toUsdc(metadata.licensePolicy?.perpetual?.priceRef)
+      const priceSubscription: string = toUsdc(metadata.licensePolicy?.subscription?.perMonthPriceRef)
       const defaultDurationDays: string = String(Number(metadata.licensePolicy?.defaultDurationDays || 0))
       
       const rightsArr: string[] = Array.isArray(metadata.licensePolicy?.rights) ? metadata.licensePolicy.rights : []
@@ -139,44 +140,12 @@ export async function POST(req: Request) {
         termsHash = '0x' + Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')
       }
 
-      // Return transaction parameters for frontend to execute with user's wallet
-      const txParams = {
-        functionName: 'listOrUpgrade',
-        args: [
-          slug,
-          name,
-          uri,
-          royaltyBps,
-          pricePerpetual,
-          priceSubscription,
-          defaultDurationDays,
-          rightsMask,
-          deliveryModeHint,
-          termsHash
-        ],
-        contractAddress: marketAddr,
-        chainId: Number(chainId)
-      }
-
-      // Get AgentRegistry address from env or deploy file
-      let agentRegistryAddr: string | null = chainId ? (process.env[`NEXT_PUBLIC_EVM_AGENT_REGISTRY_${chainId}`] || null) : null
-      if (!agentRegistryAddr) {
-        const deployPath = path.join(ROOT, `contracts/evm/deploy.${network}.json`)
-        if (fs.existsSync(deployPath)) {
-          const deploy = JSON.parse(fs.readFileSync(deployPath, 'utf8'))
-          agentRegistryAddr = deploy.agentRegistry || null
-        }
-      }
-
-      // Build ERC-8004 agent metadata for AgentRegistry
-      // Note: agentId will be assigned by the contract, we use 0 as placeholder
+      // Get wallet address and inference price
       const walletAddress = body?.address || ''
-      // Get price per inference from licensePolicy.inference.pricePerCall (Step 4) or fallback
       const pricePerInference = metadata.licensePolicy?.inference?.pricePerCall || metadata.pricePerInference || DEFAULT_PRICE_PER_INFERENCE
       
       // Add pricePerInference to model metadata for x402 endpoint
       metadata.pricePerInference = pricePerInference
-      // Also ensure it's in licensePolicy.pricing.inference for consistency
       if (!metadata.licensePolicy) metadata.licensePolicy = {}
       if (!metadata.licensePolicy.pricing) metadata.licensePolicy.pricing = {}
       metadata.licensePolicy.pricing.inference = { pricePerCall: pricePerInference }
@@ -184,8 +153,8 @@ export async function POST(req: Request) {
       // Re-pin metadata with pricePerInference included
       const pinnedWithPrice = await pinJSONToIPFS(metadata)
       
-      // Build agent metadata (will be pinned after we know the modelId)
-      const agentMetadataTemplate = {
+      // Build agent metadata and pin to IPFS
+      const agentMetadata = {
         name,
         description: metadata.summary || metadata.description || `AI Agent: ${name}`,
         wallet: walletAddress,
@@ -198,39 +167,80 @@ export async function POST(req: Request) {
         },
         creator: metadata.author || {}
       }
+      
+      // Pin agent metadata to IPFS
+      const agentMetadataPinned = await pinJSONToIPFS(agentMetadata)
+      
+      // Get inference endpoint from demo config or build default
+      const inferenceEndpoint = metadata.demo?.endpoint || 
+        `${process.env.NEXT_PUBLIC_APP_URL || 'https://wasiai.com'}/api/inference/{modelId}`
+      
+      // Convert inference price to USDC base units (6 decimals)
+      // pricePerInference is in dollars (e.g., "0.01" = $0.01)
+      const priceInferenceUsdc = Math.floor(Number(pricePerInference) * 1e6).toString()
 
-      // AgentRegistry transaction params (to be executed after Marketplace tx)
-      // The frontend will need to:
-      // 1. Execute Marketplace.listOrUpgrade to get modelId
-      // 2. Pin agent metadata to IPFS with the modelId
-      // 3. Execute AgentRegistry.registerAgent with the modelId and agent metadata URI
-      const agentTxParams = agentRegistryAddr ? {
-        functionName: 'registerAgent',
-        // Args will be filled by frontend after getting modelId from Marketplace tx
-        // [modelId, wallet, endpoint, metadataUri]
-        argsTemplate: {
-          wallet: walletAddress,
-          endpoint: `/api/inference/{modelId}`, // Placeholder, frontend fills with actual modelId
-          pricePerInference
-        },
-        contractAddress: agentRegistryAddr,
-        chainId: Number(chainId),
-        agentMetadataTemplate
-      } : null
+      // Return transaction parameters for SINGLE-SIGNATURE flow
+      // Uses listOrUpgradeWithAgent to create model + agent in one TX
+      const txParams = {
+        functionName: 'listOrUpgradeWithAgent',
+        args: [
+          slug,
+          name,
+          pinnedWithPrice.uri, // Use updated URI with inference price
+          royaltyBps,
+          pricePerpetual,
+          priceSubscription,
+          defaultDurationDays,
+          rightsMask,
+          deliveryModeHint,
+          termsHash,
+          // Inference fields
+          priceInferenceUsdc,
+          walletAddress || '0x0000000000000000000000000000000000000000', // inferenceWallet
+          // AgentParams struct
+          {
+            endpoint: inferenceEndpoint,
+            wallet: walletAddress || '0x0000000000000000000000000000000000000000',
+            metadataUri: agentMetadataPinned.uri
+          }
+        ],
+        contractAddress: marketAddr,
+        chainId: Number(chainId)
+      }
+      
+      // Also provide legacy txParams for backward compatibility (without agent)
+      const legacyTxParams = {
+        functionName: 'listOrUpgrade',
+        args: [
+          slug,
+          name,
+          pinnedWithPrice.uri,
+          royaltyBps,
+          pricePerpetual,
+          priceSubscription,
+          defaultDurationDays,
+          rightsMask,
+          deliveryModeHint,
+          termsHash
+        ],
+        contractAddress: marketAddr,
+        chainId: Number(chainId)
+      }
 
       return NextResponse.json({ 
         ok: true, 
         ...pinnedWithPrice, 
         chain, 
         network, 
-        txParams,
-        agentTxParams, // New: AgentRegistry params
+        txParams,           // Single-signature flow (model + agent)
+        legacyTxParams,     // Backward compatible (model only)
         // Include metadata for reference
         metadata: {
           slug,
           name,
           uri: pinnedWithPrice.uri,
-          pricePerInference
+          pricePerInference,
+          agentMetadataUri: agentMetadataPinned.uri
         }
       })
     }

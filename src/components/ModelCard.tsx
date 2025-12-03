@@ -59,6 +59,7 @@ export type ModelCardData = {
   runtimeSystems?: string[]
   pricePerpetual?: string
   priceSubscription?: string
+  pricePerInference?: string // USDC price per inference (e.g., "0.01")
   creatorRoyaltyBps?: number
   rights?: { api?: boolean; download?: boolean; transferable?: boolean }
   deliveryMode?: string
@@ -108,6 +109,7 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
   const [numRuns, setNumRuns] = React.useState<number | undefined>(data.numRuns)
   const [version, setVersion] = React.useState<string | undefined>(data.version)
   const [agentId, setAgentId] = React.useState<number | undefined>(data.agentId)
+  const [pricePerInference, setPricePerInference] = React.useState<string | undefined>(data.pricePerInference)
   const [showCopied, setShowCopied] = React.useState(false)
   const strMeta = React.useCallback((v: any): string => {
     if (v == null) return ''
@@ -222,7 +224,10 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
     setSupportedLanguages(Array.isArray(data.supportedLanguages) ? data.supportedLanguages : [])
     setRating(data.rating)
     setNumRuns(data.numRuns)
-  }, [data.author, data.categories, data.tasks, data.architectures, data.frameworks, data.precision, data.rights, data.deliveryMode, data.valueProposition, data.description, data.demoPreset, data.artifacts, data.supportedLanguages, data.rating, data.numRuns])
+    setVersion(data.version)
+    setAgentId(data.agentId)
+    setPricePerInference(data.pricePerInference)
+  }, [data.author, data.categories, data.tasks, data.architectures, data.frameworks, data.precision, data.rights, data.deliveryMode, data.valueProposition, data.description, data.demoPreset, data.artifacts, data.supportedLanguages, data.rating, data.numRuns, data.version, data.agentId, data.pricePerInference])
   
   // Share link handler
   const handleShareLink = React.useCallback((e: React.MouseEvent) => {
@@ -342,6 +347,13 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
           setDemoPreset(Boolean(meta?.demoPreset))
           setArtifacts(Boolean(meta?.artifacts))
           if (meta?.version && typeof meta.version === 'string') setVersion(meta.version)
+          // Extract pricePerInference from metadata
+          const inferencePrice = meta?.licensePolicy?.pricing?.inference?.pricePerCall 
+            || meta?.licensePolicy?.inference?.pricePerCall
+            || meta?.pricePerInference
+          if (inferencePrice) setPricePerInference(String(inferencePrice))
+          // Extract agentId from metadata
+          if (meta?.agentId && typeof meta.agentId === 'number') setAgentId(meta.agentId)
         }
       } catch {}
       io.disconnect()
@@ -374,9 +386,7 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
     return { api, download }
   }, [deliveryMode, rights])
   
-  // Check if summary is long enough to show "View details" link
   const summaryText = description || data.summary || valueProposition || ''
-  const isSummaryLong = summaryText.length > 100
 
   // Price formatting: if value has decimals, show two decimals rounded up. If integer, keep as integer.
   const formatPriceDisplay = React.useCallback((raw: string): string => {
@@ -463,25 +473,11 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
                   WebkitLineClamp: 3, 
                   WebkitBoxOrient: 'vertical', 
                   overflow: 'hidden',
-                  lineHeight: 1.5,
-                  mb: isSummaryLong ? 0.5 : 0
+                  lineHeight: 1.5
                 }}
               >
                 {summaryText}
               </Typography>
-              {isSummaryLong && href && (
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    color: '#4fe1ff', 
-                    cursor: 'pointer',
-                    '&:hover': { textDecoration: 'underline' },
-                    fontSize: '0.75rem'
-                  }}
-                >
-                  {t('viewDetailsLink')} →
-                </Typography>
-              )}
             </Box>
 
             {/* Business chips (Línea 1) */}
@@ -580,14 +576,50 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
             )}
 
             <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.08)', pt: 1.5, mt: 'auto' }}>
-              {/* Precios */}
-              {/* Prices - subscription hidden for hackathon MVP (only perpetual + x402) */}
-              {!showConnect && data.pricePerpetual && (
-                <Stack spacing={0.5} sx={{ mb: 1.5 }}>
-                  <Typography variant="body2" fontWeight={700} sx={{ color: '#4fe1ff', fontSize: '0.95rem' }}>
-                    {formatPriceDisplay(data.pricePerpetual)} · {t('oneTime')}
-                  </Typography>
-                </Stack>
+              {/* Pricing Section - Professional Design */}
+              {!showConnect && (data.pricePerpetual || pricePerInference) && (
+                <Box sx={{ mb: 1.5 }}>
+                  {/* Pricing Grid */}
+                  <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+                    {/* Perpetual License Price */}
+                    {data.pricePerpetual && (
+                      <Box sx={{ 
+                        flex: 1,
+                        p: 1.25,
+                        borderRadius: 1.5,
+                        bgcolor: 'rgba(79, 225, 255, 0.08)',
+                        border: '1px solid rgba(79, 225, 255, 0.2)',
+                      }}>
+                        <Typography variant="caption" sx={{ color: '#ffffffaa', fontSize: '0.65rem', textTransform: 'uppercase', display: 'block', mb: 0.25 }}>
+                          🏆 {t('perpetualLicense')}
+                        </Typography>
+                        <Typography variant="body2" fontWeight={700} sx={{ color: '#4fe1ff', fontSize: '1rem' }}>
+                          {formatPriceDisplay(data.pricePerpetual)}
+                        </Typography>
+                      </Box>
+                    )}
+                    {/* Inference Price */}
+                    {pricePerInference && (
+                      <Box sx={{ 
+                        flex: 1,
+                        p: 1.25,
+                        borderRadius: 1.5,
+                        bgcolor: 'rgba(76, 175, 80, 0.08)',
+                        border: '1px solid rgba(76, 175, 80, 0.2)',
+                      }}>
+                        <Typography variant="caption" sx={{ color: '#ffffffaa', fontSize: '0.65rem', textTransform: 'uppercase', display: 'block', mb: 0.25 }}>
+                          ⚡ {t('perInference')}
+                        </Typography>
+                        <Typography variant="body2" fontWeight={700} sx={{ color: '#4caf50', fontSize: '1rem' }}>
+                          ${pricePerInference}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#ffffff66', fontSize: '0.6rem' }}>
+                          USDC
+                        </Typography>
+                      </Box>
+                    )}
+                  </Stack>
+                </Box>
               )}
               {showConnect && (
                 <Box sx={{ mb: 1.5 }}>
@@ -596,19 +628,19 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
               )}
 
               {/* License capability badges */}
-              <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>
+              <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
                 {deliveryFlags.api && (
                   <Chip 
                     size="small" 
                     icon={<CloudDoneIcon />} 
                     label={t('chips.apiUsage')} 
                     sx={{ 
-                      bgcolor: 'rgba(46, 160, 255, 0.12)', 
-                      color: '#fff', 
-                      border: '1px solid rgba(46, 160, 255, 0.25)',
-                      fontSize: '0.7rem',
-                      height: 24,
-                      '& .MuiChip-icon': { color: '#4fe1ff', fontSize: '1rem' }
+                      bgcolor: 'rgba(46, 160, 255, 0.1)', 
+                      color: '#4fe1ff', 
+                      border: '1px solid rgba(46, 160, 255, 0.2)',
+                      fontSize: '0.65rem',
+                      height: 22,
+                      '& .MuiChip-icon': { color: '#4fe1ff', fontSize: '0.9rem' }
                     }} 
                   />
                 )}
@@ -618,12 +650,12 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
                     icon={<DownloadDoneIcon />} 
                     label={t('chips.modelDownload')} 
                     sx={{ 
-                      bgcolor: 'rgba(76, 175, 80, 0.12)', 
-                      color: '#fff', 
-                      border: '1px solid rgba(76, 175, 80, 0.25)',
-                      fontSize: '0.7rem',
-                      height: 24,
-                      '& .MuiChip-icon': { color: '#81c784', fontSize: '1rem' }
+                      bgcolor: 'rgba(76, 175, 80, 0.1)', 
+                      color: '#81c784', 
+                      border: '1px solid rgba(76, 175, 80, 0.2)',
+                      fontSize: '0.65rem',
+                      height: 22,
+                      '& .MuiChip-icon': { color: '#81c784', fontSize: '0.9rem' }
                     }} 
                   />
                 )}
@@ -633,12 +665,12 @@ export function ModelCard({ locale, data, href: hrefProp, showConnect, priority,
                     icon={<SwapHorizIcon />} 
                     label={t('chips.transferable')} 
                     sx={{ 
-                      bgcolor: 'rgba(255, 152, 0, 0.12)', 
-                      color: '#fff', 
-                      border: '1px solid rgba(255, 152, 0, 0.25)',
-                      fontSize: '0.7rem',
-                      height: 24,
-                      '& .MuiChip-icon': { color: '#ffb74d', fontSize: '1rem' }
+                      bgcolor: 'rgba(255, 152, 0, 0.1)', 
+                      color: '#ffb74d', 
+                      border: '1px solid rgba(255, 152, 0, 0.2)',
+                      fontSize: '0.65rem',
+                      height: 22,
+                      '& .MuiChip-icon': { color: '#ffb74d', fontSize: '0.9rem' }
                     }} 
                   />
                 )}

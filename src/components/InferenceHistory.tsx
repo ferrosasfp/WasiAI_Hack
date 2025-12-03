@@ -62,19 +62,46 @@ export default function InferenceHistory({
   const [error, setError] = useState<string | null>(null)
 
   const L = {
-    title: isES ? 'Historial de Inferencias' : 'Inference History',
-    noHistory: isES ? 'Sin inferencias aún' : 'No inferences yet',
+    title: isES ? '📊 Ejecuciones Recientes' : '📊 Recent Runs',
+    subtitle: isES ? 'Historial de uso del modelo' : 'Model usage history',
+    noHistory: isES ? 'Aún no hay ejecuciones' : 'No runs yet',
+    noHistoryHint: isES ? 'Sé el primero en probar este modelo' : 'Be the first to try this model',
     model: isES ? 'Modelo' : 'Model',
     input: isES ? 'Entrada' : 'Input',
     output: isES ? 'Salida' : 'Output',
-    cost: isES ? 'Costo' : 'Cost',
+    cost: isES ? 'Pagado' : 'Paid',
     latency: isES ? 'Latencia' : 'Latency',
-    time: isES ? 'Tiempo' : 'Time',
-    payer: isES ? 'Pagador' : 'Payer',
-    viewTx: isES ? 'Ver en Snowtrace' : 'View on Snowtrace',
+    time: isES ? 'Cuándo' : 'When',
+    payer: isES ? 'Usuario' : 'User',
+    viewTx: isES ? 'Ver transacción' : 'View transaction',
     refresh: isES ? 'Actualizar' : 'Refresh',
-    myInferences: isES ? 'Mis inferencias' : 'My inferences',
-    allInferences: isES ? 'Todas las inferencias' : 'All inferences',
+    myInferences: isES ? 'Mis ejecuciones' : 'My runs',
+    allInferences: isES ? 'Todas' : 'All runs',
+    tx: isES ? 'Tx' : 'Tx',
+    verifiedPayments: isES ? 'Pagos verificados en Avalanche via x402' : 'Payments verified on Avalanche via x402',
+  }
+
+  // Format cost with proper decimals (show 4 decimals for small amounts)
+  // amountFormatted comes as "$0.0010" from API, amount comes as base units "10000"
+  const formatCost = (amountFormatted: string, amountBaseUnits?: string): string => {
+    // First try to use base units if available (more accurate)
+    if (amountBaseUnits && amountBaseUnits !== '0') {
+      const baseUnits = parseFloat(amountBaseUnits)
+      if (!isNaN(baseUnits) && baseUnits > 0) {
+        const usdcValue = baseUnits / 1000000 // USDC has 6 decimals
+        if (usdcValue < 0.01) return usdcValue.toFixed(4)
+        if (usdcValue < 1) return usdcValue.toFixed(4)
+        return usdcValue.toFixed(2)
+      }
+    }
+    
+    // Fallback to amountFormatted - Remove $ if present and parse
+    const cleanValue = amountFormatted.replace(/[$,]/g, '')
+    const num = parseFloat(cleanValue)
+    if (isNaN(num) || num === 0) return '0.0010' // Show minimum instead of 0
+    if (num < 0.01) return num.toFixed(4)
+    if (num < 1) return num.toFixed(4)
+    return num.toFixed(2)
   }
 
   const fetchHistory = async (payerFilter?: string) => {
@@ -124,7 +151,8 @@ export default function InferenceHistory({
 
   return (
     <Paper variant="outlined" sx={{ p: 2, bgcolor: 'rgba(255,255,255,0.02)', borderRadius: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+      {/* Header */}
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
         <Typography variant="subtitle2" sx={{ color: '#fff', fontWeight: 700 }}>
           {L.title}
         </Typography>
@@ -156,6 +184,10 @@ export default function InferenceHistory({
           </Tooltip>
         </Stack>
       </Stack>
+      
+      <Typography variant="caption" sx={{ color: '#ffffff66', display: 'block', mb: 2 }}>
+        {L.subtitle}
+      </Typography>
 
       {error && (
         <Typography variant="body2" sx={{ color: 'error.main', mb: 2 }}>
@@ -164,9 +196,12 @@ export default function InferenceHistory({
       )}
 
       {history.length === 0 ? (
-        <Box sx={{ textAlign: 'center', py: 3 }}>
-          <Typography variant="body2" sx={{ color: '#ffffffaa' }}>
+        <Box sx={{ textAlign: 'center', py: 4, bgcolor: 'rgba(255,255,255,0.02)', borderRadius: 1 }}>
+          <Typography variant="body2" sx={{ color: '#ffffffaa', mb: 0.5 }}>
             {L.noHistory}
+          </Typography>
+          <Typography variant="caption" sx={{ color: '#ffffff55' }}>
+            {L.noHistoryHint}
           </Typography>
         </Box>
       ) : (
@@ -192,7 +227,7 @@ export default function InferenceHistory({
                   {L.time}
                 </TableCell>
                 <TableCell sx={{ color: '#ffffffaa', borderColor: 'rgba(255,255,255,0.1)', width: 50 }}>
-                  Tx
+                  {L.tx}
                 </TableCell>
               </TableRow>
             </TableHead>
@@ -228,13 +263,15 @@ export default function InferenceHistory({
                   <TableCell sx={{ borderColor: 'rgba(255,255,255,0.1)' }}>
                     <Chip
                       icon={<AttachMoneyIcon sx={{ fontSize: 14 }} />}
-                      label={`${record.amountFormatted} USDC`}
+                      label={`$${formatCost(record.amountFormatted, record.amount)}`}
                       size="small"
                       sx={{
                         bgcolor: 'rgba(76, 175, 80, 0.15)',
                         color: '#4caf50',
-                        fontSize: '0.7rem',
-                        height: 22,
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        height: 24,
+                        '& .MuiChip-label': { px: 1 }
                       }}
                     />
                   </TableCell>
@@ -283,7 +320,7 @@ export default function InferenceHistory({
       )}
 
       <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: '#ffffff44', textAlign: 'center' }}>
-        ⛓️ {isES ? 'Pagos verificados en Avalanche via x402' : 'Payments verified on Avalanche via x402'}
+        ⛓️ {L.verifiedPayments}
       </Typography>
     </Paper>
   )

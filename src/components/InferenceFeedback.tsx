@@ -17,9 +17,10 @@ import ThumbDownIcon from '@mui/icons-material/ThumbDown'
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined'
 import ThumbDownOutlinedIcon from '@mui/icons-material/ThumbDownOutlined'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi'
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from 'wagmi'
 import { keccak256, toBytes } from 'viem'
 import ReputationRegistryABI from '@/abis/ReputationRegistry.json'
+import { getReputationRegistryAddress } from '@/config/chains'
 
 interface InferenceFeedbackProps {
   agentId: number
@@ -27,9 +28,6 @@ interface InferenceFeedbackProps {
   locale?: string
   onFeedbackSubmitted?: (positive: boolean) => void
 }
-
-// Contract address - will be set after deployment
-const REPUTATION_REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_REPUTATION_REGISTRY_ADDRESS as `0x${string}` | undefined
 
 export default function InferenceFeedback({
   agentId,
@@ -39,6 +37,8 @@ export default function InferenceFeedback({
 }: InferenceFeedbackProps) {
   const isES = locale === 'es'
   const { address, isConnected } = useAccount()
+  const chainId = useChainId()
+  const REPUTATION_REGISTRY_ADDRESS = getReputationRegistryAddress(chainId) as `0x${string}` | undefined
   const [submitted, setSubmitted] = useState(false)
   const [selectedFeedback, setSelectedFeedback] = useState<'positive' | 'negative' | null>(null)
   const [syncedTxHash, setSyncedTxHash] = useState<string | null>(null)
@@ -116,7 +116,13 @@ export default function InferenceFeedback({
         })
       })
         .then(res => res.json())
-        .then(data => console.log('[InferenceFeedback] Sync result:', data))
+        .then(data => {
+          console.log('[InferenceFeedback] Sync result:', data)
+          // Emit custom event to notify AgentReputation components to refresh
+          window.dispatchEvent(new CustomEvent('reputation-feedback-submitted', {
+            detail: { agentId, positive: selectedFeedback === 'positive' }
+          }))
+        })
         .catch(err => console.error('[InferenceFeedback] Failed to sync reputation:', err))
     }
   }, [isConfirmed, selectedFeedback, txHash, syncedTxHash, onFeedbackSubmitted, refetchReputation, refetchScore, agentId, address, inferenceHash])

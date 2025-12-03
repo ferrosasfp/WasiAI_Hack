@@ -1,0 +1,6 @@
+MOCK_MODEL_WEIGHTS_EXAMPLE_1
+This is a mock binary file representing model weights for testing purposes.
+Model: Customer Churn Predictor
+Version: 1.0.0
+Framework: scikit-learn
+Size: ~50MB (simulated)

@@ -1,0 +1,18 @@
+{
+  "network": "hardhat",
+  "chainId": "31337",
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "deployedAt": "2025-12-02T09:30:10.352Z",
+  "contracts": {
+    "MarketplaceV2": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    "LicenseNFT": "0xCafac3dD18aC6c6e92c921884f9E4176737C052c",
+    "AgentRegistryV2": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "InferenceSplitter": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+    "USDC": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+  },
+  "config": {
+    "feeBps": 250,
+    "feeRecipient": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "modelsLimit": 0
+  }
+}

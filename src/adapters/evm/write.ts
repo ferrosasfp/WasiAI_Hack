@@ -8,7 +8,8 @@
  */
 
 import type { Address, Abi } from 'viem'
-import MARKET_ARTIFACT from '@/abis/Marketplace.json'
+// Use MarketplaceV2 ABI for single-signature model+agent registration
+import MARKET_ARTIFACT from '@/abis/MarketplaceV2.json'
 import { getMarketAddress } from '@/config'
 
 const MARKET_ABI = (MARKET_ARTIFACT as any).abi as Abi
@@ -107,6 +108,96 @@ export function listOrUpgradeTx(params: {
       BigInt(params.deliveryRightsDefault),
       BigInt(params.deliveryModeHint),
       params.termsHash,
+    ],
+  }
+}
+
+/**
+ * Agent parameters for single-signature registration
+ */
+export interface AgentParams {
+  endpoint: string      // x402 inference endpoint URL
+  wallet: string        // Wallet for x402 payments (use '' for msg.sender)
+  metadataUri: string   // IPFS URI for agent metadata
+}
+
+/**
+ * Prepare transaction for listOrUpgradeWithAgent
+ * Creates model AND registers agent in a single transaction (one signature)
+ * 
+ * @param params - Model + Agent parameters
+ * @returns Transaction data for wagmi writeContract
+ */
+export function listOrUpgradeWithAgentTx(params: {
+  chainId: number
+  slug: string
+  name: string
+  uri: string
+  royaltyBps: number
+  pricePerpetual: bigint
+  priceSubscription: bigint
+  defaultDurationDays: number
+  deliveryRightsDefault: number
+  deliveryModeHint: number
+  termsHash: string
+  // Inference fields
+  priceInference: bigint    // Price per inference (USDC, 6 decimals)
+  inferenceWallet: string   // Wallet for x402 payments
+  // Agent params
+  agentParams: AgentParams
+}) {
+  const address = getMarketAddress(params.chainId)
+  
+  return {
+    address: address as Address,
+    abi: MARKET_ABI,
+    functionName: 'listOrUpgradeWithAgent',
+    args: [
+      params.slug,
+      params.name,
+      params.uri,
+      BigInt(params.royaltyBps),
+      params.pricePerpetual,
+      params.priceSubscription,
+      BigInt(params.defaultDurationDays),
+      BigInt(params.deliveryRightsDefault),
+      BigInt(params.deliveryModeHint),
+      params.termsHash,
+      params.priceInference,
+      params.inferenceWallet as Address,
+      // AgentParams struct
+      {
+        endpoint: params.agentParams.endpoint,
+        wallet: (params.agentParams.wallet || params.inferenceWallet) as Address,
+        metadataUri: params.agentParams.metadataUri,
+      },
+    ],
+  }
+}
+
+/**
+ * Prepare transaction for updateModelAgent
+ * Updates agent endpoint and/or wallet for an existing model
+ * 
+ * @param params - Update parameters
+ * @returns Transaction data for wagmi writeContract
+ */
+export function updateModelAgentTx(params: {
+  chainId: number
+  modelId: number
+  agentEndpoint: string   // New endpoint (empty string to skip)
+  agentWallet: string     // New wallet (zero address to skip)
+}) {
+  const address = getMarketAddress(params.chainId)
+  
+  return {
+    address: address as Address,
+    abi: MARKET_ABI,
+    functionName: 'updateModelAgent',
+    args: [
+      BigInt(params.modelId),
+      params.agentEndpoint,
+      params.agentWallet as Address,
     ],
   }
 }

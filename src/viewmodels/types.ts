@@ -49,7 +49,7 @@ export interface Step1ViewModel {
   
   // Metadata
   chain: 'avalanche'
-  chainSymbol: 'AVAX'
+  chainSymbol: 'AVAX' | 'USDC'
   visibility: 'public' | 'private'
   locale: 'en' | 'es'
   version?: string

@@ -1,0 +1,8 @@
+MOCK_SAFETENSORS_MODEL_EXAMPLE_3
+This is a mock safetensors file representing an image classification model.
+Model: Product Image Classifier
+Version: 1.0.0
+Framework: PyTorch
+Architecture: EfficientNet-B4
+Size: ~75MB (simulated)
+Classes: 1000 product categories

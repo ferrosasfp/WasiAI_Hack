@@ -1,0 +1,18 @@
+{
+  "network": "avax",
+  "chainId": "43113",
+  "deployer": "0xfb652f4506731aC58E51b39DCa4F5ECDcb2C1543",
+  "deployedAt": "2025-12-02T15:17:49.343Z",
+  "contracts": {
+    "MarketplaceV2": "0xdDF773Bb0a9a6F186175fB39CA166DA17994491E",
+    "LicenseNFT": "0x819dF6b803Ae3E55cA2145779F7d5B53C11adE38",
+    "AgentRegistryV2": "0x7686810c46946a223B7a9baF0F52A4e2c7392B9f",
+    "InferenceSplitter": "0x82357fB6c6639de2dE9582E18777D9B498f7BE65",
+    "USDC": "0x5425890298aed601595a70AB815c96711a31Bc65"
+  },
+  "config": {
+    "feeBps": 250,
+    "feeRecipient": "0xfb652f4506731aC58E51b39DCa4F5ECDcb2C1543",
+    "modelsLimit": 0
+  }
+}

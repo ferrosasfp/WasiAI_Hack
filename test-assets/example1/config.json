@@ -1,0 +1,25 @@
+{
+  "model_name": "customer-churn-predictor",
+  "version": "1.0.0",
+  "framework": "scikit-learn",
+  "python_version": "3.10",
+  "input_features": [
+    "tenure_months",
+    "monthly_charges",
+    "total_charges",
+    "contract_type",
+    "payment_method",
+    "internet_service",
+    "online_security",
+    "tech_support"
+  ],
+  "output": {
+    "type": "binary_classification",
+    "classes": ["no_churn", "churn"],
+    "probability": true
+  },
+  "preprocessing": {
+    "numerical_scaling": "standard",
+    "categorical_encoding": "one_hot"
+  }
+}

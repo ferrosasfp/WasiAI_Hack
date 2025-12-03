@@ -27,6 +27,8 @@
     "oneTime": "one-time purchase",
     "subscription": "subscription",
     "perMonth": "/mo subscription",
+    "perpetualLicense": "License",
+    "perInference": "Per run",
     "supportedLanguages": "Supported languages",
     "runs": "runs",
     "shareLink": "Share link",

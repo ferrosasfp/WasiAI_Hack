@@ -30,8 +30,9 @@ import { useWizardDraft } from '@/hooks/useWizardDraft'
 // Wagmi hooks for wallet signing
 import { useWriteContract, useWaitForTransactionReceipt, useAccount, useSwitchChain } from 'wagmi'
 import { usePublicClient } from 'wagmi'
-import MARKET_ARTIFACT from '@/abis/Marketplace.json'
-import AGENT_REGISTRY_ARTIFACT from '@/abis/AgentRegistry.json'
+// Use MarketplaceV2 ABI for single-signature model+agent registration
+import MARKET_ARTIFACT from '@/abis/MarketplaceV2.json'
+import AGENT_REGISTRY_ARTIFACT from '@/abis/AgentRegistryV2.json'
 
 export const dynamic = 'force-dynamic'
 
@@ -516,6 +517,8 @@ export default function Step5ReviewPublishLocalized() {
   const feeBpsEff5 = Number(metadata?.licensePolicy?.feeBps || feeBpsEnv)
   const royaltyBps = Number(metadata?.licensePolicy?.royaltyBps || 0)
   const fmt2Up = (v:number) => (Math.ceil(v * 100) / 100).toFixed(2)
+  // Format to 4 decimals rounded up for USDC inference amounts
+  const fmt4Up = (v:number) => (Math.ceil(v * 10000) / 10000).toFixed(4)
   const splitFor = (amount:number) => {
     const fee = (amount * feeBpsEff5) / 10000
     const royalty = (amount * royaltyBps) / 10000
@@ -872,20 +875,25 @@ export default function Step5ReviewPublishLocalized() {
             }
             
             // 5. Update or Register AgentRegistry (ERC-8004)
+            // For upgrades: Reuse the agent from the ORIGINAL model to preserve reputation
             let agentTxHash: string | null = null
             let registeredAgentId: number | null = null
             if (result.agentTxParams && result.modelId && publicClient) {
               try {
-                // First, check if agent exists for this model
                 const AGENT_ABI = (await import('@/abis/AgentRegistry.json')).default.abi
                 let existingAgentId: bigint = 0n
+                
+                // IMPORTANT: For upgrades, look for agent of the ORIGINAL model (upgradeModelId)
+                // This preserves the reputation history across model versions
+                const originalModelId = upgradeModelId ? BigInt(upgradeModelId) : BigInt(result.modelId)
                 try {
                   existingAgentId = await publicClient.readContract({
                     address: result.agentTxParams.contractAddress as `0x${string}`,
                     abi: AGENT_ABI,
                     functionName: 'modelToAgent',
-                    args: [BigInt(result.modelId)]
+                    args: [originalModelId]
                   }) as bigint
+                  console.log('[Upgrade] Found existing agent for original model:', { originalModelId: originalModelId.toString(), agentId: existingAgentId.toString() })
                 } catch {
                   // modelToAgent might not exist or return 0
                 }
@@ -969,6 +977,11 @@ export default function Step5ReviewPublishLocalized() {
               }
             }
             
+            // Trigger indexer to sync blockchain state (updates listed status of old versions)
+            fetch(`/api/indexer?chainId=${targetChainId}`, { method: 'GET' })
+              .then(() => console.log('[Upgrade] Indexer triggered for blockchain sync'))
+              .catch(() => {}) // Non-blocking, ignore errors
+            
             setResults(prev=>[...prev, { 
               chain: tnet.chain, 
               network: tnet.network, 
@@ -1031,27 +1044,65 @@ export default function Step5ReviewPublishLocalized() {
             }
             
             // 3. Execute transaction with user's wallet signature
+            // Use listOrUpgradeWithAgent for single-signature model + agent registration
             const abi = (MARKET_ARTIFACT as any).abi
-            const [slug, name, uri, royaltyBps, pricePerpetual, priceSubscription, defaultDurationDays, rightsMask, deliveryModeHint, termsHash] = r.txParams.args
+            const txArgs = r.txParams.args
+            const functionName = r.txParams.functionName || 'listOrUpgradeWithAgent'
             
-            const hash = await writeContractAsync({
-              address: r.txParams.contractAddress as `0x${string}`,
-              abi,
-              functionName: 'listOrUpgrade',
-              args: [
-                slug,
-                name,
-                uri,
-                BigInt(royaltyBps),
-                BigInt(pricePerpetual),
-                BigInt(priceSubscription),
-                BigInt(defaultDurationDays),
-                Number(rightsMask),
-                Number(deliveryModeHint),
-                termsHash as `0x${string}`
-              ],
-              chainId: targetChainId
-            })
+            let hash: `0x${string}`
+            
+            if (functionName === 'listOrUpgradeWithAgent' && txArgs.length >= 13) {
+              // Single-signature flow: model + agent in one TX
+              const [slug, name, uri, royaltyBps, pricePerpetual, priceSubscription, defaultDurationDays, rightsMask, deliveryModeHint, termsHash, priceInferenceUsdc, inferenceWallet, agentParams] = txArgs
+              
+              hash = await writeContractAsync({
+                address: r.txParams.contractAddress as `0x${string}`,
+                abi,
+                functionName: 'listOrUpgradeWithAgent',
+                args: [
+                  slug,
+                  name,
+                  uri,
+                  BigInt(royaltyBps),
+                  BigInt(pricePerpetual),
+                  BigInt(priceSubscription),
+                  BigInt(defaultDurationDays),
+                  Number(rightsMask),
+                  Number(deliveryModeHint),
+                  termsHash as `0x${string}`,
+                  BigInt(priceInferenceUsdc),
+                  (inferenceWallet || connectedAddress) as `0x${string}`,
+                  {
+                    endpoint: agentParams?.endpoint || '',
+                    wallet: (agentParams?.wallet || inferenceWallet || connectedAddress) as `0x${string}`,
+                    metadataUri: agentParams?.metadataUri || ''
+                  }
+                ],
+                chainId: targetChainId
+              })
+            } else {
+              // Legacy flow: model only (backward compatible)
+              const [slug, name, uri, royaltyBps, pricePerpetual, priceSubscription, defaultDurationDays, rightsMask, deliveryModeHint, termsHash] = txArgs
+              
+              hash = await writeContractAsync({
+                address: r.txParams.contractAddress as `0x${string}`,
+                abi,
+                functionName: 'listOrUpgrade',
+                args: [
+                  slug,
+                  name,
+                  uri,
+                  BigInt(royaltyBps),
+                  BigInt(pricePerpetual),
+                  BigInt(priceSubscription),
+                  BigInt(defaultDurationDays),
+                  Number(rightsMask),
+                  Number(deliveryModeHint),
+                  termsHash as `0x${string}`
+                ],
+                chainId: targetChainId
+              })
+            }
             
             // 4. Wait for transaction confirmation and get modelId
             let modelId: number | null = null
@@ -1093,6 +1144,57 @@ export default function Step5ReviewPublishLocalized() {
               }
             }
             
+            // 4.5. Register model in Neon DB for instant display (like licenses)
+            if (modelId && hash) {
+              try {
+                console.log(`[Publish] Registering model #${modelId} in Neon DB...`)
+                await fetch('/api/indexed/models', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    modelId,
+                    chainId: targetChainId,
+                    owner: connectedAddress,
+                    creator: connectedAddress,
+                    name: r.metadata?.name || r.txParams.args?.[0] || '',
+                    uri: r.txParams.args?.[2] || '', // metadataURI (index 2 in listOrUpgradeWithAgent)
+                    pricePerpetual: r.metadata?.licensePolicy?.perpetual?.priceRef 
+                      ? BigInt(Math.floor(Number(r.metadata.licensePolicy.perpetual.priceRef) * 1e18)).toString() 
+                      : '0',
+                    priceSubscription: r.metadata?.licensePolicy?.subscription?.perMonthPriceRef 
+                      ? BigInt(Math.floor(Number(r.metadata.licensePolicy.subscription.perMonthPriceRef) * 1e18)).toString() 
+                      : '0',
+                    defaultDurationDays: r.metadata?.licensePolicy?.defaultDurationDays || 0,
+                    royaltyBps: r.metadata?.licensePolicy?.royaltyBps || 0,
+                    termsHash: r.metadata?.licensePolicy?.termsHash || null,
+                    txHash: hash,
+                    // Inference fields for x402
+                    priceInference: r.metadata?.licensePolicy?.inference?.pricePerCall || 0,
+                    inferenceWallet: metadata?.step3?.inferenceConfig?.wallet || connectedAddress,
+                    inferenceEndpoint: metadata?.step3?.inferenceConfig?.endpoint || null,
+                    // Metadata for model_metadata table
+                    metadata: r.metadata,
+                    imageUrl: metadata?.cover?.uri || null,
+                    categories: metadata?.technicalCategories || [],
+                    tags: metadata?.technicalTags || [],
+                    industries: metadata?.industries || [],
+                    useCases: metadata?.useCases || [],
+                    frameworks: metadata?.frameworks || [],
+                    architectures: metadata?.architectures || [],
+                  })
+                })
+                console.log(`[Publish] ✅ Model #${modelId} registered in Neon DB`)
+                
+                // Trigger indexer to sync blockchain state (updates listed status of old versions)
+                fetch(`/api/indexer?chainId=${targetChainId}`, { method: 'GET' })
+                  .then(() => console.log('[Publish] Indexer triggered for blockchain sync'))
+                  .catch(() => {}) // Non-blocking, ignore errors
+              } catch (dbErr) {
+                console.warn('[Publish] Failed to register model in DB (non-blocking):', dbErr)
+                // Don't fail the publish if DB registration fails - blockchain is source of truth
+              }
+            }
+            
             // 5. Register agent in AgentRegistry (ERC-8004)
             let agentId: number | null = null
             let agentTxHash: string | null = null
@@ -1109,8 +1211,8 @@ export default function Step5ReviewPublishLocalized() {
                     modelId,
                     chainId: targetChainId,
                     wallet: connectedAddress,
-                    name: r.metadata?.name || slug,
-                    description: metadata?.summary || `AI Agent: ${r.metadata?.name || slug}`,
+                    name: r.metadata?.name || r.txParams.args?.[0] || '',
+                    description: metadata?.summary || `AI Agent: ${r.metadata?.name || r.txParams.args?.[0] || ''}`,
                     pricePerInference: r.agentTxParams.argsTemplate?.pricePerInference,
                     image: metadata?.cover?.uri,
                     capabilities: {
@@ -1666,15 +1768,8 @@ export default function Step5ReviewPublishLocalized() {
                             <Row label={t('wizard.step5.step4Summary.perpetualPrice')} value={<>{fmt2Up(Number(metadata?.licensePolicy?.perpetual?.priceRef||0))} {unit}</>} />
                           )}
                           
-                          {/* Subscription Price */}
-                          {(pricingMode === 'subscription' || pricingMode === 'both') && (
-                            <Row label={t('wizard.step5.step4Summary.subscriptionPrice')} value={<>{fmt2Up(Number(metadata?.licensePolicy?.subscription?.perMonthPriceRef||0))} {unit}</>} />
-                          )}
-                          
-                          {/* Base Duration */}
-                          {(pricingMode === 'subscription' || pricingMode === 'both') && (
-                            <Row label={t('wizard.step5.step4Summary.baseDuration')} value={<>{Math.round(Number(metadata?.licensePolicy?.defaultDurationDays||0)/30)} {t('wizard.step5.step4Summary.months')}</>} />
-                          )}
+                          {/* Subscription Price - Hidden for hackathon */}
+                          {/* Base Duration - Hidden for hackathon */}
                           
                           {/* Creator Royalty */}
                           <Row label={t('wizard.step5.step4Summary.creatorRoyalty')} value={<>{Math.round((royaltyBps||0)/100)}%</>} />
@@ -1711,16 +1806,21 @@ export default function Step5ReviewPublishLocalized() {
                             )
                           })()}
                           
-                          {/* Subscription Split */}
-                          {Number(metadata?.licensePolicy?.subscription?.perMonthPriceRef||0) > 0 && (()=>{
-                            const amt = Number(metadata?.licensePolicy?.subscription?.perMonthPriceRef||0)
+                          {/* x402 Inference Split */}
+                          {Number(metadata?.licensePolicy?.inference?.pricePerCall||0) > 0 && (()=>{
+                            const amt = Number(metadata?.licensePolicy?.inference?.pricePerCall||0)
                             const s = splitFor(amt)
                             return (
-                              <Row label={t('wizard.step5.step4Summary.splitSubscription')} value={<>
-                                {L.marketplace}: {fmt2Up(s.fee)} {unit} • {L.creator}: {fmt2Up(s.royalty)} {unit} • {L.seller}: {fmt2Up(s.seller)} {unit}
-                              </>} />
+                              <Row 
+                                label={<Box component="span" sx={{ color: '#4fe1ff' }}>⚡ {locale === 'es' ? 'Split Inferencia x402' : 'x402 Inference Split'}</Box>} 
+                                value={<Box component="span" sx={{ color: '#4fe1ff' }}>
+                                  {L.marketplace}: ${fmt4Up(s.fee)} • {L.creator}: ${fmt4Up(s.royalty)} • {L.seller}: ${fmt4Up(s.seller)}
+                                </Box>} 
+                              />
                             )
                           })()}
+                          
+                          {/* Subscription Split - Hidden for hackathon */}
                         </List>
                       </Box>
 
@@ -2444,13 +2544,17 @@ export default function Step5ReviewPublishLocalized() {
             } catch {}
           }
 
+          // Get x402 inference config from step3
+          const inferenceConfig = draft?.step3?.inferenceConfig || {}
+          const hasInferenceEndpoint = Boolean(inferenceConfig.endpoint)
+
           return (
             <div key={secId} draggable onDragStart={()=>onDragStart(secId)} onDragOver={(e)=>onDragOver(e,secId)} onDrop={()=>onDrop(secId)}>
               <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2 }}>
                 {/* Header */}
                 <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:2 }}>
                   <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700 }}>
-                    {t('wizard.step5.sections.artifactsDemo')}
+                    ⚡ {locale === 'es' ? 'x402 Inference & Artifacts' : 'x402 Inference & Artifacts'}
                   </Typography>
                   <Button 
                     size="small" 
@@ -2462,6 +2566,51 @@ export default function Step5ReviewPublishLocalized() {
                     {t('wizard.step5.artifactsDemo.editStep3')}
                   </Button>
                 </Box>
+
+                {/* x402 Inference Configuration */}
+                <Box sx={{ mb: 3, p: 2, bgcolor: 'rgba(79, 225, 255, 0.05)', borderRadius: 2, border: '1px solid rgba(79, 225, 255, 0.2)' }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem', color: '#4fe1ff' }}>
+                    {locale === 'es' ? 'Configuración x402 (Pay-per-Use)' : 'x402 Configuration (Pay-per-Use)'}
+                  </Typography>
+                  <List dense>
+                    <Row 
+                      label={locale === 'es' ? 'Endpoint de inferencia' : 'Inference Endpoint'} 
+                      value={hasInferenceEndpoint ? (
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#4fe1ff' }}>
+                          {inferenceConfig.endpoint}
+                        </Typography>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          {locale === 'es' ? 'No configurado' : 'Not configured'}
+                        </Typography>
+                      )} 
+                    />
+                    <Row 
+                      label={locale === 'es' ? 'Wallet de pagos' : 'Payment Wallet'} 
+                      value={inferenceConfig.paymentWallet ? (
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                          {inferenceConfig.paymentWallet.substring(0, 6)}...{inferenceConfig.paymentWallet.substring(inferenceConfig.paymentWallet.length - 4)}
+                        </Typography>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          {locale === 'es' ? 'Usa wallet conectada' : 'Uses connected wallet'}
+                        </Typography>
+                      )} 
+                    />
+                  </List>
+                  {!hasInferenceEndpoint && (
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      {locale === 'es' 
+                        ? 'Sin endpoint configurado, el modelo solo estará disponible para descarga de licencia.' 
+                        : 'Without an endpoint configured, the model will only be available for license download.'}
+                    </Alert>
+                  )}
+                </Box>
+
+                {/* Artifacts Section */}
+                <Typography variant="caption" color="text.secondary" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem' }}>
+                  {locale === 'es' ? 'Artifacts del modelo' : 'Model Artifacts'}
+                </Typography>
                 
                 {artifacts.length === 0 ? (
                   <Alert severity="info" sx={{ mt:1 }}>

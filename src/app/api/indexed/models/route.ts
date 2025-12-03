@@ -12,10 +12,14 @@
  * 
  * Note: Returns only the latest version (highest version number) of each model.
  * Models are grouped by slug (from metadata) to avoid showing duplicate listings.
+ * 
+ * POST /api/indexed/models
+ * Register a new model in Neon DB after blockchain TX confirms
+ * Body: { modelId, chainId, owner, creator, name, uri, pricePerpetual, priceSubscription, ... }
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/db'
+import { query, queryOne } from '@/lib/db'
 import type { ModelRow, ModelMetadataRow } from '@/lib/db'
 
 interface EnrichedModel extends ModelRow {
@@ -28,6 +32,15 @@ interface EnrichedModel extends ModelRow {
   frameworks?: string[] | null
   architectures?: string[] | null
   cached_at?: string | null
+  // Inference fields from MarketplaceV2
+  price_inference?: string | null
+  inference_wallet?: string | null
+  inference_endpoint?: string | null
+  // Agent fields from AgentRegistryV2
+  agent_id?: number | null
+  agent_wallet?: string | null
+  agent_endpoint?: string | null
+  agent_active?: boolean | null
 }
 
 // Helper to parse PostgreSQL arrays (they come as strings like "{value1,value2}")
@@ -92,17 +105,17 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
-    // Get total count of unique model "lines" (by slug)
-    // Count distinct slugs, not distinct model_ids (which would count all versions)
+    // Get total count of unique model families (by owner + slug)
+    // Count distinct families, not distinct model_ids (which would count all versions)
     const countQuery = `
       SELECT COUNT(*) as total
       FROM (
-        SELECT DISTINCT ON (COALESCE((mm.metadata->>'slug')::text, m.model_id::text))
+        SELECT DISTINCT ON (COALESCE(m.slug, m.model_id::text), m.owner)
           m.model_id
         FROM models m
         LEFT JOIN model_metadata mm ON m.model_id = mm.model_id
         ${whereClause}
-        ORDER BY COALESCE((mm.metadata->>'slug')::text, m.model_id::text), m.version DESC
+        ORDER BY COALESCE(m.slug, m.model_id::text), m.owner, m.version DESC
       ) subq
     `
     
@@ -114,10 +127,11 @@ export async function GET(request: NextRequest) {
     
     console.log('[API /indexed/models] Total count:', total)
 
-    // Get paginated results - only latest version of each model (by slug)
+    // Get paginated results with agent data from AgentRegistryV2
+    // Use DISTINCT ON to get only the latest version of each model family (by owner + slug)
     params.push(limit, offset)
     const dataQuery = `
-      SELECT DISTINCT ON (COALESCE((mm.metadata->>'slug')::text, m.model_id::text))
+      SELECT DISTINCT ON (COALESCE(m.slug, m.model_id::text), m.owner)
         m.*,
         mm.metadata,
         mm.image_url,
@@ -127,21 +141,29 @@ export async function GET(request: NextRequest) {
         mm.use_cases,
         mm.frameworks,
         mm.architectures,
-        mm.cached_at
+        mm.cached_at,
+        a.agent_id,
+        a.wallet as agent_wallet,
+        a.endpoint as agent_endpoint,
+        a.active as agent_active
       FROM models m
       LEFT JOIN model_metadata mm ON m.model_id = mm.model_id
+      LEFT JOIN agents a ON m.agent_id = a.agent_id
       ${whereClause}
-      ORDER BY 
-        COALESCE((mm.metadata->>'slug')::text, m.model_id::text),
-        m.version DESC,
-        m.created_at DESC
+      ORDER BY COALESCE(m.slug, m.model_id::text), m.owner, m.version DESC
+    `
+    
+    // Wrap in subquery to apply pagination and final ordering
+    const paginatedQuery = `
+      SELECT * FROM (${dataQuery}) AS latest_models
+      ORDER BY created_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `
 
-    console.log('[API /indexed/models] Data query:', dataQuery)
+    console.log('[API /indexed/models] Paginated query:', paginatedQuery)
     console.log('[API /indexed/models] All params:', params)
 
-    const rawModels = await query<EnrichedModel>(dataQuery, params)
+    const rawModels = await query<EnrichedModel>(paginatedQuery, params)
     
     console.log('[API /indexed/models] Models fetched:', rawModels.length)
     
@@ -239,6 +261,177 @@ export async function GET(request: NextRequest) {
         code: error.code,
         hint: error.hint
       },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * POST /api/indexed/models
+ * Register a new model in Neon DB after blockchain TX confirms
+ * This enables instant display without waiting for indexer
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { 
+      modelId, 
+      chainId, 
+      owner, 
+      creator, 
+      name, 
+      uri, 
+      pricePerpetual, 
+      priceSubscription, 
+      defaultDurationDays,
+      royaltyBps,
+      deliveryRightsDefault,
+      deliveryModeHint,
+      termsHash,
+      txHash,
+      // Inference fields
+      priceInference,
+      inferenceWallet,
+      inferenceEndpoint,
+      // Metadata fields for model_metadata table
+      metadata,
+      imageUrl,
+      categories,
+      tags,
+      industries,
+      useCases,
+      frameworks,
+      architectures
+    } = body
+
+    if (!modelId || !chainId || !owner) {
+      return NextResponse.json(
+        { error: 'Missing required fields: modelId, chainId, owner' },
+        { status: 400 }
+      )
+    }
+
+    console.log(`[Models] Registering model #${modelId} on chain ${chainId}`)
+
+    // Check if model already exists
+    const existing = await queryOne<ModelRow>(
+      'SELECT model_id FROM models WHERE model_id = $1 AND chain_id = $2',
+      [modelId, chainId]
+    )
+
+    if (existing) {
+      console.log(`[Models] Model #${modelId} already exists, updating...`)
+    }
+
+    // Insert or update model (including inference fields)
+    const modelQuery = `
+      INSERT INTO models (
+        model_id, chain_id, owner, creator, name, uri,
+        price_perpetual, price_subscription, default_duration_days,
+        royalty_bps, delivery_rights_default, delivery_mode_hint,
+        terms_hash, listed, version,
+        price_inference, inference_wallet, inference_endpoint,
+        created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6,
+        $7, $8, $9,
+        $10, $11, $12,
+        $13, true, 1,
+        $14, $15, $16,
+        NOW(), NOW()
+      )
+      ON CONFLICT (model_id) DO UPDATE SET
+        owner = EXCLUDED.owner,
+        creator = EXCLUDED.creator,
+        name = EXCLUDED.name,
+        uri = EXCLUDED.uri,
+        price_perpetual = EXCLUDED.price_perpetual,
+        price_subscription = EXCLUDED.price_subscription,
+        default_duration_days = EXCLUDED.default_duration_days,
+        royalty_bps = EXCLUDED.royalty_bps,
+        delivery_rights_default = EXCLUDED.delivery_rights_default,
+        delivery_mode_hint = EXCLUDED.delivery_mode_hint,
+        terms_hash = EXCLUDED.terms_hash,
+        price_inference = EXCLUDED.price_inference,
+        inference_wallet = EXCLUDED.inference_wallet,
+        inference_endpoint = EXCLUDED.inference_endpoint,
+        listed = true,
+        updated_at = NOW()
+      RETURNING model_id
+    `
+
+    // Calculate inference price in USDC base units (6 decimals)
+    // priceInference comes as a string like "0.01" meaning $0.01 USDC
+    const inferenceUsdcBaseUnits = priceInference 
+      ? Math.floor(Number(priceInference) * 1e6).toString() 
+      : '0'
+
+    await query(modelQuery, [
+      modelId,
+      chainId,
+      owner.toLowerCase(),
+      (creator || owner).toLowerCase(),
+      name || `Model #${modelId}`,
+      uri || '',
+      pricePerpetual ? BigInt(pricePerpetual).toString() : '0',
+      priceSubscription ? BigInt(priceSubscription).toString() : '0',
+      defaultDurationDays || 0,
+      royaltyBps || 0,
+      deliveryRightsDefault || 0,
+      deliveryModeHint || 0,
+      termsHash || null,
+      inferenceUsdcBaseUnits,
+      inferenceWallet || owner.toLowerCase(),
+      inferenceEndpoint || null,
+    ])
+
+    // Insert or update metadata if provided
+    if (metadata || imageUrl || categories || tags) {
+      const metadataQuery = `
+        INSERT INTO model_metadata (
+          model_id, metadata, image_url, categories, tags,
+          industries, use_cases, frameworks, architectures, cached_at
+        ) VALUES (
+          $1, $2, $3, $4, $5,
+          $6, $7, $8, $9, NOW()
+        )
+        ON CONFLICT (model_id) DO UPDATE SET
+          metadata = COALESCE(EXCLUDED.metadata, model_metadata.metadata),
+          image_url = COALESCE(EXCLUDED.image_url, model_metadata.image_url),
+          categories = COALESCE(EXCLUDED.categories, model_metadata.categories),
+          tags = COALESCE(EXCLUDED.tags, model_metadata.tags),
+          industries = COALESCE(EXCLUDED.industries, model_metadata.industries),
+          use_cases = COALESCE(EXCLUDED.use_cases, model_metadata.use_cases),
+          frameworks = COALESCE(EXCLUDED.frameworks, model_metadata.frameworks),
+          architectures = COALESCE(EXCLUDED.architectures, model_metadata.architectures),
+          cached_at = NOW()
+      `
+
+      await query(metadataQuery, [
+        modelId,
+        metadata ? JSON.stringify(metadata) : null,
+        imageUrl || null,
+        categories || null,
+        tags || null,
+        industries || null,
+        useCases || null,
+        frameworks || null,
+        architectures || null,
+      ])
+    }
+
+    console.log(`[Models] ✅ Model #${modelId} registered successfully`)
+
+    return NextResponse.json({
+      success: true,
+      message: existing ? 'Model updated successfully' : 'Model registered successfully',
+      modelId,
+      chainId,
+    })
+  } catch (error: any) {
+    console.error('[Models] ❌ Error registering model:', error)
+    return NextResponse.json(
+      { error: 'Failed to register model', details: error.message },
       { status: 500 }
     )
   }

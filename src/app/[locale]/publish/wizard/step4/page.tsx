@@ -25,9 +25,9 @@ import EditIcon from '@mui/icons-material/Edit'
 import { useLocale, useTranslations } from 'next-intl'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
 import { CHAIN_IDS, getChainConfig, getNativeSymbol, getMarketAddress, getRpcUrl, MARKETPLACE_FEE_BPS, ROYALTY_LIMITS, percentToBps, validateRoyaltyPercent, calculateRevenueSplit, formatAmount } from '@/config'
-import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
+import { getDraftId } from '@/lib/draft-utils'
 import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
-import { saveStep as saveStepCentralized } from '@/lib/wizard-draft-service'
+import { saveStep as saveStepCentralized, loadDraft as loadDraftCentralized } from '@/lib/wizard-draft-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,7 +78,7 @@ export default function Step4LicensesTermsLocalized() {
   const lastSavedRef = useRef<any>(null)
   const loadingFromDraftRef = useRef(false)
   const lastErrorAtRef = useRef<number | null>(null)
-  const [unit, setUnit] = useState<'AVAX'|'ETH'>('AVAX')
+  const [unit, setUnit] = useState<'USDC'>('USDC') // License payments are now in USDC
   const [chainId, setChainId] = useState<number | null>(null)
   const [feeBpsOnChain, setFeeBpsOnChain] = useState<number | null>(null)
   const [shouldFade, setShouldFade] = useState(true)
@@ -131,6 +131,11 @@ export default function Step4LicensesTermsLocalized() {
   const splitFor = (amount: number) => calculateRevenueSplit(amount, royaltyBps, feeBpsEff)
 
   const fmt2Up = (v:number) => formatAmount(v)
+  // Format to 4 decimals rounded up for USDC inference amounts
+  const fmt4Up = (v:number) => {
+    const rounded = Math.ceil(v * 10000) / 10000
+    return rounded.toFixed(4)
+  }
 
   const withSelection = (fn: (value: string, start: number, end: number) => { next: string, selStart?: number, selEnd?: number }) => {
     const el = termsRef.current
@@ -329,7 +334,9 @@ export default function Step4LicensesTermsLocalized() {
           rights: rightsMask,
           subscription: { perMonthPriceRef: priceSubscription },
           perpetual: { priceRef: pricePerpetual },
-          inference: { pricePerCall: priceInference }, // x402 price in USDC
+          inference: { 
+            pricePerCall: priceInference  // x402 price in USDC (endpoint configured in Step 3)
+          },
           defaultDurationDays: dDays,
           transferable,
           termsText,
@@ -531,9 +538,9 @@ export default function Step4LicensesTermsLocalized() {
       } catch {}
     }
     
-    loadDraftUtil(false, null).then(async (r) => {
+    loadDraftCentralized(upgradeMode, upgradeModelId).then(async (draftData) => {
       if (!alive) return
-      const s4 = r?.data?.step4
+      const s4 = draftData?.step4
       if (!s4) return
       try {
         const lp = s4.licensePolicy || {}
@@ -577,11 +584,9 @@ export default function Step4LicensesTermsLocalized() {
         const id = chainIdHex ? parseInt(chainIdHex, 16) : null
         if (id) {
           setChainId(id)
-          // Use centralized chain configuration for symbol
-          const symbol = getNativeSymbol(id)
-          setUnit(symbol as 'AVAX' | 'ETH')
+          // License payments are always in USDC now
         }
-      } catch { setUnit('ETH') }
+      } catch {}
     }
     const init = async () => {
       try {
@@ -594,8 +599,6 @@ export default function Step4LicensesTermsLocalized() {
           const defId = Number(process.env.NEXT_PUBLIC_EVM_CHAIN_ID || 0) || null
           if (defId) {
             setChainId(defId)
-            const symbol = getNativeSymbol(defId)
-            setUnit(symbol as 'AVAX' | 'ETH')
           }
         }
       } catch {}
@@ -767,8 +770,11 @@ export default function Step4LicensesTermsLocalized() {
               error={invalidPerp}
               disabled={pricingMode === 'subscription'}
               helperText={invalidPerp ? t('wizard.step4.validation.intNonNegative') : ' '}
-              inputProps={{ step: '0.0001' }}
-              InputProps={{ endAdornment: <InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>{unit}</InputAdornment> }}
+              inputProps={{ step: '0.01' }}
+              InputProps={{ 
+                startAdornment: <InputAdornment position="start" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>$</InputAdornment>,
+                endAdornment: <InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>{unit}</InputAdornment> 
+              }}
             />
           </Grid>
           {/* Subscription fields hidden for hackathon MVP - only perpetual + x402 */}
@@ -838,6 +844,9 @@ export default function Step4LicensesTermsLocalized() {
             />
           </Grid>
         </Grid>
+        
+        {/* x402 Inference Configuration */}
+        {/* Note: Inference endpoint is configured in Step 3 */}
         <Box sx={{ mt: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>
             {t('wizard.step4.sections.revenueSplit') || 'Revenue Split'}
@@ -865,25 +874,34 @@ export default function Step4LicensesTermsLocalized() {
                 </Paper>
               </Grid>
             )}
-            {pSub > 0 && (
+            {/* Subscription split - Hidden for hackathon */}
+            
+            {/* x402 Inference Revenue Split */}
+            {Number(priceInference) > 0 && (
               <Grid item xs={12} md={6}>
-                <Paper variant="outlined" sx={{ p:1.5, borderRadius:2 }}>
-                  <Typography variant="caption" color="text.secondary">{t('wizard.step4.labels.subscriptionPerMonth')} ({unit})</Typography>
-                  {(() => { const s = splitFor(pSub); return (
-                    <Box sx={{ mt: 1 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#4caf50', mb: 1 }}>
-                        {t('wizard.step4.revenue.seller')}: {fmt2Up(s.seller)} {unit} ({((s.seller/pSub)*100).toFixed(1)}%)
-                      </Typography>
-                      <Stack spacing={0.5}>
-                        <Typography variant="caption" color="text.secondary">
-                          {t('wizard.step4.revenue.marketplace')}: {fmt2Up(s.fee)} {unit} ({(feeBpsEnv/100).toFixed(2)}%)
+                <Paper variant="outlined" sx={{ p:1.5, borderRadius:2, border: '1px solid rgba(79, 225, 255, 0.3)', bgcolor: 'rgba(79, 225, 255, 0.02)' }}>
+                  <Typography variant="caption" sx={{ color: '#4fe1ff' }}>
+                    ⚡ {locale === 'es' ? 'Inferencia x402 (USDC)' : 'x402 Inference (USDC)'}
+                  </Typography>
+                  {(() => { 
+                    const pInf = Number(priceInference || 0)
+                    const s = splitFor(pInf)
+                    return (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#4fe1ff', mb: 1 }}>
+                          {t('wizard.step4.revenue.seller')}: ${fmt4Up(s.seller)} ({((s.seller/pInf)*100).toFixed(1)}%)
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {t('wizard.step4.revenue.creator')}: {fmt2Up(s.royalty)} {unit} ({(royaltyBps/100).toFixed(2)}%)
-                        </Typography>
-                      </Stack>
-                    </Box>
-                  ) })()}
+                        <Stack spacing={0.5}>
+                          <Typography variant="caption" color="text.secondary">
+                            {t('wizard.step4.revenue.marketplace')}: ${fmt4Up(s.fee)} ({(feeBpsEff/100).toFixed(2)}%)
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {t('wizard.step4.revenue.creator')}: ${fmt4Up(s.royalty)} ({(royaltyBps/100).toFixed(2)}%)
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    )
+                  })()}
                 </Paper>
               </Grid>
             )}

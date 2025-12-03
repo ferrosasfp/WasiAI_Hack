@@ -5,8 +5,9 @@ import { Box, Typography, Stack, Chip, LinearProgress, Tooltip, Skeleton } from 
 import ThumbUpIcon from '@mui/icons-material/ThumbUp'
 import ThumbDownIcon from '@mui/icons-material/ThumbDown'
 import VerifiedIcon from '@mui/icons-material/Verified'
-import { useReadContract } from 'wagmi'
+import { useReadContract, useChainId } from 'wagmi'
 import ReputationRegistryABI from '@/abis/ReputationRegistry.json'
+import { getReputationRegistryAddress, DEFAULT_CHAIN_ID } from '@/config/chains'
 
 interface AgentReputationProps {
   agentId: number
@@ -22,54 +23,73 @@ interface ReputationData {
   fromCache: boolean
 }
 
-const REPUTATION_REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_REPUTATION_REGISTRY_ADDRESS as `0x${string}` | undefined
-const CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID || '43113', 10)
-
 export default function AgentReputation({
   agentId,
   locale = 'en',
   compact = false,
 }: AgentReputationProps) {
   const isES = locale === 'es'
+  const chainId = useChainId() || DEFAULT_CHAIN_ID
+  const REPUTATION_REGISTRY_ADDRESS = getReputationRegistryAddress(chainId) as `0x${string}` | undefined
   
   // State for API data
   const [apiData, setApiData] = useState<ReputationData | null>(null)
   const [apiLoading, setApiLoading] = useState(true)
   const [apiError, setApiError] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   // Fetch from API first (fast, cached in DB)
-  useEffect(() => {
+  const fetchFromApi = async () => {
     if (agentId <= 0) {
       setApiLoading(false)
       return
     }
-
-    const fetchFromApi = async () => {
-      try {
-        const res = await fetch(`/api/reputation?agentId=${agentId}`)
-        if (res.ok) {
-          const json = await res.json()
-          if (json.success && json.data) {
-            setApiData({
-              positiveCount: json.data.positiveCount || 0,
-              negativeCount: json.data.negativeCount || 0,
-              totalFeedback: json.data.totalFeedback || 0,
-              score: json.data.score || 50,
-              fromCache: json.data.fromCache || false
-            })
-          }
-        } else {
-          setApiError(true)
+    
+    try {
+      const res = await fetch(`/api/reputation?agentId=${agentId}&t=${Date.now()}`)
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success && json.data) {
+          setApiData({
+            positiveCount: json.data.positiveCount || 0,
+            negativeCount: json.data.negativeCount || 0,
+            totalFeedback: json.data.totalFeedback || 0,
+            score: json.data.score || 50,
+            fromCache: json.data.fromCache || false
+          })
         }
-      } catch (err) {
-        console.error('[AgentReputation] API fetch error:', err)
+      } else {
         setApiError(true)
-      } finally {
-        setApiLoading(false)
+      }
+    } catch (err) {
+      console.error('[AgentReputation] API fetch error:', err)
+      setApiError(true)
+    } finally {
+      setApiLoading(false)
+    }
+  }
+
+  // Initial fetch
+  useEffect(() => {
+    fetchFromApi()
+  }, [agentId, refreshKey])
+
+  // Listen for feedback events to refresh reputation
+  useEffect(() => {
+    const handleFeedbackSubmitted = (event: CustomEvent<{ agentId: number }>) => {
+      if (event.detail.agentId === agentId) {
+        console.log('[AgentReputation] Feedback received, refreshing...', agentId)
+        // Small delay to allow DB sync
+        setTimeout(() => {
+          setRefreshKey(prev => prev + 1)
+        }, 1500)
       }
     }
 
-    fetchFromApi()
+    window.addEventListener('reputation-feedback-submitted', handleFeedbackSubmitted as EventListener)
+    return () => {
+      window.removeEventListener('reputation-feedback-submitted', handleFeedbackSubmitted as EventListener)
+    }
   }, [agentId])
 
   // Fallback: Get reputation directly from blockchain if API fails
@@ -78,7 +98,7 @@ export default function AgentReputation({
     abi: ReputationRegistryABI.abi,
     functionName: 'getReputation',
     args: [BigInt(agentId)],
-    chainId: CHAIN_ID,
+    chainId: chainId,
     query: {
       // Only fetch from chain if API failed or no data
       enabled: !!REPUTATION_REGISTRY_ADDRESS && agentId > 0 && apiError && !apiData,
@@ -91,7 +111,7 @@ export default function AgentReputation({
     abi: ReputationRegistryABI.abi,
     functionName: 'calculateScore',
     args: [BigInt(agentId)],
-    chainId: CHAIN_ID,
+    chainId: chainId,
     query: {
       enabled: !!REPUTATION_REGISTRY_ADDRESS && agentId > 0 && apiError && !apiData,
     },
@@ -194,79 +214,172 @@ export default function AgentReputation({
     )
   }
 
-  // Full view
+  // Full view - Professional detailed display
+  const scoreColor = scoreValue >= 70 ? '#4caf50' : scoreValue >= 40 ? '#ff9800' : '#f44336'
+  const positivePercent = totalFeedback > 0 ? Math.round((positiveCount / totalFeedback) * 100) : 0
+  const negativePercent = totalFeedback > 0 ? Math.round((negativeCount / totalFeedback) * 100) : 0
+  
   return (
     <Box sx={{ 
       p: 2, 
-      bgcolor: 'rgba(255,255,255,0.03)', 
+      bgcolor: 'rgba(255,255,255,0.02)', 
       borderRadius: 2,
       border: '1px solid rgba(255,255,255,0.1)',
     }}>
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
-        <VerifiedIcon sx={{ fontSize: 18, color: '#9c27b0' }} />
-        <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>
-          {isES ? 'Reputación On-Chain' : 'On-Chain Reputation'}
-        </Typography>
+      {/* Header */}
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <VerifiedIcon sx={{ fontSize: 18, color: '#9c27b0' }} />
+          <Typography variant="caption" sx={{ fontWeight: 600, color: '#ffffffb3', textTransform: 'uppercase', fontSize: '0.7rem' }}>
+            {isES ? 'Reputación On-Chain' : 'On-Chain Reputation'}
+          </Typography>
+        </Stack>
+        {totalFeedback > 0 && (
+          <Chip 
+            label={`${scoreValue}%`} 
+            size="small" 
+            sx={{ 
+              bgcolor: `${scoreColor}22`, 
+              color: scoreColor, 
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              height: 24,
+              border: `1px solid ${scoreColor}44`
+            }} 
+          />
+        )}
       </Stack>
 
       {totalFeedback === 0 ? (
-        <Typography variant="caption" sx={{ color: '#ffffffaa' }}>
-          {isES ? 'Sin valoraciones aún' : 'No ratings yet'}
-        </Typography>
+        <Box sx={{ textAlign: 'center', py: 2 }}>
+          <Typography variant="body2" sx={{ color: '#ffffff66', mb: 0.5 }}>
+            {isES ? 'Sin valoraciones aún' : 'No ratings yet'}
+          </Typography>
+          <Typography variant="caption" sx={{ color: '#ffffff44' }}>
+            {isES ? 'Sé el primero en valorar' : 'Be the first to rate'}
+          </Typography>
+        </Box>
       ) : (
         <>
-          {/* Score bar */}
-          <Box sx={{ mb: 1.5 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
-              <Typography variant="caption" sx={{ color: '#ffffffaa' }}>
-                {isES ? 'Puntuación' : 'Score'}
-              </Typography>
-              <Typography variant="body2" sx={{ 
-                fontWeight: 700, 
-                color: scoreValue >= 70 ? '#4caf50' : scoreValue >= 40 ? '#ff9800' : '#f44336' 
-              }}>
-                {scoreValue}%
-              </Typography>
-            </Stack>
+          {/* Score Progress Bar */}
+          <Box sx={{ mb: 2 }}>
             <LinearProgress
               variant="determinate"
               value={scoreValue}
               sx={{
-                height: 8,
-                borderRadius: 4,
-                bgcolor: 'rgba(255,255,255,0.1)',
+                height: 10,
+                borderRadius: 5,
+                bgcolor: 'rgba(255,255,255,0.08)',
                 '& .MuiLinearProgress-bar': {
-                  bgcolor: scoreValue >= 70 ? '#4caf50' : scoreValue >= 40 ? '#ff9800' : '#f44336',
-                  borderRadius: 4,
+                  bgcolor: scoreColor,
+                  borderRadius: 5,
+                  transition: 'transform 0.4s ease',
                 },
               }}
             />
           </Box>
 
-          {/* Feedback counts */}
-          <Stack direction="row" spacing={2}>
-            <Stack direction="row" alignItems="center" spacing={0.5}>
-              <ThumbUpIcon sx={{ fontSize: 16, color: '#4caf50' }} />
-              <Typography variant="body2" sx={{ color: '#4caf50', fontWeight: 600 }}>
-                {positiveCount}
-              </Typography>
+          {/* Thumbs up/down with bars */}
+          <Stack spacing={1.5}>
+            {/* Positive */}
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                width: 32, 
+                height: 32, 
+                borderRadius: '50%', 
+                bgcolor: 'rgba(76, 175, 80, 0.15)',
+                border: '1px solid rgba(76, 175, 80, 0.3)'
+              }}>
+                <ThumbUpIcon sx={{ fontSize: 16, color: '#4caf50' }} />
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.25 }}>
+                  <Typography variant="caption" sx={{ color: '#ffffffcc', fontWeight: 500 }}>
+                    {isES ? 'Positivas' : 'Positive'}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#4caf50', fontWeight: 700 }}>
+                    {positiveCount} ({positivePercent}%)
+                  </Typography>
+                </Stack>
+                <LinearProgress
+                  variant="determinate"
+                  value={positivePercent}
+                  sx={{
+                    height: 6,
+                    borderRadius: 3,
+                    bgcolor: 'rgba(255,255,255,0.06)',
+                    '& .MuiLinearProgress-bar': {
+                      bgcolor: '#4caf50',
+                      borderRadius: 3,
+                    },
+                  }}
+                />
+              </Box>
             </Stack>
-            <Stack direction="row" alignItems="center" spacing={0.5}>
-              <ThumbDownIcon sx={{ fontSize: 16, color: '#f44336' }} />
-              <Typography variant="body2" sx={{ color: '#f44336', fontWeight: 600 }}>
-                {negativeCount}
-              </Typography>
+
+            {/* Negative */}
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                width: 32, 
+                height: 32, 
+                borderRadius: '50%', 
+                bgcolor: 'rgba(244, 67, 54, 0.15)',
+                border: '1px solid rgba(244, 67, 54, 0.3)'
+              }}>
+                <ThumbDownIcon sx={{ fontSize: 16, color: '#f44336' }} />
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.25 }}>
+                  <Typography variant="caption" sx={{ color: '#ffffffcc', fontWeight: 500 }}>
+                    {isES ? 'Negativas' : 'Negative'}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#f44336', fontWeight: 700 }}>
+                    {negativeCount} ({negativePercent}%)
+                  </Typography>
+                </Stack>
+                <LinearProgress
+                  variant="determinate"
+                  value={negativePercent}
+                  sx={{
+                    height: 6,
+                    borderRadius: 3,
+                    bgcolor: 'rgba(255,255,255,0.06)',
+                    '& .MuiLinearProgress-bar': {
+                      bgcolor: '#f44336',
+                      borderRadius: 3,
+                    },
+                  }}
+                />
+              </Box>
             </Stack>
-            <Typography variant="caption" sx={{ color: '#ffffff66' }}>
-              ({totalFeedback} {isES ? 'total' : 'total'})
-            </Typography>
           </Stack>
+
+          {/* Total count */}
+          <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography variant="caption" sx={{ color: '#ffffff66' }}>
+                {isES ? 'Total de valoraciones' : 'Total ratings'}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#ffffffcc', fontWeight: 600 }}>
+                {totalFeedback}
+              </Typography>
+            </Stack>
+          </Box>
         </>
       )}
 
-      <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: '#ffffff44' }}>
-        ⛓️ {isES ? 'Verificado en Avalanche' : 'Verified on Avalanche'}
-      </Typography>
+      {/* Footer */}
+      <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <Typography variant="caption" sx={{ color: '#ffffff44', fontSize: '0.65rem' }}>
+          ⛓️ {isES ? 'Verificado en Avalanche • ERC-8004' : 'Verified on Avalanche • ERC-8004'}
+        </Typography>
+      </Box>
     </Box>
   )
 }

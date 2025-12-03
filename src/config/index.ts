@@ -14,6 +14,7 @@ export {
   isTestnet,
   getNativeSymbol,
   getMarketAddress,
+  getUsdcAddress,
   getSupportedChainIds,
   getChainName,
   networkToChainId,

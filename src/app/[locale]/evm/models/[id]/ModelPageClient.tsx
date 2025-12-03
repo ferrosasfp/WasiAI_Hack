@@ -15,8 +15,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CheckIcon from '@mui/icons-material/Check'
 import Link from 'next/link'
-import { useWriteContract, usePublicClient, useSwitchChain, useAccount, useChainId } from 'wagmi'
-import MARKET_ARTIFACT from '@/abis/Marketplace.json'
+import { useWriteContract, usePublicClient, useSwitchChain, useAccount, useChainId, useReadContract } from 'wagmi'
+import MARKET_ARTIFACT from '@/abis/MarketplaceV2.json'
+import ERC20_ARTIFACT from '@/abis/ERC20.json'
 import { useTranslations, useLocale } from 'next-intl'
 import { createViewModelFromPublished } from '@/viewmodels'
 import type { EntitlementsDTO } from '@/adapters/evm/entitlements'
@@ -26,7 +27,7 @@ import GitHubIcon from '@mui/icons-material/GitHub'
 import LanguageIcon from '@mui/icons-material/Language'
 import LinkedInIcon from '@mui/icons-material/LinkedIn'
 import PersonIcon from '@mui/icons-material/Person'
-import { getMarketAddress, getChainConfig } from '@/config'
+import { getMarketAddress, getChainConfig, getUsdcAddress } from '@/config'
 import { ModelEditControls } from '@/components/ModelEditControls'
 import { QuickEditDrawer } from '@/components/QuickEditDrawer'
 import { rightsBitmaskToArray } from '@/adapters/evm/write'
@@ -172,6 +173,11 @@ function useEvmModel(options: UseEvmModelOptions) {
           return
         }
         
+        // Use cached imageUrl from Neon if available
+        if (m.imageUrl && typeof m.imageUrl === 'string') {
+          console.log('[useEvmModel] Using cached imageUrl from Neon:', m.imageUrl)
+        }
+        
         // Process IPFS metadata
         // If metadata already exists in DB (from Neon), use it; otherwise fetch from IPFS
         if (m && m.uri && typeof m.uri === 'string' && !m.uri.includes('.enc')) {
@@ -188,9 +194,9 @@ function useEvmModel(options: UseEvmModelOptions) {
               const toApiFromIpfs = (u: string): string => {
                 if (!u) return ''
                 if (u.startsWith('http://') || u.startsWith('https://')) return u
-                if (u.startsWith('ipfs://')) return `/api/ipfs/ipfs/${u.replace('ipfs://','')}`
-                if (u.startsWith('/ipfs/')) return `/api/ipfs${u}`
-                return `/api/ipfs/ipfs/${u}`
+                if (u.startsWith('ipfs://')) return `/api/ipfs/${u.replace('ipfs://','')}`
+                if (u.startsWith('/ipfs/')) return `/api/ipfs${u.replace('/ipfs/', '/')}`
+                return `/api/ipfs/${u}`
               }
               const httpUrl = toApiFromIpfs(uri)
               console.log('[useEvmModel] Fetching metadata from IPFS:', httpUrl)
@@ -202,11 +208,11 @@ function useEvmModel(options: UseEvmModelOptions) {
                 if (img.startsWith('http://') || img.startsWith('https://')) {
                   m.imageUrl = img
                 } else if (img.startsWith('ipfs://')) {
-                  m.imageUrl = `/api/ipfs/ipfs/${img.replace('ipfs://','')}`
+                  m.imageUrl = `/api/ipfs/${img.replace('ipfs://','')}`
                 } else if (img.startsWith('/ipfs/')) {
-                  m.imageUrl = `/api/ipfs${img}`
+                  m.imageUrl = `/api/ipfs${img.replace('/ipfs/', '/')}`
                 } else {
-                  m.imageUrl = `/api/ipfs/ipfs/${img}`
+                  m.imageUrl = `/api/ipfs/${img}`
                 }
               }
               if (!m.name && typeof meta.name === 'string') m.name = meta.name
@@ -358,7 +364,8 @@ function useEvmModel(options: UseEvmModelOptions) {
                 maxBatch, contextLength, maxTokens, imageResolution, sampleRate, triton, gpuNotes,
                 termsText,
                 artifactsList,
-                authorName, authorLinks
+                authorName, authorLinks,
+                metadata: meta // Store full metadata for x402 and other features
               }
             }
           } catch (metaErr) {
@@ -390,33 +397,34 @@ function useEvmModel(options: UseEvmModelOptions) {
 }
 
 /**
- * Format price from wei to token display
+ * Format price from USDC base units (6 decimals) to display
  * - Rounds up to 2 decimals if there are decimals
  * - Shows as integer if no decimals
- * @param weiValue - Price in wei (bigint or number)
+ * @param usdcValue - Price in USDC base units (6 decimals)
  * @returns Formatted price string (e.g., "5", "5.01", "5.67")
  */
-function formatPrice(weiValue: number | bigint | string | undefined): string {
-  if (!weiValue) return '0'
+function formatPrice(usdcValue: number | bigint | string | undefined): string {
+  if (!usdcValue) return '0'
   
   // Handle bigint and large string numbers
   let num: number
-  if (typeof weiValue === 'bigint') {
-    num = Number(weiValue)
-  } else if (typeof weiValue === 'string') {
+  if (typeof usdcValue === 'bigint') {
+    num = Number(usdcValue)
+  } else if (typeof usdcValue === 'string') {
     // For very large strings, use BigInt first to avoid precision loss
     try {
-      num = Number(BigInt(weiValue))
+      num = Number(BigInt(usdcValue))
     } catch {
-      num = parseFloat(weiValue)
+      num = parseFloat(usdcValue)
     }
   } else {
-    num = weiValue
+    num = usdcValue
   }
   
   if (num <= 0) return '0'
   
-  const tokens = num / 1e18
+  // USDC has 6 decimals
+  const tokens = num / 1e6
   const hasDecimals = tokens % 1 !== 0
   
   if (hasDecimals) {
@@ -609,16 +617,8 @@ export default function ModelPageClient(props: ModelPageClientProps) {
     systems: t('systems'),
     accelerators: t('accelerators'),
   }), [t])
-  const evmSymbol = React.useMemo(()=>{
-    try {
-      if (typeof evmChainId !== 'number') return 'ETH'
-      const ch = Array.isArray(chains) ? chains.find((c:any)=> c?.id === evmChainId) : undefined
-      const sym = ch?.nativeCurrency?.symbol
-      return typeof sym === 'string' && sym ? sym : 'ETH'
-    } catch {
-      return 'ETH'
-    }
-  }, [evmChainId, chains])
+  // Prices are now in USDC (stablecoin), not native token
+  const evmSymbol = 'USDC'
   const marketAddress = React.useMemo(() => {
     try {
       if (typeof evmChainId !== 'number') return undefined
@@ -628,6 +628,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
   }, [evmChainId])
 
   // Direct purchase for perpetual license (no popup for hackathon MVP)
+  // This sets up the purchase and delegates to handlePurchase which handles USDC approval + buy
   const handleOpenBuy = React.useCallback(async () => {
     // Check if wallet is connected before allowing purchase
     if (!isConnected) {
@@ -637,9 +638,8 @@ export default function ModelPageClient(props: ModelPageClientProps) {
       return
     }
     
-    // For hackathon MVP: only perpetual license, go directly to purchase
+    // Validate price is configured
     const hasPerpetual = data?.price_perpetual && (typeof data.price_perpetual === 'number' ? data.price_perpetual > 0 : true)
-    
     if (!hasPerpetual) {
       setSnkSev('error')
       setSnkMsg(locale === 'es' ? 'Este modelo no tiene precio de licencia configurado' : 'This model has no license price configured')
@@ -647,14 +647,25 @@ export default function ModelPageClient(props: ModelPageClientProps) {
       return
     }
 
-    // Set perpetual as the kind and trigger purchase directly
+    // Set perpetual as the kind - handlePurchase will be triggered via useEffect or we call it directly
     setBuyKind('perpetual')
     setBuyMonths(0)
     
-    // Execute purchase directly (same logic as handlePurchase but inline)
+    // Open the buy dialog which will show the purchase flow
+    setBuyOpen(true)
+    setBuyStep('review')
+  }, [data, isConnected, L, locale])
+
+  const handlePurchase = React.useCallback(async ()=>{
     try {
-      if (!id || typeof evmChainId !== 'number') return
+      if (!id || typeof evmChainId !== 'number' || !buyKind) return
       if (!marketAddress) { setSnkSev('error'); setSnkMsg(L.marketAddressMissing); setSnkOpen(true); return }
+      // require wallet connection
+      if (!isConnected || !currentAddress) { setSnkSev('warning'); setSnkMsg(L.connectWallet); setSnkOpen(true); return }
+      
+      // Get USDC address for this chain
+      const usdcAddress = getUsdcAddress(evmChainId)
+      if (!usdcAddress) { setSnkSev('error'); setSnkMsg('USDC not configured for this chain'); setSnkOpen(true); return }
       
       // validate network and auto-switch
       const currentChainId = chain?.id
@@ -667,55 +678,142 @@ export default function ModelPageClient(props: ModelPageClientProps) {
           return
         }
       }
-      
       const abi = (MARKET_ARTIFACT as any).abi
-      const licenseKind = 0 // perpetual
-      const months = 0
+      const erc20Abi = (ERC20_ARTIFACT as any).abi
+      const licenseKind = buyKind === 'perpetual' ? 0 : 1
+      const months = buyKind === 'subscription' ? buyMonths : 0
       const transferable = Boolean((data as any)?.rights?.transferable)
       
-      // Prices come as wei (bigint strings or numbers) - must preserve exact precision
+      // Prices are now in USDC (6 decimals) - stored as base units
       const priceP = (data as any)?.price_perpetual
+      const priceS = (data as any)?.price_subscription
       
-      // Convert to BigInt preserving full precision (prices are in wei)
-      const toBigIntWei = (val: any): bigint => {
+      // Convert to BigInt (USDC base units, 6 decimals)
+      const toBigIntUsdc = (val: any): bigint => {
+        if (val === undefined || val === null) return 0n
         if (typeof val === 'bigint') return val
         if (typeof val === 'string') {
-          if (val.includes('.')) {
-            const [whole, dec] = val.split('.')
-            return BigInt(whole || '0')
-          }
-          return BigInt(val)
+          const clean = val.split('.')[0]
+          return BigInt(clean || '0')
         }
-        if (typeof val === 'number') return BigInt(Math.floor(val))
-        return BigInt(0)
+        if (typeof val === 'number') {
+          return BigInt(Math.round(val).toString())
+        }
+        return 0n
       }
       
-      const pricePWei = toBigIntWei(priceP)
-      const totalValue = pricePWei
+      const priceUsdc = buyKind === 'perpetual'
+        ? toBigIntUsdc(priceP)
+        : toBigIntUsdc(priceS) * BigInt(months)
       
-      // Get tokenURI from model data
-      const tokenUri = data?.uri || ''
+      if (priceUsdc === 0n) {
+        setSnkSev('error'); setSnkMsg('Price not configured'); setSnkOpen(true); return
+      }
       
+      // Usar metadata del modelo para el NFT de licencia
+      const tokenUri = (data as any)?.uri || ''
       setTxLoading(true)
-      const hash = await writeContractAsync({
-        address: marketAddress as `0x${string}`,
-        abi,
-        functionName: 'buyLicenseWithURI',
-        args: [BigInt(id), licenseKind, months, transferable, tokenUri],
-        value: totalValue
+      
+      console.log('[Purchase] Starting USDC purchase flow:', {
+        usdcAddress,
+        marketAddress,
+        priceUsdc: priceUsdc.toString(),
+        currentAddress,
       })
       
-      if (hash && publicClient) {
-        const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      // Step 1: Check USDC balance
+      let usdcBalance = 0n
+      try {
+        if (publicClient) {
+          usdcBalance = await publicClient.readContract({
+            address: usdcAddress as `0x${string}`,
+            abi: erc20Abi,
+            functionName: 'balanceOf',
+            args: [currentAddress as `0x${string}`],
+          }) as bigint
+          console.log('[Purchase] USDC balance:', usdcBalance.toString())
+        }
+      } catch (e) {
+        console.warn('[Purchase] Failed to check USDC balance:', e)
+      }
+      
+      if (usdcBalance < priceUsdc) {
+        const needed = Number(priceUsdc) / 1e6
+        const have = Number(usdcBalance) / 1e6
+        setSnkSev('error')
+        setSnkMsg(locale === 'es' 
+          ? `Saldo USDC insuficiente. Necesitas ${needed} USDC, tienes ${have.toFixed(2)} USDC`
+          : `Insufficient USDC balance. Need ${needed} USDC, have ${have.toFixed(2)} USDC`)
+        setSnkOpen(true)
+        setTxLoading(false)
+        return
+      }
+      
+      // Step 2: Check current allowance
+      let currentAllowance = 0n
+      try {
+        if (publicClient) {
+          currentAllowance = await publicClient.readContract({
+            address: usdcAddress as `0x${string}`,
+            abi: erc20Abi,
+            functionName: 'allowance',
+            args: [currentAddress as `0x${string}`, marketAddress as `0x${string}`],
+          }) as bigint
+          console.log('[Purchase] Current allowance:', currentAllowance.toString())
+        }
+      } catch (e) {
+        console.warn('[Purchase] Failed to check allowance:', e)
+      }
+      
+      // Step 3: Approve USDC if needed (infinite approve for better UX - only once per user)
+      if (currentAllowance < priceUsdc) {
+        console.log('[Purchase] Approving USDC...')
+        setSnkSev('info'); setSnkMsg(locale === 'es' ? 'Aprobando USDC (solo una vez)...' : 'Approving USDC (one time only)...'); setSnkOpen(true)
+        const MAX_UINT256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
+        const approveHash = await writeContractAsync({
+          address: usdcAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [marketAddress as `0x${string}`, MAX_UINT256],
+          chainId: evmChainId,
+        })
+        console.log('[Purchase] Approve tx hash:', approveHash)
+        if (publicClient && approveHash) {
+          await publicClient.waitForTransactionReceipt({ hash: approveHash })
+          console.log('[Purchase] Approve confirmed')
+        }
+      } else {
+        console.log('[Purchase] Allowance sufficient, skipping approve')
+      }
+      
+      // Step 4: Buy license (no value - USDC is transferred via transferFrom)
+      setSnkSev('info'); setSnkMsg(locale === 'es' ? 'Comprando licencia...' : 'Purchasing license...'); setSnkOpen(true)
+      const hash = await writeContractAsync({
+        address: marketAddress as `0x${string}`,
+        abi: abi as any,
+        functionName: 'buyLicenseWithURI',
+        args: [BigInt(id), Number(licenseKind), Number(months), Boolean(transferable), tokenUri],
+        chainId: evmChainId,
+        // No value - payment is in USDC, not native token
+      })
+      let receipt = null
+      if (publicClient && hash) {
+        receipt = await publicClient.waitForTransactionReceipt({ hash })
+      }
+      
+      // Register license in Neon DB for fast retrieval
+      try {
+        // Parse LicenseMinted event to get tokenId
+        const abi = (MARKET_ARTIFACT as any).abi
+        const licenseMintedEvent = abi.find((e: any) => e.type === 'event' && e.name === 'LicenseMinted')
+        let tokenId = null
         
-        // Extract tokenId from LicenseMinted event and register in Neon DB
-        try {
-          const licenseMintedEvent = abi.find((e: any) => e.type === 'event' && e.name === 'LicenseMinted')
-          console.log('[Purchase] Looking for LicenseMinted event, found ABI:', !!licenseMintedEvent, 'logs:', receipt.logs?.length)
-          if (licenseMintedEvent && receipt.logs) {
-            for (const log of receipt.logs) {
-              try {
-                // Parse the log to get licenseId
+        if (receipt?.logs && licenseMintedEvent) {
+          for (const log of receipt.logs) {
+            try {
+              // Check if this log is from the marketplace contract
+              if (log.address.toLowerCase() === marketAddress.toLowerCase()) {
+                // Try to decode the log
                 const { decodeEventLog } = await import('viem')
                 const decoded = decodeEventLog({
                   abi: [licenseMintedEvent],
@@ -723,115 +821,37 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                   topics: log.topics,
                 }) as { eventName: string; args: any }
                 if (decoded.eventName === 'LicenseMinted') {
-                  const args = decoded.args
-                  const tokenId = Number(args.licenseId || args.tokenId || 0)
-                  if (tokenId > 0 && currentAddress) {
-                    // Register license in Neon DB for instant display
-                    await fetch('/api/indexed/licenses', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        tokenId,
-                        modelId: Number(id),
-                        owner: currentAddress,
-                        kind: licenseKind,
-                        expiresAt: 0, // perpetual
-                        chainId: evmChainId,
-                        txHash: hash,
-                        validApi: true,
-                        validDownload: transferable,
-                      })
-                    })
-                    console.log(`[Purchase] License #${tokenId} registered in Neon DB`)
-                  }
+                  tokenId = Number(decoded.args.licenseId || decoded.args.tokenId)
                   break
                 }
-              } catch (decodeErr) {
-                // Log decode errors for debugging - most logs won't be LicenseMinted
-                console.debug('[Purchase] Log decode skip:', (decodeErr as any)?.message?.slice(0, 50))
               }
-            }
+            } catch {}
           }
-        } catch (regErr) {
-          console.warn('[Purchase] Failed to register license in DB:', regErr)
-          // Don't fail the purchase if DB registration fails
         }
-      }
-      setSnkSev('success'); setSnkMsg(L.purchaseSuccess); setSnkOpen(true)
-      if (typeof mutateEntitlements === 'function') {
-        mutateEntitlements()
-      }
-    } catch (e: any) {
-      console.error('Purchase error:', e)
-      const msg = String(e?.shortMessage || e?.message || e || '')
-      setSnkSev('error')
-      setSnkMsg(L.purchaseErrorPrefix + msg)
-      setSnkOpen(true)
-    } finally {
-      setTxLoading(false)
-    }
-  }, [data, isConnected, L, id, evmChainId, marketAddress, chain?.id, switchChainAsync, writeContractAsync, publicClient, mutateEntitlements, locale, currentAddress])
-
-  const handlePurchase = React.useCallback(async ()=>{
-    try {
-      if (!id || typeof evmChainId !== 'number' || !buyKind) return
-      if (!marketAddress) { setSnkSev('error'); setSnkMsg(L.marketAddressMissing); setSnkOpen(true); return }
-      // require wallet connection
-      if (!isConnected) { setSnkSev('warning'); setSnkMsg(L.connectWallet); setSnkOpen(true); return }
-      // validate network and auto-switch
-      const currentChainId = chain?.id
-      const desiredChainId = evmChainId
-      if (currentChainId !== desiredChainId) {
-        try {
-          await switchChainAsync({ chainId: desiredChainId })
-        } catch {
-          setSnkSev('warning'); setSnkMsg(L.wrongNetwork); setSnkOpen(true)
-          return
+        
+        if (tokenId) {
+          const rights = (data as any)?.rights || {}
+          await fetch('/api/indexed/licenses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tokenId,
+              modelId: Number(id),
+              owner: currentAddress,
+              kind: licenseKind,
+              expiresAt: 0, // perpetual
+              chainId: evmChainId,
+              txHash: hash,
+              validApi: rights.api !== false,
+              validDownload: rights.download !== false,
+            }),
+          })
+          console.log('[Purchase] License registered in Neon:', tokenId)
         }
-      }
-      const abi = (MARKET_ARTIFACT as any).abi
-      const licenseKind = buyKind === 'perpetual' ? 0 : 1
-      const months = buyKind === 'subscription' ? buyMonths : 0
-      const transferable = Boolean((data as any)?.rights?.transferable)
-      
-      // Prices come as wei (bigint strings or numbers) - must preserve exact precision
-      const priceP = (data as any)?.price_perpetual
-      const priceS = (data as any)?.price_subscription
-      
-      // Convert to BigInt preserving full precision (prices are in wei)
-      const toBigIntWei = (val: any): bigint => {
-        if (val === undefined || val === null) return 0n
-        if (typeof val === 'bigint') return val
-        if (typeof val === 'string') {
-          // Remove any decimals (shouldn't have any in wei)
-          const clean = val.split('.')[0]
-          return BigInt(clean || '0')
-        }
-        if (typeof val === 'number') {
-          // If it's a large number (wei), convert directly
-          // Use string conversion to avoid floating point issues
-          return BigInt(Math.round(val).toString())
-        }
-        return 0n
+      } catch (e) {
+        console.warn('[Purchase] Failed to register license in Neon:', e)
       }
       
-      const valueWei = buyKind === 'perpetual'
-        ? toBigIntWei(priceP)
-        : toBigIntWei(priceS) * BigInt(months)
-      // Usar metadata del modelo para el NFT de licencia
-      const tokenUri = (data as any)?.uri || ''
-      setTxLoading(true)
-      const hash = await writeContractAsync({
-        address: marketAddress as `0x${string}`,
-        abi: abi as any,
-        functionName: 'buyLicenseWithURI',
-        args: [BigInt(id), Number(licenseKind), Number(months), Boolean(transferable), tokenUri],
-        chainId: evmChainId,
-        value: valueWei,
-      })
-      if (publicClient && hash) {
-        await publicClient.waitForTransactionReceipt({ hash })
-      }
       setSnkSev('success'); setSnkMsg(L.purchaseSuccess); setSnkOpen(true)
       setBuyOpen(false)
       setBuyStep('select')
@@ -845,7 +865,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
       setSnkOpen(true)
     }
     finally { setTxLoading(false) }
-  }, [id, marketAddress, evmChainId, buyKind, buyMonths, data, writeContractAsync, chain, switchChainAsync, isConnected, publicClient, L, mutateEntitlements])
+  }, [id, marketAddress, evmChainId, buyKind, buyMonths, data, writeContractAsync, chain, switchChainAsync, isConnected, publicClient, L, mutateEntitlements, currentAddress, locale])
   const chainName = React.useMemo(()=>{
     try {
       if (typeof evmChainId !== 'number') return 'EVM'
@@ -925,7 +945,17 @@ export default function ModelPageClient(props: ModelPageClientProps) {
         tagline: taglineValue,
         authorName: data.authorName || author.displayName || author.name || (data.owner ? truncateAddr(data.owner) : undefined),
         authorLinks: data.authorLinks || author.links,
-        cover: data.imageUrl ? { url: data.imageUrl } : undefined,
+        cover: (() => {
+          // Extract CID from metadata cover object or from imageUrl
+          const coverCid = meta?.cover?.cid || meta?.cover?.thumbCid
+          if (coverCid) {
+            return { cid: coverCid, url: data.imageUrl }
+          }
+          if (data.imageUrl) {
+            return { url: data.imageUrl }
+          }
+          return undefined
+        })(),
         businessCategory: data.businessCategory || meta.businessCategory,
         modelTypeBusiness: data.modelType || meta.modelType,
         categories: data.categories || meta.categories || [],
@@ -1005,6 +1035,8 @@ export default function ModelPageClient(props: ModelPageClientProps) {
       
       console.log('[ModelPageClient] enrichedData for ViewModel:', {
         name: enrichedData.name,
+        price_perpetual: enrichedData.price_perpetual,
+        price_subscription: enrichedData.price_subscription,
         summary: enrichedData.summary?.substring(0, 50),
         tagline: enrichedData.tagline?.substring(0, 50),
         valueProp: enrichedData.valueProp?.substring(0, 50),
@@ -1175,7 +1207,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                         )}
                         {/* On-chain Reputation Badge */}
                         <AgentReputation 
-                          agentId={data?.metadata?.agentId || id} 
+                          agentId={data?.metadata?.agentId || Number(id)} 
                           locale={locale}
                           compact
                         />
@@ -1392,21 +1424,23 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                           {isES ? 'Precios y licencias' : 'Pricing & licenses'}
                         </Typography>
                         <Grid container spacing={2}>
+                          {/* Left: Price card */}
                           {(viewModel?.step4?.pricing?.perpetual?.available || (data?.price_perpetual && data.price_perpetual > 0)) && (
-                            <Grid item xs={12} sm={(viewModel?.step4?.pricing?.subscription?.available || (data?.price_subscription && data.price_subscription > 0)) ? 6 : 12}>
+                            <Grid item xs={12} sm={6}>
                               <Box sx={{ 
                                 p:2, 
                                 borderRadius:2, 
                                 border:'2px solid #4fe1ff',
                                 bgcolor:'rgba(79,225,255,0.05)',
-                                cursor:'pointer',
-                                transition:'all 0.2s',
-                                '&:hover': { bgcolor:'rgba(79,225,255,0.12)', transform:'translateY(-2px)' }
+                                height:'100%',
+                                display:'flex',
+                                flexDirection:'column',
+                                justifyContent:'center'
                               }}>
                                 <Typography variant="caption" sx={{ color:'#4fe1ff', fontWeight:700, fontSize:'0.7rem', textTransform:'uppercase', display:'block', mb:0.5 }}>
                                   {isES ? '🏆 Licencia perpetua' : '🏆 Perpetual license'}
                                 </Typography>
-                                <Typography variant="h5" sx={{ color:'#4fe1ff', fontWeight:800, mb:0.5 }}>
+                                <Typography variant="h4" sx={{ color:'#4fe1ff', fontWeight:800, mb:0.5 }}>
                                   {viewModel?.step4?.pricing?.perpetual?.priceFormatted || formatPrice(data?.price_perpetual)} {evmSymbol}
                                 </Typography>
                                 <Typography variant="caption" sx={{ color:'#ffffffb3', fontSize:'0.75rem' }}>
@@ -1415,84 +1449,50 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                               </Box>
                             </Grid>
                           )}
-                          {/* Subscription card hidden for hackathon MVP - only perpetual + x402 pay-per-use */}
-                          {false && (viewModel?.step4?.pricing?.subscription?.available || (data?.price_subscription && data.price_subscription > 0)) && (
-                            <Grid item xs={12} sm={(viewModel?.step4?.pricing?.perpetual?.available || (data?.price_perpetual && data.price_perpetual > 0)) ? 6 : 12}>
+                          
+                          {/* Right: Benefits card */}
+                          {(viewModel?.step4?.pricing?.perpetual?.available || (data?.price_perpetual && data.price_perpetual > 0)) && (
+                            <Grid item xs={12} sm={6}>
                               <Box sx={{ 
-                                p:2, 
+                                p:1.5, 
                                 borderRadius:2, 
-                                border:'2px solid rgba(255,255,255,0.18)',
-                                bgcolor:'rgba(255,255,255,0.03)',
-                                cursor:'pointer',
-                                transition:'all 0.2s',
-                                '&:hover': { bgcolor:'rgba(255,255,255,0.08)', transform:'translateY(-2px)' }
+                                border:'1px solid rgba(124,92,255,0.3)',
+                                bgcolor:'rgba(124,92,255,0.05)',
+                                height:'100%',
+                                display:'flex',
+                                flexDirection:'column',
+                                justifyContent:'space-between'
                               }}>
-                                <Typography variant="caption" sx={{ color:'#ffffffcc', fontWeight:700, fontSize:'0.7rem', textTransform:'uppercase', display:'block', mb:0.5 }}>
-                                  {isES ? '📅 Suscripción mensual' : '📅 Monthly subscription'}
-                                </Typography>
-                                <Typography variant="h5" sx={{ color:'#fff', fontWeight:700, mb:0.5 }}>
-                                  {viewModel?.step4?.pricing?.subscription?.pricePerMonthFormatted || formatPrice(data?.price_subscription)} {evmSymbol}
-                                  <Typography component="span" sx={{ fontSize:'0.9rem', color:'#ffffffb3', fontWeight:400 }}>
-                                    {isES ? '/mes' : '/mo'}
+                                <Box>
+                                  <Typography variant="caption" sx={{ color:'#b8a3ff', fontWeight:600, fontSize:'0.68rem', textTransform:'uppercase', display:'block', mb:1 }}>
+                                    ✨ {isES ? 'Incluye' : 'Includes'}
                                   </Typography>
-                                </Typography>
-                                <Typography variant="caption" sx={{ color:'#ffffffb3', fontSize:'0.75rem' }}>
-                                  {isES ? 'Pago recurrente • Cancela cuando quieras' : 'Recurring payment • Cancel anytime'}
-                                </Typography>
+                                  <Stack direction="row" spacing={0.5} sx={{ flexWrap:'wrap', gap:0.5 }}>
+                                    {viewModel?.step4?.rights?.canUseAPI && (
+                                      <Chip label={isES ? 'API' : 'API Access'} size="small" sx={{ bgcolor:'rgba(124,92,255,0.15)', color:'#b8a3ff', fontSize:'0.68rem', height:22 }} />
+                                    )}
+                                    {viewModel?.step4?.rights?.canDownload && (
+                                      <Chip label={isES ? 'Descarga' : 'Download'} size="small" sx={{ bgcolor:'rgba(124,92,255,0.15)', color:'#b8a3ff', fontSize:'0.68rem', height:22 }} />
+                                    )}
+                                    <Chip label="NFT" size="small" sx={{ bgcolor:'rgba(124,92,255,0.15)', color:'#b8a3ff', fontSize:'0.68rem', height:22 }} />
+                                    <Chip label={isES ? 'Perpetua' : 'Perpetual'} size="small" sx={{ bgcolor:'rgba(124,92,255,0.15)', color:'#b8a3ff', fontSize:'0.68rem', height:22 }} />
+                                  </Stack>
+                                </Box>
+                                
+                                {/* Clarification about inference */}
+                                <Box sx={{ mt:1, p:0.75, borderRadius:1, bgcolor:'rgba(255,193,7,0.08)', border:'1px solid rgba(255,193,7,0.2)' }}>
+                                  <Typography variant="caption" sx={{ color:'#ffc107', fontSize:'0.65rem', fontWeight:500, lineHeight:1.3 }}>
+                                    ⚡ {isES 
+                                      ? 'Inferencia: pago por uso via x402 (USDC)' 
+                                      : 'Inference: pay-per-use via x402 (USDC)'}
+                                  </Typography>
+                                </Box>
                               </Box>
                             </Grid>
                           )}
                         </Grid>
                         
-                        {/* Rights & Delivery */}
-                        {(viewModel.step4.rights.canUseAPI || viewModel.step4.rights.canDownload || viewModel.step4.rights.isTransferable) && (
-                          <Box sx={{ mt:1.5, p:1.5, borderRadius:1.5, bgcolor:'rgba(124,92,255,0.08)', border:'1px solid rgba(124,92,255,0.2)' }}>
-                            <Typography variant="caption" sx={{ color:'#b8a3ff', fontWeight:600, fontSize:'0.7rem', textTransform:'uppercase', display:'block', mb:1 }}>
-                              ✨ {isES ? 'Incluye' : 'Includes'}
-                            </Typography>
-                            <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', gap:0.5 }}>
-                              {viewModel.step4.rights.canUseAPI && (
-                                <Chip 
-                                  label={isES ? 'Acceso API' : 'API Access'}
-                                  size="small"
-                                  sx={{ 
-                                    bgcolor:'rgba(124,92,255,0.2)', 
-                                    color:'#e0d4ff', 
-                                    border:'1px solid rgba(124,92,255,0.4)',
-                                    fontSize:'0.7rem',
-                                    height:'24px'
-                                  }}
-                                />
-                              )}
-                              {viewModel.step4.rights.canDownload && (
-                                <Chip 
-                                  label={isES ? 'Descarga del modelo' : 'Model Download'}
-                                  size="small"
-                                  sx={{ 
-                                    bgcolor:'rgba(124,92,255,0.2)', 
-                                    color:'#e0d4ff', 
-                                    border:'1px solid rgba(124,92,255,0.4)',
-                                    fontSize:'0.7rem',
-                                    height:'24px'
-                                  }}
-                                />
-                              )}
-                              {viewModel.step4.rights.isTransferable && (
-                                <Chip 
-                                  label={isES ? 'Transferible' : 'Transferable'}
-                                  size="small"
-                                  sx={{ 
-                                    bgcolor:'rgba(124,92,255,0.2)', 
-                                    color:'#e0d4ff', 
-                                    border:'1px solid rgba(124,92,255,0.4)',
-                                    fontSize:'0.7rem',
-                                    height:'24px'
-                                  }}
-                                />
-                              )}
-                            </Stack>
-                          </Box>
-                        )}
+                        {/* Rights & Delivery - Now shown in benefits card */}
                       </Box>
                     )}
 
@@ -1534,84 +1534,9 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                       >
                         💰 {L.buy || (isES ? 'Comprar licencia' : 'Buy license')}
                       </Button>
-                      <Button 
-                        variant="outlined" 
-                        size="large" 
-                        onClick={handleTryDemo} 
-                        sx={{ 
-                          textTransform: 'none',
-                          fontWeight:600,
-                          fontSize:'0.95rem',
-                          py:1.5,
-                          px:3,
-                          borderWidth:'2px',
-                          borderColor:'rgba(255,255,255,0.3)',
-                          color:'#fff',
-                          '&:hover': {
-                            borderWidth:'2px',
-                            borderColor:'#4fe1ff',
-                            bgcolor:'rgba(79,225,255,0.1)',
-                            transform: 'translateY(-1px)'
-                          },
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        🚀 {L.tryDemo || (isES ? 'Probar demo' : 'Try demo')}
-                      </Button>
+                      {/* Demo button removed */}
                     </Stack>
 
-                    {/* Author section - Enhanced */}
-                    <Box sx={{ pt:2, mt:2, borderTop:'2px solid rgba(255,255,255,0.1)' }}>
-                      <Stack direction="row" spacing={2} alignItems="center">
-                        <Box sx={{ 
-                          width:48, 
-                          height:48, 
-                          borderRadius:'50%', 
-                          bgcolor:'rgba(124,92,255,0.2)', 
-                          border:'2px solid rgba(124,92,255,0.4)',
-                          display:'flex',
-                          alignItems:'center',
-                          justifyContent:'center'
-                        }}>
-                          <PersonIcon sx={{ color:'#b8a3ff', fontSize:'1.75rem' }} />
-                        </Box>
-                        <Box sx={{ flex:1 }}>
-                          <Typography variant="caption" sx={{ color:'#ffffffb3', fontSize:'0.7rem', textTransform:'uppercase', display:'block', mb:0.25 }}>
-                            {isES ? 'Publicado por' : 'Published by'}
-                          </Typography>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Typography variant="body1" sx={{ color:'#fff', fontWeight:700, fontSize:'1rem' }}>
-                              {viewModel.step1.authorName || '-'}
-                            </Typography>
-                            {viewModel.step1.authorLinks && Object.values(viewModel.step1.authorLinks as Record<string, any>).some(Boolean) && (
-                              <Stack direction="row" spacing={0.5}>
-                                {Object.entries(viewModel.step1.authorLinks as Record<string, any>).filter(([,v])=>!!v).map(([k,v]: any, i: number)=> {
-                                  const label = k==='github'? 'GitHub' : k==='website'? 'Website' : k==='twitter'? 'X' : k==='linkedin'? 'LinkedIn' : k
-                                  const icon = k==='github'? <GitHubIcon fontSize="small" /> : k==='website'? <LanguageIcon fontSize="small" /> : k==='twitter'? <XIcon fontSize="small" /> : k==='linkedin'? <LinkedInIcon fontSize="small" /> : undefined
-                                  return (
-                                    <Tooltip key={`${k}-${i}`} title={`${label}: ${v}`}>
-                                      <IconButton 
-                                        size="small" 
-                                        aria-label={label} 
-                                        onClick={()=>{ try { if (v) window.open(String(v), '_blank', 'noopener,noreferrer') } catch {} }}
-                                        sx={{ 
-                                          bgcolor:'rgba(255,255,255,0.05)',
-                                          color:'#fff',
-                                          '&:hover': { bgcolor:'rgba(124,92,255,0.2)', color:'#b8a3ff' },
-                                          transition:'all 0.2s'
-                                        }}
-                                      >
-                                        {icon}
-                                      </IconButton>
-                                    </Tooltip>
-                                  )
-                                })}
-                              </Stack>
-                            )}
-                          </Stack>
-                        </Box>
-                      </Stack>
-                    </Box>
                   </Stack>
                 </Grid>
 
@@ -1655,11 +1580,94 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                       </Box>
                     )}
 
-                    {/* Metadata badges - removed Category & Model type to avoid duplication */}
+                    {/* On-Chain Reputation - in right column - Full detailed view */}
+                    <AgentReputation 
+                      agentId={data?.metadata?.agentId || Number(id)} 
+                      locale={locale}
+                      compact={false}
+                    />
                   </Stack>
                 </Grid>
               </Grid>
             </Paper>
+
+            {/* x402 Inference Panel - Pay per use */}
+            {/* Show for hardcoded models (14, 20, 23) OR models with pricePerCall in metadata */}
+            {(() => {
+              // Check multiple possible paths for pricePerCall
+              const pricePerCall = data?.metadata?.licensePolicy?.pricing?.inference?.pricePerCall 
+                || data?.metadata?.licensePolicy?.inference?.pricePerCall
+              const showX402 = ['14', '20', '23'].includes(String(id)) || !!pricePerCall
+              return showX402 ? (
+                <Box sx={{ mb: 2 }}>
+                  <X402InferencePanel
+                    modelId={id}
+                    modelName={viewModel?.step1?.name || data?.name || `Model #${id}`}
+                    agentId={data?.metadata?.agentId}
+                    pricePerInference={pricePerCall}
+                    recipientWallet={data?.creator || data?.owner}
+                    chainId={evmChainId}
+                    locale={locale}
+                  />
+                </Box>
+              ) : null
+            })()}
+
+            {/* Inference History */}
+            <Box sx={{ mb: 2 }}>
+              <InferenceHistory
+                modelId={id}
+                locale={locale}
+                maxRows={10}
+              />
+            </Box>
+
+            {/* Licenses and terms - Hidden for cleaner UI, info already in pricing cards */}
+            {false && (
+            <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2, bgcolor:'rgba(255,255,255,0.02)' }}>
+              <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700, mb:2 }}>
+                {isES ? 'Licencias y términos' : 'Licenses and terms'}
+              </Typography>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="caption" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem', color:'#ffffffb3' }}>
+                    {isES ? 'Precios' : 'Prices'}
+                  </Typography>
+                  <List dense>
+                    {(viewModel?.step4?.pricing?.perpetual?.available || (data?.price_perpetual && data.price_perpetual > 0)) && (
+                      <Row 
+                        label={isES ? 'Licencia perpetua' : 'Perpetual license'} 
+                        value={`${viewModel?.step4?.pricing?.perpetual?.priceFormatted || formatPrice(data?.price_perpetual)} ${evmSymbol}`}
+                      />
+                    )}
+                    {/* Subscription row hidden for hackathon MVP */}
+                    {false && (viewModel?.step4?.pricing?.subscription?.available || (data?.price_subscription && data.price_subscription > 0)) && (
+                      <Row 
+                        label={isES ? 'Suscripción (por mes)' : 'Subscription (per month)'} 
+                        value={`${viewModel?.step4?.pricing?.subscription?.pricePerMonthFormatted || formatPrice(data?.price_subscription)} ${evmSymbol}/mes`}
+                      />
+                    )}
+                  </List>
+                </Box>
+                <Box>
+                  <Typography variant="caption" sx={{ display:'block', mb:0.5, fontWeight:600, color:'#ffffffb3' }}>
+                    {isES ? 'Derechos y entrega' : 'Rights & delivery'}
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', gap:1 }}>
+                    {viewModel?.step4?.rights?.canUseAPI && (
+                      <Chip label="API usage" size="small" variant="outlined" sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff' }} />
+                    )}
+                    {viewModel?.step4?.rights?.canDownload && (
+                      <Chip label="Model download" size="small" variant="outlined" sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff' }} />
+                    )}
+                    {viewModel?.step4?.rights?.isTransferable && (
+                      <Chip label="Transferable" size="small" variant="outlined" sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff' }} />
+                    )}
+                  </Stack>
+                </Box>
+              </Stack>
+            </Paper>
+            )}
 
             {/* Customer Sheet - como Step 5 */}
             <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2, bgcolor:'rgba(255,255,255,0.02)' }}>
@@ -1794,9 +1802,7 @@ export default function ModelPageClient(props: ModelPageClientProps) {
               </Typography>
               
               <Grid container spacing={3}>
-                {/* Left Column */}
                 <Grid item xs={12} md={6}>
-                  {/* Capabilities */}
                   {((viewModel.step2.technical?.tasks?.length ?? 0) > 0 || (viewModel.step2.technical?.modalities?.length ?? 0) > 0) && (
                     <Box sx={{ mb:2 }}>
                       <Typography variant="caption" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem', color:'#ffffffb3' }}>
@@ -1812,15 +1818,13 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                       </List>
                     </Box>
                   )}
-                  
-                  {/* Architecture */}
                   <Box sx={{ mb:2 }}>
                     <Typography variant="caption" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem', color:'#ffffffb3' }}>
                       {isES ? 'Arquitectura' : 'Architecture'}
                     </Typography>
                     <List dense>
                       {viewModel.step2.technical?.frameworks && viewModel.step2.technical.frameworks.length > 0 && (
-                        <Row label={isES ? 'Frameworks' : 'Frameworks'} value={<ChipsShort items={viewModel.step2.technical?.frameworks || []} />} />
+                        <Row label="Frameworks" value={<ChipsShort items={viewModel.step2.technical?.frameworks || []} />} />
                       )}
                       {viewModel.step2.technical?.architectures && viewModel.step2.technical.architectures.length > 0 && (
                         <Row label={isES ? 'Arquitecturas' : 'Architectures'} value={<ChipsShort items={viewModel.step2.technical?.architectures || []} />} />
@@ -1828,49 +1832,42 @@ export default function ModelPageClient(props: ModelPageClientProps) {
                       {viewModel.step2.technical?.precisions && viewModel.step2.technical.precisions.length > 0 && (
                         <Row label={isES ? 'Precisiones' : 'Precisions'} value={<ChipsShort items={viewModel.step2.technical?.precisions || []} />} />
                       )}
-                      <Row label={isES ? 'Tamaño del modelo (parámetros)' : 'Model size (params)'} value={displayValue(viewModel.step2.technical?.modelSize)} />
-                      <Row label={isES ? 'Tamaño de artefacto (GB)' : 'Artifact size (GB)'} value={displayValue(viewModel.step2.technical?.artifactSize)} />
+                      <Row label={isES ? 'Tamaño del modelo' : 'Model size'} value={displayValue(viewModel.step2.technical?.modelSize)} />
+                      <Row label={isES ? 'Tamaño de artefacto' : 'Artifact size'} value={displayValue(viewModel.step2.technical?.artifactSize)} />
                     </List>
                   </Box>
-                  
-                  {/* Runtime */}
                   <Box>
                     <Typography variant="caption" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem', color:'#ffffffb3' }}>
-                      {isES ? 'Runtime' : 'Runtime'}
+                      Runtime
                     </Typography>
                     <List dense>
                       <Row label="Python" value={displayValue(viewModel.step2.technical?.python)} />
                       {viewModel.step2.technical?.os && viewModel.step2.technical.os.length > 0 && (
-                        <Row label={isES ? 'Sistemas operativos' : 'Operating systems'} value={<ChipsShort items={viewModel.step2.technical?.os || []} />} />
+                        <Row label={isES ? 'OS' : 'OS'} value={<ChipsShort items={viewModel.step2.technical?.os || []} />} />
                       )}
                       <Row label="CUDA" value={displayValue(viewModel.step2.technical?.cuda)} />
                       <Row label="PyTorch" value={displayValue(viewModel.step2.technical?.pytorch)} />
                     </List>
                   </Box>
                 </Grid>
-                
-                {/* Right Column */}
                 <Grid item xs={12} md={6}>
-                  {/* Resources */}
                   <Box sx={{ mb:2 }}>
                     <Typography variant="caption" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem', color:'#ffffffb3' }}>
                       {isES ? 'Recursos' : 'Resources'}
                     </Typography>
                     <List dense>
-                      <Row label={isES ? 'VRAM (GB)' : 'VRAM (GB)'} value={displayValue(viewModel.step2.technical?.vramGB, true)} />
-                      <Row label={isES ? 'Núcleos CPU' : 'CPU cores'} value={displayValue(viewModel.step2.technical?.cpuCores, true)} />
-                      <Row label={isES ? 'RAM (GB)' : 'RAM (GB)'} value={displayValue(viewModel.step2.technical?.ramGB, true)} />
+                      <Row label="VRAM (GB)" value={displayValue(viewModel.step2.technical?.vramGB, true)} />
+                      <Row label={isES ? 'CPU cores' : 'CPU cores'} value={displayValue(viewModel.step2.technical?.cpuCores, true)} />
+                      <Row label="RAM (GB)" value={displayValue(viewModel.step2.technical?.ramGB, true)} />
                     </List>
                   </Box>
-                  
-                  {/* Inference */}
                   <Box>
                     <Typography variant="caption" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem', color:'#ffffffb3' }}>
                       {isES ? 'Inferencia' : 'Inference'}
                     </Typography>
                     <List dense>
-                      <Row label={isES ? 'Tamaño de batch máx.' : 'Max batch size'} value={displayValue(viewModel.step2.technical?.maxBatchSize, true)} />
-                      <Row label={isES ? 'Longitud de contexto' : 'Context length'} value={displayValue(viewModel.step2.technical?.contextLength, true)} />
+                      <Row label={isES ? 'Batch máx.' : 'Max batch'} value={displayValue(viewModel.step2.technical?.maxBatchSize, true)} />
+                      <Row label={isES ? 'Contexto' : 'Context'} value={displayValue(viewModel.step2.technical?.contextLength, true)} />
                       <Row label={isES ? 'Tokens máx.' : 'Max tokens'} value={displayValue(viewModel.step2.technical?.maxTokens, true)} />
                     </List>
                   </Box>
@@ -1888,84 +1885,69 @@ export default function ModelPageClient(props: ModelPageClientProps) {
               />
             )}
 
-            {/* On-chain Reputation - Full view */}
+            {/* Published by - Author section at the end */}
             <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2, bgcolor:'rgba(255,255,255,0.02)' }}>
               <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700, mb:2 }}>
-                {isES ? 'Reputación On-Chain' : 'On-Chain Reputation'}
+                {isES ? 'Publicado por' : 'Published by'}
               </Typography>
-              <AgentReputation 
-                agentId={data?.metadata?.agentId || id} 
-                locale={locale}
-                compact={false}
-              />
-            </Paper>
-
-            {/* x402 Inference Panel - Pay per use */}
-            {/* Show for hardcoded models (14, 20, 23) OR models with pricePerCall in metadata */}
-            {(['14', '20', '23'].includes(String(id)) || data?.metadata?.licensePolicy?.inference?.pricePerCall) && (
-              <Box sx={{ mb: 2 }}>
-                <X402InferencePanel
-                  modelId={id}
-                  modelName={viewModel?.step1?.name || data?.name || `Model #${id}`}
-                  agentId={data?.metadata?.agentId}
-                  pricePerInference={data?.metadata?.licensePolicy?.inference?.pricePerCall}
-                  recipientWallet={data?.creator || data?.owner}
-                  chainId={evmChainId}
-                  locale={locale}
-                />
-              </Box>
-            )}
-
-            {/* Inference History */}
-            <Box sx={{ mb: 2 }}>
-              <InferenceHistory
-                modelId={id}
-                locale={locale}
-                maxRows={10}
-              />
-            </Box>
-
-            {/* Licenses - como Step 5 */}
-            <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mb:2, borderRadius:2, bgcolor:'rgba(255,255,255,0.02)' }}>
-              <Typography variant="subtitle2" sx={{ color:'#fff', fontWeight:700, mb:2 }}>
-                {isES ? 'Licencias y términos' : 'Licenses and terms'}
-              </Typography>
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="caption" sx={{ display:'block', mb:1, fontWeight:600, textTransform:'uppercase', fontSize:'0.7rem', color:'#ffffffb3' }}>
-                    {isES ? 'Precios' : 'Prices'}
-                  </Typography>
-                  <List dense>
-                    {(viewModel?.step4?.pricing?.perpetual?.available || (data?.price_perpetual && data.price_perpetual > 0)) && (
-                      <Row 
-                        label={isES ? 'Licencia perpetua' : 'Perpetual license'} 
-                        value={`${viewModel?.step4?.pricing?.perpetual?.priceFormatted || formatPrice(data?.price_perpetual)} ${evmSymbol}`}
-                      />
-                    )}
-                    {/* Subscription row hidden for hackathon MVP */}
-                    {false && (viewModel?.step4?.pricing?.subscription?.available || (data?.price_subscription && data.price_subscription > 0)) && (
-                      <Row 
-                        label={isES ? 'Suscripción (por mes)' : 'Subscription (per month)'} 
-                        value={`${viewModel?.step4?.pricing?.subscription?.pricePerMonthFormatted || formatPrice(data?.price_subscription)} ${evmSymbol}/mes`}
-                      />
-                    )}
-                  </List>
+              <Stack direction="row" spacing={2} alignItems="center">
+                {/* Author avatar/icon */}
+                <Box sx={{ 
+                  width:56, 
+                  height:56, 
+                  borderRadius:'50%', 
+                  bgcolor:'rgba(124,92,255,0.2)', 
+                  border:'2px solid rgba(124,92,255,0.4)',
+                  display:'flex',
+                  alignItems:'center',
+                  justifyContent:'center',
+                  flexShrink:0
+                }}>
+                  {viewModel.step1.authorName ? (
+                    <Typography variant="h5" sx={{ color:'#b8a3ff', fontWeight:700 }}>
+                      {viewModel.step1.authorName.charAt(0).toUpperCase()}
+                    </Typography>
+                  ) : (
+                    <PersonIcon sx={{ color:'#b8a3ff', fontSize:'2rem' }} />
+                  )}
                 </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ display:'block', mb:0.5, fontWeight:600, color:'#ffffffb3' }}>
-                    {isES ? 'Derechos y entrega' : 'Rights & delivery'}
+                
+                {/* Author info */}
+                <Box sx={{ flex:1 }}>
+                  <Typography variant="body1" sx={{ color:'#fff', fontWeight:700, fontSize:'1.1rem', mb:0.5 }}>
+                    {viewModel.step1.authorName || data?.owner?.slice(0,6) + '...' + data?.owner?.slice(-4) || (isES ? 'Autor anónimo' : 'Anonymous author')}
                   </Typography>
-                  <Stack direction="row" spacing={1} sx={{ flexWrap:'wrap', gap:1 }}>
-                    {viewModel.step4.rights.canUseAPI && (
-                      <Chip label="API usage" size="small" variant="outlined" sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff' }} />
-                    )}
-                    {viewModel.step4.rights.canDownload && (
-                      <Chip label="Model download" size="small" variant="outlined" sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff' }} />
-                    )}
-                    {viewModel.step4.rights.isTransferable && (
-                      <Chip label="Transferable" size="small" variant="outlined" sx={{ borderColor:'rgba(255,255,255,0.3)', color:'#fff' }} />
-                    )}
-                  </Stack>
+                  
+                  {/* Social links */}
+                  {viewModel.step1.authorLinks && Object.values(viewModel.step1.authorLinks as Record<string, any>).some(Boolean) ? (
+                    <Stack direction="row" spacing={1} sx={{ mt:1 }}>
+                      {Object.entries(viewModel.step1.authorLinks as Record<string, any>).filter(([,v])=>!!v).map(([k,v]: any, i: number)=> {
+                        const label = k==='github'? 'GitHub' : k==='website'? 'Website' : k==='twitter'? 'X' : k==='linkedin'? 'LinkedIn' : k
+                        const icon = k==='github'? <GitHubIcon fontSize="small" /> : k==='website'? <LanguageIcon fontSize="small" /> : k==='twitter'? <XIcon fontSize="small" /> : k==='linkedin'? <LinkedInIcon fontSize="small" /> : undefined
+                        return (
+                          <Tooltip key={`${k}-${i}`} title={label}>
+                            <IconButton 
+                              size="small" 
+                              aria-label={label} 
+                              onClick={()=>{ try { if (v) window.open(String(v), '_blank', 'noopener,noreferrer') } catch {} }}
+                              sx={{ 
+                                bgcolor:'rgba(255,255,255,0.08)',
+                                color:'#fff',
+                                '&:hover': { bgcolor:'rgba(124,92,255,0.3)', color:'#b8a3ff' },
+                                transition:'all 0.2s'
+                              }}
+                            >
+                              {icon}
+                            </IconButton>
+                          </Tooltip>
+                        )
+                      })}
+                    </Stack>
+                  ) : (
+                    <Typography variant="caption" sx={{ color:'#ffffff66' }}>
+                      {isES ? 'Sin redes sociales configuradas' : 'No social links configured'}
+                    </Typography>
+                  )}
                 </Box>
               </Stack>
             </Paper>

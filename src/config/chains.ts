@@ -52,6 +52,9 @@ export interface ChainConfig {
   rpc: string
   marketAddress: string
   explorerUrl: string
+  usdcAddress: string // USDC token address for license payments
+  agentRegistryAddress?: string // ERC-8004 Agent Registry
+  reputationRegistryAddress?: string // Reputation Registry for feedback
 }
 
 /**
@@ -71,6 +74,9 @@ export const CHAIN_CONFIG: Record<ChainId, ChainConfig> = {
     rpc: process.env.NEXT_PUBLIC_AVALANCHE_FUJI_RPC || avalancheFuji.rpcUrls.default.http[0],
     marketAddress: process.env.NEXT_PUBLIC_EVM_MARKET_43113 || '',
     explorerUrl: 'https://testnet.snowtrace.io',
+    usdcAddress: process.env.NEXT_PUBLIC_EVM_USDC_43113 || '0xCDa6E1C8340550aC412Ee9BC59ae4Db46745C53e', // MockUSDC on Fuji
+    agentRegistryAddress: process.env.NEXT_PUBLIC_EVM_AGENT_REGISTRY_43113 || '0x7686810c46946a223B7a9baF0F52A4e2c7392B9f',
+    reputationRegistryAddress: process.env.NEXT_PUBLIC_REPUTATION_REGISTRY_43113 || '0xf4D4c4b91BaE8863f508B772f0195b7D3Fbc6412',
   },
   [CHAIN_IDS.AVALANCHE_MAINNET]: {
     id: CHAIN_IDS.AVALANCHE_MAINNET,
@@ -85,6 +91,9 @@ export const CHAIN_CONFIG: Record<ChainId, ChainConfig> = {
     rpc: process.env.NEXT_PUBLIC_AVALANCHE_MAINNET_RPC || avalanche.rpcUrls.default.http[0],
     marketAddress: process.env.NEXT_PUBLIC_EVM_MARKET_43114 || '',
     explorerUrl: 'https://snowtrace.io',
+    usdcAddress: process.env.NEXT_PUBLIC_EVM_USDC_43114 || '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E', // USDC on Avalanche
+    agentRegistryAddress: process.env.NEXT_PUBLIC_EVM_AGENT_REGISTRY_43114,
+    reputationRegistryAddress: process.env.NEXT_PUBLIC_REPUTATION_REGISTRY_43114,
   },
 }
 
@@ -128,6 +137,27 @@ export function getNativeSymbol(chainId: number): string {
  */
 export function getMarketAddress(chainId: number): string | undefined {
   return getChainConfig(chainId)?.marketAddress
+}
+
+/**
+ * Helper: Get USDC address for chain
+ */
+export function getUsdcAddress(chainId: number): string | undefined {
+  return getChainConfig(chainId)?.usdcAddress
+}
+
+/**
+ * Helper: Get Agent Registry address for chain
+ */
+export function getAgentRegistryAddress(chainId: number): string | undefined {
+  return getChainConfig(chainId)?.agentRegistryAddress
+}
+
+/**
+ * Helper: Get Reputation Registry address for chain
+ */
+export function getReputationRegistryAddress(chainId: number): string | undefined {
+  return getChainConfig(chainId)?.reputationRegistryAddress
 }
 
 /**

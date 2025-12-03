@@ -27,10 +27,11 @@ export const revalidate = 0
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const modelId = parseInt(params.id, 10)
+    const { id } = await params
+    const modelId = parseInt(id, 10)
     if (isNaN(modelId)) {
       return NextResponse.json(
         { error: 'Invalid model ID' },

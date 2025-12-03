@@ -25,9 +25,9 @@ import WizardFooter from '@/components/WizardFooter'
 import { useLocale, useTranslations } from 'next-intl'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
 import { INDUSTRIES_ES, INDUSTRIES_EN, USE_CASES_ES, USE_CASES_EN, SUPPORTED_LANGS, DEPLOY_ES, DEPLOY_EN, TASKS as TASK_OPTIONS, MODALITIES as MODALITY_OPTIONS, FRAMEWORKS as FRAMEWORK_OPTIONS, FILE_FORMATS as FILE_FORMAT_OPTIONS, OS as OS_OPTIONS, ACCELERATORS as ACCELERATOR_OPTIONS, TECHNICAL_MODEL_TYPES, TaskValue, ModalityValue, DeployValue, FrameworkValue, FileFormatValue, OsValue, AcceleratorValue, TechnicalModelType } from '@/constants/step2'
-import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
+import { getDraftId } from '@/lib/draft-utils'
 import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
-import { saveStep as saveStepCentralized } from '@/lib/wizard-draft-service'
+import { saveStep as saveStepCentralized, loadDraft as loadDraftCentralized } from '@/lib/wizard-draft-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -384,9 +384,9 @@ export default function Step2CompatibilityLocalized() {
     } catch {}
     loadingFromDraftRef.current = true
     setDraftLoading(true)
-    loadDraftUtil(upgradeMode, upgradeModelId).then((r: any)=>{
+    loadDraftCentralized(upgradeMode, upgradeModelId).then((draftData: any)=>{
       if (!alive) return
-      const s2 = r?.data?.step2
+      const s2 = draftData?.step2
       if (!s2) return
       try {
         const cap = s2.capabilities || {}

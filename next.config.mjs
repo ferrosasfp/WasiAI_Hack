@@ -40,6 +40,11 @@ const nextConfig = {
     images: {
       remotePatterns: [
         {
+          protocol: 'http',
+          hostname: 'localhost',
+          pathname: '/api/ipfs/**',
+        },
+        {
           protocol: 'https',
           hostname: 'gateway.pinata.cloud',
           pathname: '/ipfs/**',
@@ -53,6 +58,11 @@ const nextConfig = {
           protocol: 'https',
           hostname: 'cloudflare-ipfs.com',
           pathname: '/ipfs/**',
+        },
+        {
+          protocol: 'https',
+          hostname: 'images.unsplash.com',
+          pathname: '/**',
         },
       ],
       formats: ['image/avif', 'image/webp'],

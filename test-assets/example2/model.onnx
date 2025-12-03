@@ -1,0 +1,7 @@
+MOCK_ONNX_MODEL_EXAMPLE_2
+This is a mock ONNX file representing a sentiment analysis model for testing purposes.
+Model: Product Review Sentiment Analyzer
+Version: 2.1.0
+Framework: PyTorch -> ONNX
+Architecture: DistilBERT
+Size: ~250MB (simulated)

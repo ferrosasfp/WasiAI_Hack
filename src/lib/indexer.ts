@@ -6,8 +6,37 @@
 
 import { createPublicClient, http } from 'viem'
 import { query, queryOne } from './db'
-import MARKET_ARTIFACT from '@/abis/Marketplace.json'
+import MARKET_ARTIFACT from '@/abis/MarketplaceV2.json'
+import AGENT_REGISTRY_ARTIFACT from '@/abis/AgentRegistryV2.json'
 import { CHAIN_CONFIG, getChainConfig, getMarketAddress, isSupportedChain, ipfsToHttp, createTimeoutSignal, INDEXER_CONFIG, ZERO_ADDRESSES, IPFS_GATEWAYS } from '@/config'
+
+/**
+ * Helper to extract array from nested object paths
+ * Tries each path in order and returns the first valid array found
+ */
+function extractArray(obj: any, paths: string[]): string[] {
+  for (const path of paths) {
+    const value = getNestedValue(obj, path)
+    if (Array.isArray(value) && value.length > 0) {
+      return value.filter(v => typeof v === 'string')
+    }
+  }
+  return []
+}
+
+/**
+ * Get nested value from object using dot notation path
+ */
+function getNestedValue(obj: any, path: string): any {
+  if (!obj || typeof obj !== 'object') return undefined
+  const parts = path.split('.')
+  let current = obj
+  for (const part of parts) {
+    if (current === null || current === undefined) return undefined
+    current = current[part]
+  }
+  return current
+}
 
 interface IndexerOptions {
   chainId: number
@@ -18,6 +47,7 @@ interface IndexerOptions {
 interface IndexerResult {
   chainId: number
   modelsIndexed: number
+  agentsIndexed: number
   licensesIndexed: number
   blocksScanned: number
   lastBlock: bigint
@@ -91,8 +121,12 @@ export async function indexChain(options: IndexerOptions): Promise<IndexerResult
   console.log(`📊 Chain state: lastModelId=${lastModelId}, lastLicenseId=${lastLicenseId}, latestBlock=${latestBlock}`)
 
   let modelsIndexed = 0
+  let agentsIndexed = 0
   let licensesIndexed = 0
   let blocksScanned = 0
+
+  // Get AgentRegistry address from chain config
+  const agentRegistryAddress = chainConfig.agentRegistryAddress
 
   // Index new models
   const newModelIds = []
@@ -103,6 +137,12 @@ export async function indexChain(options: IndexerOptions): Promise<IndexerResult
   if (newModelIds.length > 0) {
     console.log(`📦 Indexing ${newModelIds.length} new models...`)
     modelsIndexed = await indexModels(client, marketAddress, chainId, newModelIds)
+  }
+
+  // Index agents from AgentRegistry
+  if (agentRegistryAddress) {
+    console.log(`🤖 Indexing agents from AgentRegistry...`)
+    agentsIndexed = await indexAgents(client, agentRegistryAddress, chainId, state.last_agent_id || 0)
   }
 
   // Index licenses via events
@@ -122,6 +162,23 @@ export async function indexChain(options: IndexerOptions): Promise<IndexerResult
     blocksScanned = maxBlocks
   }
 
+  // Get last agent ID for state update
+  let lastAgentId = state.last_agent_id || 0
+  if (agentRegistryAddress && agentsIndexed > 0) {
+    try {
+      const agentAbi: any = AGENT_REGISTRY_ARTIFACT.abi
+      const nextAgentId = await client.readContract({
+        address: agentRegistryAddress as `0x${string}`,
+        abi: agentAbi,
+        functionName: 'nextAgentId',
+        args: [],
+      }) as bigint
+      lastAgentId = Number(nextAgentId) - 1
+    } catch (e) {
+      console.warn('Failed to get nextAgentId:', e)
+    }
+  }
+
   // Update state
   await query(
     `UPDATE indexer_state 
@@ -129,19 +186,21 @@ export async function indexChain(options: IndexerOptions): Promise<IndexerResult
          last_block_licenses = $2, 
          last_model_id = $3, 
          last_license_id = $4,
+         last_agent_id = $5,
          last_sync_at = NOW(),
          status = 'idle'
-     WHERE chain_id = $5`,
-    [latestBlock.toString(), toBlock.toString(), Number(lastModelId), Number(lastLicenseId), chainId]
+     WHERE chain_id = $6`,
+    [latestBlock.toString(), toBlock.toString(), Number(lastModelId), Number(lastLicenseId), lastAgentId, chainId]
   )
 
   const duration = Date.now() - startTime
 
-  console.log(`✅ Indexer completed: ${modelsIndexed} models, ${licensesIndexed} licenses in ${duration}ms`)
+  console.log(`✅ Indexer completed: ${modelsIndexed} models, ${agentsIndexed} agents, ${licensesIndexed} licenses in ${duration}ms`)
 
   return {
     chainId,
     modelsIndexed,
+    agentsIndexed,
     licensesIndexed,
     blocksScanned,
     lastBlock: latestBlock,
@@ -175,24 +234,31 @@ async function indexModels(
         continue
       }
 
+      // MarketplaceV2 Model struct:
+      // [0] owner, [1] creator, [2] name, [3] uri, [4] royaltyBps, [5] listed,
+      // [6] pricePerpetual, [7] priceSubscription, [8] defaultDurationDays,
+      // [9] deliveryRightsDefault, [10] deliveryModeHint, [11] version,
+      // [12] termsHash, [13] priceInference, [14] inferenceWallet
+      
       // Log model data for debugging
       console.log(`  ├─ Model ${modelId} data:`, {
         name: modelData[2],
         pricePerpetual: modelData[6]?.toString(),
         priceSubscription: modelData[7]?.toString(),
-        defaultDurationDays: Number(modelData[8]),
+        priceInference: modelData[13]?.toString(),
+        inferenceWallet: modelData[14],
         deliveryRightsDefault: Number(modelData[9]),
         deliveryModeHint: Number(modelData[10]),
       })
 
-      // Insert or update model
+      // Insert or update model with inference fields
       await query(
         `INSERT INTO models (
           model_id, chain_id, owner, creator, name, uri,
           price_perpetual, price_subscription, default_duration_days,
           listed, version, royalty_bps, delivery_rights_default,
-          delivery_mode_hint, terms_hash
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          delivery_mode_hint, terms_hash, price_inference, inference_wallet
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         ON CONFLICT (model_id) DO UPDATE SET
           owner = EXCLUDED.owner,
           listed = EXCLUDED.listed,
@@ -201,6 +267,8 @@ async function indexModels(
           default_duration_days = EXCLUDED.default_duration_days,
           delivery_rights_default = EXCLUDED.delivery_rights_default,
           delivery_mode_hint = EXCLUDED.delivery_mode_hint,
+          price_inference = EXCLUDED.price_inference,
+          inference_wallet = EXCLUDED.inference_wallet,
           updated_at = NOW()`,
         [
           modelId,
@@ -218,6 +286,8 @@ async function indexModels(
           Number(modelData[9]) || 0, // delivery_rights_default
           Number(modelData[10]) || 0, // delivery_mode_hint
           modelData[12] || null, // terms_hash
+          modelData[13]?.toString() || '0', // price_inference (USDC base units)
+          modelData[14] || null, // inference_wallet
         ]
       )
 
@@ -238,7 +308,52 @@ async function indexModels(
     }
   }
 
+  // After indexing models, propagate agent_id to models in the same family
+  // This ensures upgraded models inherit the agent from the original model
+  await propagateAgentIdToFamily()
+
   return indexed
+}
+
+/**
+ * Propagate agent_id to all models in the same family (same owner + slug)
+ * This preserves reputation across model upgrades
+ */
+async function propagateAgentIdToFamily(): Promise<void> {
+  try {
+    // Find families where some models have different agent_id
+    // Update all models in family to use the agent_id from the original (lowest version)
+    // Use LOWER(owner) for case-insensitive matching of Ethereum addresses
+    const result = await query(`
+      WITH family_agents AS (
+        -- Get the agent_id for each family (owner + slug combination)
+        -- Use the agent_id from the model with lowest version (original)
+        SELECT DISTINCT ON (LOWER(owner), slug)
+          LOWER(owner) as owner_lower,
+          slug,
+          agent_id
+        FROM models
+        WHERE agent_id IS NOT NULL AND slug IS NOT NULL
+        ORDER BY LOWER(owner), slug, version ASC
+      )
+      UPDATE models m
+      SET agent_id = fa.agent_id
+      FROM family_agents fa
+      WHERE LOWER(m.owner) = fa.owner_lower
+        AND m.slug = fa.slug
+        AND (m.agent_id IS NULL OR m.agent_id != fa.agent_id)
+      RETURNING m.model_id, m.slug, fa.agent_id
+    `)
+    
+    if (result && result.length > 0) {
+      console.log(`📎 Propagated agent_id to ${result.length} models in families:`)
+      result.forEach((r: any) => {
+        console.log(`  └─ Model ${r.model_id} (${r.slug}) → agent_id=${r.agent_id}`)
+      })
+    }
+  } catch (error) {
+    console.error('Failed to propagate agent_id to families:', error)
+  }
 }
 
 /**
@@ -356,51 +471,83 @@ export async function cacheModelMetadata(modelId: number): Promise<void> {
 
     const metadata = await response.json()
 
-    // Extract searchable fields from multiple possible locations
-    const categories = Array.isArray(metadata?.categories) ? metadata.categories : 
-                      Array.isArray(metadata?.technical?.categories) ? metadata.technical.categories : 
-                      Array.isArray(metadata?.businessProfile?.categories) ? metadata.businessProfile.categories : []
+    // Extract searchable fields from multiple possible locations in metadata
+    // Support both flat and nested structures for maximum compatibility
+    const categories = extractArray(metadata, [
+      'categories',
+      'technicalCategories', 
+      'technical.categories',
+      'businessProfile.categories'
+    ])
     
-    const tags = Array.isArray(metadata?.tags) ? metadata.tags : 
-                Array.isArray(metadata?.technical?.tags) ? metadata.technical.tags :
-                Array.isArray(metadata?.capabilities?.tags) ? metadata.capabilities.tags : []
+    const tags = extractArray(metadata, [
+      'tags',
+      'technical.tags',
+      'capabilities.tags'
+    ])
     
-    const industries = Array.isArray(metadata?.industries) ? metadata.industries :
-                      Array.isArray(metadata?.business?.industries) ? metadata.business.industries :
-                      Array.isArray(metadata?.businessProfile?.industries) ? metadata.businessProfile.industries : []
+    const industries = extractArray(metadata, [
+      'industries',
+      'customer.industries',
+      'business.industries',
+      'businessProfile.industries'
+    ])
     
-    const useCases = Array.isArray(metadata?.useCases) ? metadata.useCases :
-                    Array.isArray(metadata?.business?.useCases) ? metadata.business.useCases :
-                    Array.isArray(metadata?.use_cases) ? metadata.use_cases : []
+    const useCases = extractArray(metadata, [
+      'useCases',
+      'use_cases',
+      'customer.useCases',
+      'business.useCases'
+    ])
     
-    const frameworks = Array.isArray(metadata?.frameworks) ? metadata.frameworks :
-                      Array.isArray(metadata?.technical?.architecture?.frameworks) ? metadata.technical.architecture.frameworks :
-                      Array.isArray(metadata?.architecture?.frameworks) ? metadata.architecture.frameworks : []
+    const frameworks = extractArray(metadata, [
+      'frameworks',
+      'technical.frameworks',
+      'technical.architecture.frameworks',
+      'architecture.frameworks'
+    ])
     
-    const architectures = Array.isArray(metadata?.architectures) ? metadata.architectures :
-                         Array.isArray(metadata?.technical?.architecture?.architectures) ? metadata.technical.architecture.architectures :
-                         Array.isArray(metadata?.architecture?.architectures) ? metadata.architecture.architectures : []
+    const architectures = extractArray(metadata, [
+      'architectures',
+      'technical.architectures',
+      'technical.architecture.architectures',
+      'architecture.architectures'
+    ])
 
-    // Extract image URL using centralized IPFS helper
-    let imageUrl = null
-    const imgCid = metadata?.image || metadata?.image_url || metadata?.thumbnail || metadata?.cover?.cid
-    if (imgCid && typeof imgCid === 'string') {
-      imageUrl = ipfsToHttp(imgCid)
+    // Extract image CID from IPFS metadata (source of truth)
+    // Only accept IPFS CIDs - no external URLs (maintains Dapp integrity)
+    let imageCid: string | null = null
+    let imageUrl: string | null = null
+    
+    // Priority: cover.cid > image > thumbnail (all must be IPFS CIDs)
+    const rawImageRef = metadata?.cover?.cid || metadata?.image || metadata?.image_url || metadata?.thumbnail
+    
+    if (rawImageRef && typeof rawImageRef === 'string') {
+      // Extract CID from various formats: ipfs://Qm..., /ipfs/Qm..., Qm...
+      const cidMatch = rawImageRef.match(/(?:ipfs:\/\/|\/ipfs\/)?([Qm][a-zA-Z0-9]{44,}|bafy[a-zA-Z0-9]{50,})/)
+      if (cidMatch) {
+        imageCid = cidMatch[1]
+        imageUrl = ipfsToHttp(`ipfs://${imageCid}`)
+      }
     }
 
-    // Update model name if available
-    if (metadata?.name) {
-      await query('UPDATE models SET name = $1 WHERE model_id = $2', [metadata.name, modelId])
+    // Update model name and slug if available
+    if (metadata?.name || metadata?.slug) {
+      await query(
+        'UPDATE models SET name = COALESCE($1, name), slug = COALESCE($2, slug) WHERE model_id = $3',
+        [metadata.name || null, metadata.slug || null, modelId]
+      )
     }
 
-    // Cache metadata
+    // Cache metadata with IPFS CID as source of truth
     await query(
       `INSERT INTO model_metadata (
-        model_id, metadata, image_url, categories, tags,
+        model_id, metadata, image_cid, image_url, categories, tags,
         industries, use_cases, frameworks, architectures
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       ON CONFLICT (model_id) DO UPDATE SET
         metadata = EXCLUDED.metadata,
+        image_cid = EXCLUDED.image_cid,
         image_url = EXCLUDED.image_url,
         categories = EXCLUDED.categories,
         tags = EXCLUDED.tags,
@@ -412,7 +559,8 @@ export async function cacheModelMetadata(modelId: number): Promise<void> {
       [
         modelId,
         JSON.stringify(metadata),
-        imageUrl,
+        imageCid,  // IPFS CID (source of truth)
+        imageUrl,  // Derived HTTP gateway URL
         categories,
         tags,
         industries,
@@ -429,10 +577,201 @@ export async function cacheModelMetadata(modelId: number): Promise<void> {
       useCases: useCases.length,
       frameworks: frameworks.length,
       architectures: architectures.length,
-      hasImage: !!imageUrl
+      imageCid: imageCid || '(none)'
     })
   } catch (error: any) {
     console.error(`❌ Failed to cache metadata for model ${modelId}:`, error.message)
+    throw error
+  }
+}
+
+/**
+ * Index agents from AgentRegistryV2
+ */
+async function indexAgents(
+  client: any,
+  agentRegistryAddress: string,
+  chainId: number,
+  lastAgentId: number
+): Promise<number> {
+  const abi: any = AGENT_REGISTRY_ARTIFACT.abi
+  let indexed = 0
+
+  try {
+    // Get next agent ID from contract
+    const nextAgentId = await client.readContract({
+      address: agentRegistryAddress as `0x${string}`,
+      abi,
+      functionName: 'nextAgentId',
+      args: [],
+    }) as bigint
+
+    const lastId = Number(nextAgentId) - 1
+    
+    if (lastId <= lastAgentId) {
+      console.log(`  └─ No new agents to index (last: ${lastAgentId}, current: ${lastId})`)
+      return 0
+    }
+
+    console.log(`  ├─ Indexing agents ${lastAgentId + 1} to ${lastId}...`)
+
+    for (let agentId = lastAgentId + 1; agentId <= lastId; agentId++) {
+      try {
+        // Get agent data from contract
+        // AgentRegistryV2.Agent struct: modelId, wallet, endpoint, registeredAt, active
+        const agentData: any = await client.readContract({
+          address: agentRegistryAddress as `0x${string}`,
+          abi,
+          functionName: 'agents',
+          args: [BigInt(agentId)],
+        })
+
+        // Get owner of the agent NFT
+        let owner = ''
+        try {
+          owner = await client.readContract({
+            address: agentRegistryAddress as `0x${string}`,
+            abi,
+            functionName: 'ownerOf',
+            args: [BigInt(agentId)],
+          }) as string
+        } catch (e) {
+          // Agent might not exist or be burned
+          console.warn(`  │  └─ Could not get owner for agent ${agentId}`)
+          continue
+        }
+
+        // Get token URI (metadata)
+        let metadataUri = ''
+        try {
+          metadataUri = await client.readContract({
+            address: agentRegistryAddress as `0x${string}`,
+            abi,
+            functionName: 'tokenURI',
+            args: [BigInt(agentId)],
+          }) as string
+        } catch (e) {
+          console.warn(`  │  └─ Could not get tokenURI for agent ${agentId}`)
+        }
+
+        const modelId = Number(agentData[0])
+        const wallet = agentData[1] as string
+        const endpoint = agentData[2] as string
+        const registeredAt = Number(agentData[3])
+        const active = Boolean(agentData[4])
+
+        console.log(`  │  ├─ Agent ${agentId}: modelId=${modelId}, wallet=${wallet?.slice(0,10)}..., active=${active}`)
+
+        // Insert or update agent
+        await query(
+          `INSERT INTO agents (
+            agent_id, chain_id, model_id, owner, wallet, endpoint,
+            metadata_uri, registered_at, active
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ON CONFLICT (agent_id) DO UPDATE SET
+            owner = EXCLUDED.owner,
+            wallet = EXCLUDED.wallet,
+            endpoint = EXCLUDED.endpoint,
+            metadata_uri = EXCLUDED.metadata_uri,
+            active = EXCLUDED.active,
+            updated_at = NOW()`,
+          [
+            agentId,
+            chainId,
+            modelId,
+            owner,
+            wallet,
+            endpoint || null,
+            metadataUri || null,
+            registeredAt,
+            active,
+          ]
+        )
+
+        // Update model with agent_id reference and inference endpoint
+        await query(
+          `UPDATE models SET 
+            agent_id = $1, 
+            inference_endpoint = COALESCE($3, inference_endpoint)
+          WHERE model_id = $2`,
+          [agentId, modelId, endpoint || null]
+        )
+
+        // Cache agent metadata from IPFS if available
+        if (metadataUri) {
+          try {
+            await cacheAgentMetadata(agentId, metadataUri)
+            console.log(`  │  │  └─ Cached agent metadata`)
+          } catch (metaErr) {
+            console.warn(`  │  │  └─ Failed to cache agent metadata`)
+          }
+        }
+
+        indexed++
+      } catch (error) {
+        console.error(`Failed to index agent ${agentId}:`, error)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to index agents:', error)
+  }
+
+  return indexed
+}
+
+/**
+ * Fetch and cache IPFS metadata for an agent
+ */
+async function cacheAgentMetadata(agentId: number, metadataUri: string): Promise<void> {
+  try {
+    // Convert IPFS URI to HTTP
+    const httpUrl = ipfsToHttp(metadataUri)
+
+    // Fetch metadata
+    const response = await fetch(httpUrl, { 
+      signal: createTimeoutSignal(),
+      headers: { 'Accept': 'application/json' }
+    })
+
+    if (!response.ok) return
+
+    const metadata = await response.json()
+
+    // Extract fields from ERC-8004 metadata
+    const name = metadata?.name || null
+    const description = metadata?.description || null
+    const capabilities = Array.isArray(metadata?.capabilities) ? metadata.capabilities : []
+    
+    // Extract image URL
+    let imageUrl = null
+    const imgCid = metadata?.image || metadata?.avatar || metadata?.icon
+    if (imgCid && typeof imgCid === 'string') {
+      imageUrl = ipfsToHttp(imgCid)
+    }
+
+    // Cache metadata
+    await query(
+      `INSERT INTO agent_metadata (
+        agent_id, metadata, name, description, image_url, capabilities
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (agent_id) DO UPDATE SET
+        metadata = EXCLUDED.metadata,
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        image_url = EXCLUDED.image_url,
+        capabilities = EXCLUDED.capabilities,
+        cached_at = NOW()`,
+      [
+        agentId,
+        JSON.stringify(metadata),
+        name,
+        description,
+        imageUrl,
+        capabilities,
+      ]
+    )
+  } catch (error: any) {
+    console.error(`❌ Failed to cache agent metadata for agent ${agentId}:`, error.message)
     throw error
   }
 }

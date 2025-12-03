@@ -18,9 +18,9 @@ import { useLocale, useTranslations } from 'next-intl'
 import WizardFooter from '@/components/WizardFooter'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
 import { ipfsToHttp } from '@/config'
-import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
+import { getDraftId } from '@/lib/draft-utils'
 import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
-import { saveStep as saveStepCentralized } from '@/lib/wizard-draft-service'
+import { saveStep as saveStepCentralized, loadDraft as loadDraftCentralized } from '@/lib/wizard-draft-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,11 +93,11 @@ export default function Step3ArtifactsDemoLocalized() {
   }
   const isResetting = () => { try { return localStorage.getItem('wizard_resetting')==='1' || sessionStorage.getItem('wizard_resetting')==='1' } catch { return false } }
   const [saving, setSaving] = useState(false)
-  const [validating, setValidating] = useState(false)
   const [artifacts, setArtifacts] = useState<Artifact[]>([{ cid: '', filename: '', role: 'other' }])
   const [downloadNotes, setDownloadNotes] = useState('')
-  const [presetInput, setPresetInput] = useState('{}')
-  const [preview, setPreview] = useState<any>(null)
+  // x402 Inference Configuration
+  const [inferenceEndpoint, setInferenceEndpoint] = useState('')
+  const [inferencePaymentWallet, setInferencePaymentWallet] = useState('')
   const [msg, setMsg] = useState('')
   const [validationError, setValidationError] = useState('')
   const [shouldFade, setShouldFade] = useState(true)
@@ -224,12 +224,21 @@ export default function Step3ArtifactsDemoLocalized() {
           setDownloadNotes(meta.demo?.downloadNotes || meta.downloadNotes || '')
         }
         
-        // Load demo preset if exists
-        if (meta?.demoPreset) {
-          try {
-            setPresetInput(JSON.stringify(meta.demoPreset, null, 2))
-          } catch {}
-        }
+        // Load inference config from model data or metadata
+        // Priority: modelData fields > metadata.demo > metadata.inferenceConfig
+        const inferenceEp = modelData?.inference_endpoint || 
+                           meta?.demo?.endpoint || 
+                           meta?.inferenceConfig?.endpoint || 
+                           meta?.inference?.endpoint || ''
+        const inferenceWallet = modelData?.inference_wallet || 
+                               meta?.demo?.paymentWallet || 
+                               meta?.inferenceConfig?.paymentWallet || 
+                               meta?.inference?.wallet || ''
+        
+        if (inferenceEp) setInferenceEndpoint(inferenceEp)
+        if (inferenceWallet) setInferencePaymentWallet(inferenceWallet)
+        
+        console.log('[Step3 Upgrade] Loaded inference config:', { inferenceEp, inferenceWallet })
         
       } catch (err) {
         console.error('[Step3] Failed to load existing model:', err)
@@ -266,7 +275,6 @@ export default function Step3ArtifactsDemoLocalized() {
           setArtifacts(normalized)
         }
         if (typeof c.downloadNotes === 'string') setDownloadNotes(c.downloadNotes)
-        if (c.demoPreset) { try { setPresetInput(JSON.stringify(c.demoPreset, null, 2)) } catch {} }
         lastSavedRef.current = c
         setShouldFade(false)
       }
@@ -274,9 +282,9 @@ export default function Step3ArtifactsDemoLocalized() {
     loadingFromDraftRef.current = true
     setLoadingDraft(true)
     if (isResetting()) { loadingFromDraftRef.current = false; setLoadingDraft(false); setLoadedRemote(true); return () => { alive = false } }
-    loadDraftUtil(upgradeMode, upgradeModelId).then((r)=>{
+    loadDraftCentralized(upgradeMode, upgradeModelId).then((draftData)=>{
       if (!alive) return
-      const s3 = r?.data?.step3
+      const s3 = draftData?.step3
       if (!s3) return
       try {
         if (Array.isArray(s3.artifacts)) {
@@ -290,7 +298,11 @@ export default function Step3ArtifactsDemoLocalized() {
           setArtifacts(normalized)
         }
         if (typeof s3.downloadNotes === 'string') setDownloadNotes(s3.downloadNotes)
-        if (s3.demoPreset) { try { setPresetInput(JSON.stringify(s3.demoPreset, null, 2)) } catch { /* ignore */ } }
+        // Load inference config
+        if (s3.inferenceConfig) {
+          setInferenceEndpoint(s3.inferenceConfig.endpoint || '')
+          setInferencePaymentWallet(s3.inferenceConfig.paymentWallet || '')
+        }
         lastSavedRef.current = s3
       } catch {}
     }).catch(()=>{}).finally(()=>{ loadingFromDraftRef.current = false; setLoadingDraft(false); setLoadedRemote(true) })
@@ -306,7 +318,7 @@ export default function Step3ArtifactsDemoLocalized() {
       if (!navigatingRef.current && !saving && !loadingFromDraftRef.current) onSave('autosave')
     }, 700)
     return () => { if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current) }
-  }, [artifacts, downloadNotes, presetInput])
+  }, [artifacts, downloadNotes, inferenceEndpoint, inferencePaymentWallet])
 
   const copy = async (txt: string) => { try { await navigator.clipboard.writeText(txt) } catch {} }
 
@@ -602,7 +614,11 @@ export default function Step3ArtifactsDemoLocalized() {
         artifacts: cleanArtifacts,
         delivery: { kind: 'hosted' },
         downloadNotes,
-        demoPreset: (()=>{ try { return JSON.parse(presetInput||'{}') } catch { return {} } })()
+        // x402 Inference Configuration
+        inferenceConfig: {
+          endpoint: inferenceEndpoint,
+          paymentWallet: inferencePaymentWallet || walletAddress
+        }
       }
     }
     if (reason==='autosave') {
@@ -621,23 +637,6 @@ export default function Step3ArtifactsDemoLocalized() {
       setMsg(t('wizard.common.errorSaving'))
     } finally {
       setSaving(false)
-    }
-  }
-
-  const onValidate = async () => {
-    setValidating(true)
-    setMsg('')
-    try {
-      const input = (()=>{ try { return JSON.parse(presetInput||'{}') } catch { return {} } })()
-      const payload = { artifacts: artifacts.map(a=>({ cid: a.cid, filename: a.filename, sha256: a.sha256 })), input }
-      const res = await fetch('/api/demo/run', { method: 'POST', headers: { 'content-type':'application/json' }, body: JSON.stringify(payload) })
-      const r = await res.json()
-      setPreview(r)
-      setMsg(r?.ok ? t('wizard.step3.demo.ok') : (r?.error || t('wizard.step3.demo.error')))
-    } catch {
-      setMsg(t('wizard.step3.demo.errorValidate'))
-    } finally {
-      setValidating(false)
     }
   }
 
@@ -694,6 +693,63 @@ export default function Step3ArtifactsDemoLocalized() {
         </Alert>
       )}
 
+      {/* x402 Inference Configuration - FIRST */}
+      <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mt:2, borderRadius:2, border: '1px solid rgba(79, 225, 255, 0.3)', bgcolor: 'rgba(79, 225, 255, 0.02)' }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight:600, color: '#4fe1ff' }}>
+            ⚡ {isES ? 'Configuración x402 (Pay-per-Use)' : 'x402 Configuration (Pay-per-Use)'}
+          </Typography>
+          <Tooltip title={isES 
+            ? 'Configura tu endpoint de inferencia para que los clientes puedan usar tu modelo y pagar por uso via protocolo x402' 
+            : 'Configure your inference endpoint so clients can use your model and pay per use via x402 protocol'}>
+            <InfoOutlinedIcon fontSize="small" sx={{ color: '#4fe1ff' }} />
+          </Tooltip>
+        </Stack>
+        <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1 }}>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            {isES 
+              ? 'Si configuras un endpoint, los clientes podrán usar tu modelo pagando por inferencia en USDC. WasiAI verificará el pago y proxeará la request a tu endpoint.' 
+              : 'If you configure an endpoint, clients can use your model by paying per inference in USDC. WasiAI will verify payment and proxy the request to your endpoint.'}
+          </Alert>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField
+                label={isES ? 'Endpoint de inferencia' : 'Inference Endpoint'}
+                fullWidth
+                value={inferenceEndpoint}
+                onChange={(e)=>setInferenceEndpoint(e.target.value)}
+                placeholder="https://api.yourservice.com/predict"
+                helperText={isES 
+                  ? 'URL de tu API de inferencia. Debe aceptar POST con JSON body.' 
+                  : 'URL of your inference API. Must accept POST with JSON body.'}
+                sx={{ '& .MuiOutlinedInput-root': { borderColor: 'rgba(79, 225, 255, 0.3)' } }}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                label={isES ? 'Wallet de pagos x402' : 'x402 Payment Wallet'}
+                fullWidth
+                value={inferencePaymentWallet}
+                onChange={(e)=>setInferencePaymentWallet(e.target.value)}
+                placeholder={walletAddress || '0x...'}
+                helperText={isES 
+                  ? 'Wallet que recibirá los pagos USDC. Por defecto usa tu wallet conectada.' 
+                  : 'Wallet to receive USDC payments. Defaults to your connected wallet.'}
+                sx={{ '& .MuiOutlinedInput-root': { borderColor: 'rgba(79, 225, 255, 0.3)' } }}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Alert severity="warning" sx={{ height: '100%', display: 'flex', alignItems: 'center' }}>
+                {isES 
+                  ? 'El precio por inferencia se configura en el siguiente paso (Step 4).' 
+                  : 'The price per inference is configured in the next step (Step 4).'}
+              </Alert>
+            </Grid>
+          </Grid>
+        </Box>
+      </Paper>
+
+      {/* Artifacts - SECOND */}
       <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mt:2, borderRadius:2 }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
           <Typography variant="h6" sx={{ fontWeight:600 }}>{t('wizard.step3.sections.artifacts.title')}</Typography>
@@ -885,31 +941,6 @@ export default function Step3ArtifactsDemoLocalized() {
           sx={{ mt:2 }}
           placeholder={t('wizard.step3.placeholders.downloadNotes')}
         />
-        </Box>
-      </Paper>
-
-      <Paper variant="outlined" sx={{ p:{ xs:2, md:3 }, mt:2, borderRadius:2 }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight:600 }}>{t('wizard.step3.sections.demo.title')}</Typography>
-          <Tooltip title={t('wizard.step3.sections.demo.help')}><InfoOutlinedIcon fontSize="small" color="action" /></Tooltip>
-        </Stack>
-        <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: shouldFade ? (loadedRemote ? 1 : 0) : 1, minHeight: 140 }}>
-          <Grid container spacing={2} sx={{ mt:1 }}>
-            <Grid item xs={12}>
-              <TextField label={t('wizard.step3.fields.presetJson')} fullWidth multiline rows={5} value={presetInput} onChange={e=>setPresetInput(e.target.value)} />
-            </Grid>
-          </Grid>
-          <Stack direction="row" spacing={1} sx={{ mt:1 }}>
-            <Button onClick={onValidate} disabled={validating} variant="outlined" sx={{ transition:'opacity 120ms ease', opacity: validating ? 0.85 : 1 }}>
-              {validating? t('wizard.step3.actions.validating') : t('wizard.step3.actions.tryDemo')}
-            </Button>
-          </Stack>
-          {preview && (
-            <Box sx={{ mt:1 }}>
-              <Typography variant="subtitle2">{t('wizard.step3.demo.response')}</Typography>
-              <pre style={{whiteSpace:'pre-wrap', background:'#111', color:'#eee', padding:12}}>{JSON.stringify(preview,null,2)}</pre>
-            </Box>
-          )}
         </Box>
       </Paper>
 

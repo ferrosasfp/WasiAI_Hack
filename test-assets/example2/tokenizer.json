@@ -1,0 +1,14 @@
+{
+  "model_type": "distilbert",
+  "vocab_size": 30522,
+  "max_length": 512,
+  "padding": "max_length",
+  "truncation": true,
+  "special_tokens": {
+    "cls_token": "[CLS]",
+    "sep_token": "[SEP]",
+    "pad_token": "[PAD]",
+    "unk_token": "[UNK]",
+    "mask_token": "[MASK]"
+  }
+}

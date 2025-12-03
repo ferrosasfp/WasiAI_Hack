@@ -11,10 +11,11 @@ import { query, queryOne } from './db'
 import { createPublicClient, http, parseAbiItem } from 'viem'
 import { avalancheFuji } from 'viem/chains'
 import ReputationRegistryABI from '@/abis/ReputationRegistry.json'
+import { getReputationRegistryAddress, DEFAULT_CHAIN_ID } from '@/config/chains'
 
 // Configuration
-const REPUTATION_REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_REPUTATION_REGISTRY_ADDRESS as `0x${string}` | undefined
-const CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID || '43113', 10)
+const CHAIN_ID = DEFAULT_CHAIN_ID
+const REPUTATION_REGISTRY_ADDRESS = getReputationRegistryAddress(CHAIN_ID) as `0x${string}` | undefined
 const CACHE_TTL_SECONDS = 300 // 5 minutes
 
 // Types

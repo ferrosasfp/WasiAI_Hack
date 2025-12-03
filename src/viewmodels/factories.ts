@@ -24,11 +24,12 @@ import {
 // ============================================================================
 
 /**
- * Get chain symbol from chain name (Avalanche only)
+ * Get payment token symbol (USDC for all chains)
+ * Prices are now in USDC stablecoin, not native tokens
  */
-function getChainSymbol(chain: string): 'AVAX' {
-  // Avalanche only for hackathon
-  return 'AVAX'
+function getChainSymbol(chain: string): 'AVAX' | 'USDC' {
+  // All prices are in USDC stablecoin
+  return 'USDC'
 }
 
 /**
@@ -266,19 +267,21 @@ export function createStep4ViewModel(data: any): Step4ViewModel {
   const subscriptionPrice = data.price_subscription ?? data.subscriptionPrice ?? data.pricing?.subscription?.pricePerMonth
   const baseDuration = data.baseDurationMonths ?? data.pricing?.subscription?.baseDurationMonths ?? 1
   
-  // Convert from wei if needed (if values are very large, assume wei)
+  // Convert from USDC base units (6 decimals) to display value
+  // Prices are stored in USDC with 6 decimals (e.g., 50000000 = 50 USDC)
   const perpetualValue = (() => {
     if (!perpetualPrice) return undefined
     const numValue = typeof perpetualPrice === 'string' ? Number(BigInt(perpetualPrice)) : perpetualPrice
-    // If > 1000, assume it's in wei and convert to tokens
-    return numValue > 1000 ? (numValue / 1e18).toFixed(4) : String(perpetualPrice)
+    // USDC has 6 decimals - convert to display value
+    // Values >= 1000 are in base units, smaller values are already in display format
+    return numValue >= 1000 ? (numValue / 1e6).toFixed(2) : String(perpetualPrice)
   })()
   
   const subscriptionValue = (() => {
     if (!subscriptionPrice) return undefined
     const numValue = typeof subscriptionPrice === 'string' ? Number(BigInt(subscriptionPrice)) : subscriptionPrice
-    // If > 1000, assume it's in wei and convert to tokens
-    return numValue > 1000 ? (numValue / 1e18).toFixed(4) : String(subscriptionPrice)
+    // USDC has 6 decimals - convert to display value
+    return numValue >= 1000 ? (numValue / 1e6).toFixed(2) : String(subscriptionPrice)
   })()
   
   const pricing: LicensePricing = {

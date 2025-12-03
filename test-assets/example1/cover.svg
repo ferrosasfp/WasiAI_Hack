@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="accent1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#e94560"/>
+      <stop offset="100%" style="stop-color:#ff6b6b"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="450" fill="url(#bg1)"/>
+  
+  <!-- Grid pattern -->
+  <g opacity="0.1" stroke="#fff" stroke-width="1">
+    <line x1="0" y1="100" x2="800" y2="100"/>
+    <line x1="0" y1="200" x2="800" y2="200"/>
+    <line x1="0" y1="300" x2="800" y2="300"/>
+    <line x1="200" y1="0" x2="200" y2="450"/>
+    <line x1="400" y1="0" x2="400" y2="450"/>
+    <line x1="600" y1="0" x2="600" y2="450"/>
+  </g>
+  
+  <!-- Chart visualization -->
+  <g transform="translate(100, 150)">
+    <!-- Bars representing churn data -->
+    <rect x="0" y="100" width="60" height="100" fill="url(#accent1)" rx="5"/>
+    <rect x="80" y="60" width="60" height="140" fill="url(#accent1)" rx="5"/>
+    <rect x="160" y="120" width="60" height="80" fill="url(#accent1)" rx="5"/>
+    <rect x="240" y="40" width="60" height="160" fill="url(#accent1)" rx="5"/>
+    <rect x="320" y="80" width="60" height="120" fill="url(#accent1)" rx="5"/>
+    
+    <!-- Trend line -->
+    <path d="M30 100 L110 60 L190 120 L270 40 L350 80" 
+          stroke="#4fe1ff" stroke-width="3" fill="none" stroke-linecap="round"/>
+    
+    <!-- Data points -->
+    <circle cx="30" cy="100" r="6" fill="#4fe1ff"/>
+    <circle cx="110" cy="60" r="6" fill="#4fe1ff"/>
+    <circle cx="190" cy="120" r="6" fill="#4fe1ff"/>
+    <circle cx="270" cy="40" r="6" fill="#4fe1ff"/>
+    <circle cx="350" cy="80" r="6" fill="#4fe1ff"/>
+  </g>
+  
+  <!-- Icon -->
+  <g transform="translate(550, 120)">
+    <circle cx="80" cy="80" r="70" fill="none" stroke="url(#accent1)" stroke-width="4"/>
+    <path d="M50 80 L70 100 L110 60" stroke="#4fe1ff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Title -->
+  <text x="400" y="380" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#fff" text-anchor="middle">
+    Customer Churn Predictor
+  </text>
+  <text x="400" y="415" font-family="Arial, sans-serif" font-size="18" fill="#888" text-anchor="middle">
+    ML Model • scikit-learn • Binary Classification
+  </text>
+</svg>

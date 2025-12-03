@@ -47,9 +47,9 @@ import { TECHNICAL_CATEGORIES, TECH_TAG_OPTIONS as ALL_TECH_TAGS, TECH_TAGS_BY_C
 import WizardFooter from '@/components/WizardFooter'
 import SelectField from '@/components/SelectField'
 import WizardThemeProvider from '@/components/WizardThemeProvider'
-import { saveDraft as saveDraftUtil, loadDraft as loadDraftUtil, getDraftId } from '@/lib/draft-utils'
+import { getDraftId } from '@/lib/draft-utils'
 import { useWizardNavGuard } from '@/hooks/useWizardNavGuard'
-import { saveStep as saveStepCentralized } from '@/lib/wizard-draft-service'
+import { saveStep as saveStepCentralized, loadDraft as loadDraftCentralized } from '@/lib/wizard-draft-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -317,9 +317,9 @@ export default function Step1BasicsLocalized() {
       loadingFromDraftRef.current = false; setLoadingDraft(false); setLoadedRemote(true)
       return () => { alive = false }
     }
-    loadDraftUtil(upgradeMode, upgradeModelId).then((r)=>{
+    loadDraftCentralized(upgradeMode, upgradeModelId).then((draftData)=>{
       if (!alive) return
-      const s1 = r?.data?.step1
+      const s1 = draftData?.step1
       if (!s1) return
       setName(s1.name || '')
       setShortSummary(s1.shortSummary || '')
@@ -330,8 +330,8 @@ export default function Step1BasicsLocalized() {
       }
       setCategoriesSel(Array.isArray(s1.technicalCategories) ? (s1.technicalCategories as TechnicalCategoryValue[]) : (Array.isArray(s1.categories)? (s1.categories as TechnicalCategoryValue[]) : []))
       setTagsSel(Array.isArray(s1.technicalTags) ? s1.technicalTags : (Array.isArray(s1.tags)? s1.tags : []))
-      setBusinessCategory(typeof s1?.businessCategory === 'string' ? s1.businessCategory : '')
-      setModelType(typeof s1?.modelType === 'string' ? s1.modelType : '')
+      setBusinessCategory(typeof s1?.businessCategory === 'string' ? s1.businessCategory as any : '')
+      setModelType(typeof s1?.modelType === 'string' ? s1.modelType as any : '')
       const disp = s1?.author?.displayName || ''
       setAuthorDisplay(disp)
       const links = (s1?.author?.links && typeof s1.author.links === 'object') ? s1.author.links : {}
@@ -361,10 +361,10 @@ export default function Step1BasicsLocalized() {
     const loadExistingModel = async () => {
       try {
         // First check if we already have a draft for this upgrade
-        const existingDraft = await loadDraftUtil(true, upgradeModelId)
+        const existingDraft = await loadDraftCentralized(true, upgradeModelId)
         
         // If draft already has data, don't reload from model (user has made edits)
-        if (existingDraft?.ok && existingDraft.data && Object.keys(existingDraft.data).length > 0 && existingDraft.data.step1) {
+        if (existingDraft && Object.keys(existingDraft).length > 0 && existingDraft.step1) {
           console.log('[Wizard Upgrade] Using existing draft, skipping model load')
           if (alive) setLoadingExistingModel(false)
           return
@@ -393,16 +393,20 @@ export default function Step1BasicsLocalized() {
         })
         
         // Extract data for all steps from metadata
+        // Support multiple metadata structures for backwards compatibility
         const customer = metadata.customer || metadata.customerSheet || {}
         const listing = metadata.listing || metadata.businessProfile || {}
         const technical = metadata.technical || {}
         const caps = metadata.capabilities || technical.capabilities || {}
-        const arch = metadata.architecture || technical.architecture || {}
+        // Architecture data can be nested or flat in technical
+        const arch = metadata.architecture || technical.architecture || technical || {}
         const runtime = metadata.runtime || technical.runtime || {}
         const resources = metadata.resources || technical.resources || {}
         const inference = metadata.inference || technical.inference || {}
         const deps = metadata.dependencies || technical.dependencies || {}
-        const authorship = metadata.authorship || metadata.author || {}
+        // Author can be string or object
+        const authorship = typeof metadata.author === 'object' ? metadata.author : 
+                          (metadata.authorship || { name: metadata.author || '' })
         const cover = metadata.cover || metadata.coverImage || {}
         const licensePolicy = metadata.licensePolicy || {}
         
@@ -421,7 +425,7 @@ export default function Step1BasicsLocalized() {
           categories: metadata.technicalCategories || metadata.categories || [],
           tags: metadata.technicalTags || metadata.tags || [],
           author: {
-            displayName: authorship.name || authorship.displayName || model.creator || '',
+            displayName: authorship.name || authorship.displayName || (typeof metadata.author === 'string' ? metadata.author : '') || model.creator || '',
             links: authorship.links || authorship.socials || {}
           },
           cover: cover.cid ? { cid: cover.cid, thumbCid: cover.thumbCid || '', mime: cover.mime || '', size: cover.size || 0 } : undefined
@@ -490,7 +494,11 @@ export default function Step1BasicsLocalized() {
         const step3Data = {
           artifacts: metadata.artifacts || [],
           demoPreset: metadata.demoPreset || metadata.demo?.preset || '',
-          downloadNotes: metadata.downloadNotes || metadata.demo?.downloadNotes || ''
+          downloadNotes: metadata.downloadNotes || metadata.demo?.downloadNotes || '',
+          inferenceConfig: {
+            endpoint: model.inference_endpoint || metadata.demo?.endpoint || metadata.inferenceConfig?.endpoint || '',
+            paymentWallet: model.inference_wallet || metadata.demo?.paymentWallet || metadata.inferenceConfig?.paymentWallet || ''
+          }
         }
         
         // Build step4 data
@@ -512,13 +520,13 @@ export default function Step1BasicsLocalized() {
           }
         }
         
-        // Save all steps to draft
+        // Save all steps to draft using centralized service (Redis + localStorage)
         console.log('[Wizard Upgrade] Initializing draft with model data...')
         await Promise.all([
-          saveDraftUtil('step1', step1Data, true, upgradeModelId),
-          saveDraftUtil('step2', step2Data, true, upgradeModelId),
-          saveDraftUtil('step3', step3Data, true, upgradeModelId),
-          saveDraftUtil('step4', step4Data, true, upgradeModelId)
+          saveStepCentralized('step1', step1Data, true, upgradeModelId, { immediate: true }),
+          saveStepCentralized('step2', step2Data, true, upgradeModelId, { immediate: true }),
+          saveStepCentralized('step3', step3Data, true, upgradeModelId, { immediate: true }),
+          saveStepCentralized('step4', step4Data, true, upgradeModelId, { immediate: true })
         ])
         console.log('[Wizard Upgrade] Draft initialized successfully')
         
@@ -562,7 +570,9 @@ export default function Step1BasicsLocalized() {
 
   const onNameChange = (v: string) => {
     setName(v)
-    if (!slugTouched) {
+    // In upgrade mode, NEVER auto-generate slug - it must remain fixed to identify the existing model
+    // In create mode, auto-generate slug only if user hasn't manually edited it
+    if (!slugTouched && !isUpgrade && !upgradeMode) {
       const auto = v.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-')
       setSlug(auto)
     }
@@ -929,6 +939,7 @@ export default function Step1BasicsLocalized() {
               onChange={(e)=>onSlugChange(e.target.value)}
               placeholder={TXT.slugHelper}
               fullWidth
+              disabled={isUpgrade || upgradeMode}
               InputProps={{
                 endAdornment: (
                   <Box sx={{ display:'flex', alignItems:'center', gap: 1 }}>
@@ -948,7 +959,11 @@ export default function Step1BasicsLocalized() {
                 )
               }}
               helperText={
-                slugSuggestion && !isUpgrade && (slugCheck?.ok && (slugCheck?.reserved===false && (slugCheck?.reason==='exists' || slugCheck?.reason==='db-exists'))) ? (
+                (isUpgrade || upgradeMode) ? (
+                  <Typography variant="caption" sx={{ color:'#4fe1ff' }}>
+                    {isES ? '🔒 El identificador no puede cambiar en modo actualización' : '🔒 Identifier cannot change in upgrade mode'}
+                  </Typography>
+                ) : slugSuggestion && !isUpgrade && (slugCheck?.ok && (slugCheck?.reserved===false && (slugCheck?.reason==='exists' || slugCheck?.reason==='db-exists'))) ? (
                   <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
                     <Typography variant="caption">{TXT.suggestion}: {slugSuggestion}</Typography>
                     <Button size="small" variant="text" onClick={()=>{ setSlug(slugSuggestion); setSlugTouched(true) }}>{TXT.use}</Button>

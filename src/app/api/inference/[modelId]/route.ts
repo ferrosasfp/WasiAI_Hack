@@ -179,6 +179,7 @@ interface ModelInfo {
   recipientWallet: string
   name: string
   agentId: number
+  inferenceEndpoint?: string // Dev's custom inference endpoint URL
 }
 
 // Default recipient wallet for hardcoded models (can be overridden per model)
@@ -227,14 +228,27 @@ async function getModelInfo(modelId: string): Promise<ModelInfo | null> {
   
   // Not a hardcoded model - try to fetch from indexed data
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-    const res = await fetch(`${baseUrl}/api/indexed/models/${modelId}`, {
+    // Always use localhost for internal API calls (server-to-server)
+    const baseUrl = 'http://localhost:3000'
+    const fetchUrl = `${baseUrl}/api/indexed/models/${modelId}`
+    console.log(`[x402] Fetching model info from: ${fetchUrl}`)
+    
+    const res = await fetch(fetchUrl, {
       headers: { 'Cache-Control': 'no-cache' }
     })
-    if (!res.ok) return null
+    
+    if (!res.ok) {
+      console.error(`[x402] Failed to fetch model ${modelId}: ${res.status} ${res.statusText}`)
+      return null
+    }
     
     const data = await res.json()
-    if (!data.model) return null
+    console.log(`[x402] Indexed API response for model ${modelId}:`, { hasModel: !!data.model, keys: Object.keys(data) })
+    
+    if (!data.model) {
+      console.error(`[x402] No model in response for ${modelId}`)
+      return null
+    }
     
     const model = data.model
     const metadata = typeof model.metadata === 'string' 
@@ -268,8 +282,16 @@ async function getModelInfo(modelId: string): Promise<ModelInfo | null> {
       }
     }
     
-    // Get recipient wallet (creator gets paid)
-    const recipientWallet = model.creator || model.owner
+    // Get inference config - priority: step3.inferenceConfig > licensePolicy.inference
+    const step3Config = metadata?.step3?.inferenceConfig || {}
+    const licensePolicyConfig = metadata?.licensePolicy?.inference || {}
+    const inferenceConfig = { ...licensePolicyConfig, ...step3Config }
+    
+    // Get recipient wallet - priority: inferenceConfig.paymentWallet > creator > owner
+    const recipientWallet = inferenceConfig.paymentWallet || model.creator || model.owner
+    
+    // Get custom inference endpoint from metadata (Step 3 has priority)
+    const inferenceEndpoint = step3Config.endpoint || licensePolicyConfig.endpoint || metadata?.inferenceEndpoint || ''
     
     // Get agentId from AgentRegistry (stored in metadata or needs lookup)
     const agentId = metadata?.agentId || model.agentId || 0
@@ -279,7 +301,8 @@ async function getModelInfo(modelId: string): Promise<ModelInfo | null> {
       pricePerInference,
       priceFormatted: formatUsdcPrice(pricePerInference),
       recipientWallet,
-      agentId
+      agentId,
+      inferenceEndpoint: inferenceEndpoint ? inferenceEndpoint.substring(0, 50) + '...' : '(none)'
     })
     
     return {
@@ -287,6 +310,7 @@ async function getModelInfo(modelId: string): Promise<ModelInfo | null> {
       recipientWallet,
       name: model.name || metadata?.name || `Model #${modelId}`,
       agentId,
+      inferenceEndpoint: inferenceEndpoint || undefined,
     }
   } catch (e) {
     console.error('Failed to fetch model info:', e)
@@ -512,10 +536,88 @@ interface InferenceInput {
   labels?: string[]
   prompt?: string
   modelType?: string
+  [key: string]: any // Allow additional fields for custom endpoints
 }
 
-async function runInference(modelId: string, input: InferenceInput, agentId: number) {
+// Proxy inference to dev's custom endpoint
+async function runProxiedInference(
+  modelId: string, 
+  input: InferenceInput, 
+  agentId: number, 
+  endpoint: string,
+  started: number
+) {
+  try {
+    // Validate endpoint URL
+    const url = new URL(endpoint)
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      throw new Error('Invalid endpoint protocol')
+    }
+    
+    console.log(`[Proxy] Forwarding request to: ${endpoint}`)
+    
+    // Forward the request to dev's endpoint
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WasiAI-ModelId': modelId,
+        'X-WasiAI-AgentId': String(agentId),
+      },
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(30000), // 30s timeout
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error')
+      console.error(`[Proxy] Dev endpoint returned ${response.status}:`, errorText)
+      throw new Error(`Dev endpoint error: ${response.status}`)
+    }
+    
+    const result = await response.json()
+    const latencyMs = Date.now() - started
+    
+    console.log(`[Proxy] Success from dev endpoint in ${latencyMs}ms`)
+    
+    return {
+      output: {
+        ...result,
+        _proxied: true,
+        _endpoint: endpoint,
+        agent: `agent-${agentId}`,
+        timestamp: new Date().toISOString()
+      },
+      latencyMs,
+      modelId,
+      agentId
+    }
+  } catch (error: any) {
+    console.error(`[Proxy] Failed to call dev endpoint:`, error.message)
+    
+    // Return error response instead of falling back to mock
+    return {
+      output: {
+        error: true,
+        message: `Failed to reach inference endpoint: ${error.message}`,
+        endpoint,
+        agent: `agent-${agentId}`,
+        timestamp: new Date().toISOString()
+      },
+      latencyMs: Date.now() - started,
+      modelId,
+      agentId
+    }
+  }
+}
+
+async function runInference(modelId: string, input: InferenceInput, agentId: number, inferenceEndpoint?: string) {
   const started = Date.now()
+  
+  // If dev has configured a custom inference endpoint, proxy to it
+  if (inferenceEndpoint) {
+    console.log(`[Inference] Proxying to dev endpoint: ${inferenceEndpoint}`)
+    return runProxiedInference(modelId, input, agentId, inferenceEndpoint, started)
+  }
   
   // Get model config from hardcoded list or default
   const config = getModelConfig(modelId)
@@ -717,7 +819,8 @@ function runMockInference(modelId: string, input: any, agentId: number, started:
 
 function formatUsdcPrice(baseUnits: string): string {
   const value = parseFloat(baseUnits) / Math.pow(10, USDC_DECIMALS)
-  return `$${value.toFixed(2)}`
+  // Use 4 decimals for small amounts (inference costs)
+  return `$${value.toFixed(4)}`
 }
 
 function createPaymentRequirement(
@@ -838,7 +941,7 @@ export async function POST(
     // Empty body is ok
   }
   
-  const result = await runInference(modelId, body.input, modelInfo.agentId)
+  const result = await runInference(modelId, body.input, modelInfo.agentId, modelInfo.inferenceEndpoint)
   
   // Record inference in history
   const inputStr = typeof body.input === 'string' ? body.input : JSON.stringify(body.input || '')
@@ -921,7 +1024,9 @@ export async function GET(
       id: modelInfo.agentId,
       name: modelInfo.name,
       wallet: modelInfo.recipientWallet,
+      customEndpoint: modelInfo.inferenceEndpoint ? true : false,
     },
+    inferenceMode: modelInfo.inferenceEndpoint ? 'proxied' : 'internal',
     paymentRequirement,
     facilitator: FACILITATOR_URL,
     usage: {

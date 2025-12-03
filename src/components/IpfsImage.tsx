@@ -55,26 +55,27 @@ export function IpfsImage({
   const [error, setError] = useState(false)
   const [currentGateway, setCurrentGateway] = useState(0)
   
-  // Multiple IPFS gateways for redundancy (fastest first)
-  const gateways = [
-    'https://gateway.pinata.cloud/ipfs/',
-    'https://cloudflare-ipfs.com/ipfs/',
-    'https://ipfs.io/ipfs/',
-  ]
+  // Use local API proxy for IPFS - avoids CORS and rate limiting issues
+  // The /api/ipfs/[...path] route handles gateway fallbacks server-side
 
-  // Convert IPFS URI or CID to HTTP URL
+  // Convert IPFS URI or CID to HTTP URL via our proxy
   const getImageUrl = (cidOrUri?: string): string | null => {
     if (!cidOrUri) return fallbackSrc || null
     
-    // Handle ipfs:// URIs
+    // Handle ipfs:// URIs - use our local proxy
     if (cidOrUri.startsWith('ipfs://')) {
       const extractedCid = cidOrUri.replace('ipfs://', '')
-      return `${gateways[currentGateway]}${extractedCid}`
+      return `/api/ipfs/${extractedCid}`
     }
     
-    // Handle raw CIDs
+    // Handle raw CIDs - use our local proxy
     if (cidOrUri.startsWith('Qm') || cidOrUri.startsWith('baf')) {
-      return `${gateways[currentGateway]}${cidOrUri}`
+      return `/api/ipfs/${cidOrUri}`
+    }
+    
+    // Handle /api/ipfs/ URLs (already proxied)
+    if (cidOrUri.startsWith('/api/ipfs/')) {
+      return cidOrUri
     }
     
     // Handle full URLs
@@ -93,16 +94,10 @@ export function IpfsImage({
   }
 
   const handleError = () => {
-    // Try next gateway if available
-    if (currentGateway < gateways.length - 1) {
-      console.log(`[IpfsImage] Gateway ${gateways[currentGateway]} failed, trying next...`)
-      setCurrentGateway(prev => prev + 1)
-      setError(false)
-    } else {
-      console.error('[IpfsImage] All gateways failed for CID:', cid)
-      setIsLoading(false)
-      setError(true)
-    }
+    // Gateway fallbacks are handled server-side by /api/ipfs/
+    console.error('[IpfsImage] Failed to load image for CID:', cid)
+    setIsLoading(false)
+    setError(true)
   }
 
   // Reset gateway on CID change
@@ -190,11 +185,11 @@ export function IpfsImage({
           }}
           sizes={priority ? "100vw" : "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"}
           quality={85}
-          unoptimized={false}
+          unoptimized={imageUrl?.startsWith('/api/ipfs/') || false}
         />
       )}
       
-      {/* Error fallback */}
+      {/* Error fallback - Standard marketplace placeholder */}
       {error && (
         <Box
           sx={{
@@ -207,16 +202,26 @@ export function IpfsImage({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: 'rgba(255,255,255,0.03)',
-            color: 'rgba(255,255,255,0.4)',
+            background: 'linear-gradient(135deg, rgba(124,92,255,0.15) 0%, rgba(46,160,255,0.15) 100%)',
+            color: 'rgba(255,255,255,0.6)',
             gap: 1,
             borderRadius: 2,
-            border: '1px dashed rgba(255,255,255,0.1)',
+            border: '1px solid rgba(124,92,255,0.2)',
           }}
         >
-          <Box component="span" sx={{ fontSize: '2rem' }}>🖼️</Box>
-          <Box sx={{ fontSize: '0.75rem', textAlign: 'center', px: 2 }}>
-            Failed to load image
+          {/* Marketplace logo/icon as fallback */}
+          <Box 
+            component="span" 
+            sx={{ 
+              fontSize: '2.5rem',
+              opacity: 0.7,
+              filter: 'grayscale(0.3)'
+            }}
+          >
+            🤖
+          </Box>
+          <Box sx={{ fontSize: '0.7rem', textAlign: 'center', px: 2, opacity: 0.6 }}>
+            AI Model
           </Box>
         </Box>
       )}

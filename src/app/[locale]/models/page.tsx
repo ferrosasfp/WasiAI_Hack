@@ -129,6 +129,9 @@ export default function ExploreModelsPage() {
           return {
             objectId: String(m?.model_id || ''),
             modelId: Number(m?.model_id),
+            // agentId from AgentRegistryV2 (ERC-8004 identity)
+            // Priority: DB agent_id > model_id fallback
+            agentId: m?.agent_id ? Number(m.agent_id) : Number(m?.model_id),
             name: m?.name || meta?.name,
             // Priority: tagline > shortSummary > summary > description
             description: meta?.tagline || meta?.shortSummary || meta?.summary || meta?.description || '',
@@ -149,6 +152,26 @@ export default function ExploreModelsPage() {
             })(),
             price_perpetual: Number(m?.price_perpetual || 0),
             price_subscription: Number(m?.price_subscription || 0),
+            // Price per inference from MarketplaceV2 (USDC base units, 6 decimals)
+            // Priority: DB price_inference > metadata > default for API-enabled models
+            pricePerInference: (() => {
+              // Check DB price_inference first (from MarketplaceV2 smart contract)
+              const dbPriceInference = m?.price_inference ? BigInt(m.price_inference) : 0n
+              if (dbPriceInference > 0n) {
+                // Convert from USDC base units (6 decimals) to display format
+                return (Number(dbPriceInference) / 1e6).toString()
+              }
+              // Fallback to metadata
+              const metaPrice = meta?.licensePolicy?.pricing?.inference?.pricePerCall 
+                || meta?.licensePolicy?.inference?.pricePerCall
+                || meta?.pricePerInference
+              if (metaPrice) return String(metaPrice)
+              return undefined
+            })(),
+            // Agent endpoint from AgentRegistryV2
+            inferenceEndpoint: m?.agent_endpoint || m?.inference_endpoint || undefined,
+            // Agent wallet for x402 payments
+            inferenceWallet: m?.agent_wallet || m?.inference_wallet || undefined,
             imageUrl: m?.image_url,
             // Extract from cached metadata (prioritize DB columns over nested metadata)
             categories: m?.categories || meta?.categories || meta?.technicalCategories || [],
@@ -553,8 +576,11 @@ export default function ExploreModelsPage() {
                   demoPreset: m.demoPreset,
                   artifacts: m.artifacts,
                   deliveryMode: m.deliveryMode,
-                  pricePerpetual: m.price_perpetual ? `${(m.price_perpetual/1e18).toFixed(4)} ${evmSymbol}` : undefined,
-                  priceSubscription: m.price_subscription ? `${(m.price_subscription/1e18).toFixed(4)} ${evmSymbol}/${isES?'mes':'mo'}` : undefined,
+                  // price_perpetual is in USDC base units (6 decimals), not AVAX
+                  pricePerpetual: m.price_perpetual ? `${(Number(m.price_perpetual)/1e6).toFixed(2)} USDC` : undefined,
+                  // price_subscription is in USDC base units (6 decimals)
+                  priceSubscription: m.price_subscription ? `${(Number(m.price_subscription)/1e6).toFixed(2)} USDC/${isES?'mes':'mo'}` : undefined,
+                  pricePerInference: m.pricePerInference || m.price_per_inference || undefined,
                   version: m.version || undefined,
                   agentId: m.agentId || m.modelId,
                 }} href={m.modelId ? `/${locale}/evm/models/${m.modelId}` : undefined} priority={idx < 3} onMeta={onCardMeta} preMeta={(m as any).__preMeta} />

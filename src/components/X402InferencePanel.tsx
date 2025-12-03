@@ -73,7 +73,8 @@ interface X402PaymentRequirement {
 
 function formatUsdcPrice(baseUnits: string): string {
   const value = parseFloat(baseUnits) / Math.pow(10, USDC_DECIMALS)
-  return `$${value.toFixed(2)}`
+  // Use 4 decimals for small inference costs
+  return `$${value.toFixed(4)}`
 }
 
 function generateNonce(): string {
@@ -104,29 +105,47 @@ export default function X402InferencePanel({
   const { signTypedDataAsync } = useSignTypedData()
   
   const L = {
-    title: isES ? 'Inferencia x402' : 'x402 Inference',
-    subtitle: isES ? 'Paga por uso con USDC (gasless)' : 'Pay per use with USDC (gasless)',
-    inputLabel: isES ? 'Entrada para el modelo' : 'Model input',
-    inputPlaceholder: isES ? 'Escribe tu consulta aquí...' : 'Enter your query here...',
-    runButton: isES ? 'Ejecutar con x402' : 'Run with x402',
+    title: isES ? '🚀 Ejecutar Modelo' : '🚀 Run Model',
+    subtitle: isES ? 'Prueba el modelo con pago por uso' : 'Try the model with pay-per-use',
+    description: isES 
+      ? '1. Escribe tu entrada → 2. Firma con tu wallet → 3. Recibe el resultado' 
+      : '1. Enter your input → 2. Sign with wallet → 3. Get results',
+    inputLabel: isES ? 'Tu entrada' : 'Your input',
+    inputPlaceholder: isES ? 'Escribe el texto o datos que quieres procesar...' : 'Enter the text or data you want to process...',
+    runButton: isES ? 'Ejecutar modelo' : 'Run model',
     connectWallet: isES ? 'Conecta tu wallet' : 'Connect your wallet',
     checking: isES ? 'Verificando precio...' : 'Checking price...',
-    paymentRequired: isES ? 'Pago requerido' : 'Payment required',
+    paymentRequired: isES ? 'Confirma el pago' : 'Confirm payment',
     signing: isES ? 'Firma la autorización en tu wallet...' : 'Sign authorization in your wallet...',
-    settling: isES ? 'Procesando pago (gasless)...' : 'Processing payment (gasless)...',
-    running: isES ? 'Ejecutando inferencia...' : 'Running inference...',
-    success: isES ? 'Inferencia completada' : 'Inference completed',
-    price: isES ? 'Precio' : 'Price',
-    recipient: isES ? 'Destinatario' : 'Recipient',
-    txHashLabel: isES ? 'Hash de transacción' : 'Transaction hash',
+    settling: isES ? 'Procesando pago (sin gas)...' : 'Processing payment (gasless)...',
+    running: isES ? 'Ejecutando modelo...' : 'Running model...',
+    success: isES ? '✅ Resultado listo' : '✅ Result ready',
+    price: isES ? 'Costo' : 'Cost',
+    pricePerRun: isES ? 'Precio por ejecución' : 'Price per run',
+    recipient: isES ? 'Creador' : 'Creator',
+    txHashLabel: isES ? 'Transacción' : 'Transaction',
     viewOnExplorer: isES ? 'Ver en explorador' : 'View on explorer',
-    showDetails: isES ? 'Mostrar detalles' : 'Show details',
+    showDetails: isES ? 'Ver detalles técnicos' : 'View technical details',
     hideDetails: isES ? 'Ocultar detalles' : 'Hide details',
-    agentBadge: isES ? 'Agente ERC-8004' : 'ERC-8004 Agent',
+    agentBadge: isES ? 'Agente IA' : 'AI Agent',
     copiedText: isES ? '¡Copiado!' : 'Copied!',
-    tryAgain: isES ? 'Intentar de nuevo' : 'Try again',
-    gasless: isES ? 'Sin gas - El facilitador paga las fees' : 'Gasless - Facilitator pays fees',
-    protocol: 'x402 Protocol',
+    tryAgain: isES ? 'Ejecutar de nuevo' : 'Run again',
+    gasless: isES ? '⚡ Sin gas requerido - El facilitador cubre las fees de red' : '⚡ No gas required - Facilitator covers network fees',
+    protocol: 'x402',
+    howItWorks: isES ? 'Cómo funciona' : 'How it works',
+    step1: isES ? 'Escribe tu entrada' : 'Enter your input',
+    step2: isES ? 'Firma el pago (USDC)' : 'Sign payment (USDC)',
+    step3: isES ? 'Recibe el resultado' : 'Get your result',
+    textClassification: isES ? 'Clasificación del texto:' : 'Text classification:',
+    confidence: isES ? 'Confianza' : 'Confidence',
+    allCategories: isES ? 'Todas las categorías:' : 'All categories:',
+    sentimentAnalysis: isES ? 'Análisis de sentimiento:' : 'Sentiment analysis:',
+    positive: isES ? '😊 Positivo' : '😊 Positive',
+    negative: isES ? '😞 Negativo' : '😞 Negative',
+    neutral: isES ? '😐 Neutral' : '😐 Neutral',
+    copy: isES ? 'Copiar' : 'Copy',
+    poweredBy: isES ? 'Impulsado por' : 'Powered by',
+    onAvalanche: isES ? 'en Avalanche' : 'on Avalanche',
   }
   
   const copyToClipboard = useCallback((text: string) => {
@@ -240,10 +259,19 @@ export default function X402InferencePanel({
         throw new Error(errData.message || 'Request failed')
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred')
+      // Detect ngrok/facilitator connection errors
+      const errMsg = err.message || 'An error occurred'
+      if (errMsg.includes('NullResp') || errMsg.includes('TransportError') || errMsg.includes('Failed to fetch')) {
+        const ngrokError = isES 
+          ? 'Error de conexión con el facilitador x402. Asegúrate de que ngrok esté corriendo (ngrok http 3000) y que NEXT_PUBLIC_BASE_URL esté configurado con tu URL de ngrok.'
+          : 'x402 facilitator connection error. Make sure ngrok is running (ngrok http 3000) and NEXT_PUBLIC_BASE_URL is set to your ngrok URL.'
+        setError(ngrokError)
+      } else {
+        setError(errMsg)
+      }
       setStatus('error')
     }
-  }, [isConnected, address, modelId, input, signTypedDataAsync, L.connectWallet])
+  }, [isConnected, address, modelId, input, signTypedDataAsync, L.connectWallet, isES])
   
   const reset = useCallback(() => {
     setStatus('idle')
@@ -268,19 +296,83 @@ export default function X402InferencePanel({
   const isLoading = ['checking', 'signing', 'settling', 'running'].includes(status)
   const explorerUrl = txHash ? `https://testnet.snowtrace.io/tx/${txHash}` : null
   
+  // Get price from payment requirement or show default
+  const displayPrice = paymentRequirement 
+    ? formatUsdcPrice(paymentRequirement.maxAmountRequired)
+    : '$0.001' // Default display price
+  
   return (
     <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(79, 225, 255, 0.2)' }}>
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#fff' }}>{L.title}</Typography>
-        <Chip label={L.protocol} size="small" sx={{ bgcolor: 'rgba(79, 225, 255, 0.15)', color: '#4fe1ff', fontSize: '0.7rem', height: 20 }} />
-        {agentId && agentId > 0 && (
-          <Chip label={`${L.agentBadge} #${agentId}`} size="small" sx={{ bgcolor: 'rgba(156, 39, 176, 0.15)', color: '#ce93d8', fontSize: '0.7rem', height: 20 }} />
-        )}
+      {/* Header */}
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: '#fff' }}>{L.title}</Typography>
+          <Chip label={L.protocol} size="small" sx={{ bgcolor: 'rgba(79, 225, 255, 0.15)', color: '#4fe1ff', fontSize: '0.7rem', height: 20 }} />
+        </Stack>
+        {/* Price badge */}
+        <Box sx={{ 
+          bgcolor: 'rgba(76, 175, 80, 0.15)', 
+          border: '1px solid rgba(76, 175, 80, 0.3)',
+          borderRadius: 2,
+          px: 2,
+          py: 0.75
+        }}>
+          <Typography variant="caption" sx={{ color: '#ffffffaa', display: 'block', fontSize: '0.65rem', textTransform: 'uppercase' }}>
+            {L.pricePerRun}
+          </Typography>
+          <Typography variant="body1" sx={{ color: '#4caf50', fontWeight: 700 }}>
+            {displayPrice} <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>USDC</span>
+          </Typography>
+        </Box>
       </Stack>
       
-      <Typography variant="body2" sx={{ color: '#ffffffaa', mb: 2 }}>{L.subtitle}</Typography>
+      <Typography variant="body2" sx={{ color: '#ffffffcc', mb: 2 }}>{L.subtitle}</Typography>
       
-      <Alert severity="info" sx={{ mb: 2, bgcolor: 'rgba(79, 225, 255, 0.08)', '& .MuiAlert-icon': { color: '#4fe1ff' } }}>{L.gasless}</Alert>
+      {/* How it works - Steps */}
+      <Box sx={{ 
+        display: 'flex', 
+        gap: 2, 
+        mb: 2.5, 
+        p: 1.5, 
+        bgcolor: 'rgba(255,255,255,0.03)', 
+        borderRadius: 1.5,
+        border: '1px solid rgba(255,255,255,0.06)'
+      }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1 }}>
+          <Box sx={{ width: 24, height: 24, borderRadius: '50%', bgcolor: 'rgba(79, 225, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#4fe1ff', fontWeight: 700 }}>1</Typography>
+          </Box>
+          <Typography variant="caption" sx={{ color: '#ffffffaa' }}>{L.step1}</Typography>
+        </Stack>
+        <Typography sx={{ color: '#ffffff44' }}>→</Typography>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1 }}>
+          <Box sx={{ width: 24, height: 24, borderRadius: '50%', bgcolor: 'rgba(156, 39, 176, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#ce93d8', fontWeight: 700 }}>2</Typography>
+          </Box>
+          <Typography variant="caption" sx={{ color: '#ffffffaa' }}>{L.step2}</Typography>
+        </Stack>
+        <Typography sx={{ color: '#ffffff44' }}>→</Typography>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1 }}>
+          <Box sx={{ width: 24, height: 24, borderRadius: '50%', bgcolor: 'rgba(76, 175, 80, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#4caf50', fontWeight: 700 }}>3</Typography>
+          </Box>
+          <Typography variant="caption" sx={{ color: '#ffffffaa' }}>{L.step3}</Typography>
+        </Stack>
+      </Box>
+      
+      {/* Gasless notice */}
+      <Alert 
+        severity="info" 
+        icon={false}
+        sx={{ 
+          mb: 2, 
+          bgcolor: 'rgba(79, 225, 255, 0.06)', 
+          border: '1px solid rgba(79, 225, 255, 0.15)',
+          '& .MuiAlert-message': { color: '#4fe1ff', fontSize: '0.8rem' }
+        }}
+      >
+        {L.gasless}
+      </Alert>
       
       <TextField fullWidth multiline rows={3} label={L.inputLabel} placeholder={L.inputPlaceholder} value={input} onChange={(e) => setInput(e.target.value)} disabled={isLoading} sx={{ mb: 2, '& .MuiOutlinedInput-root': { bgcolor: 'rgba(255,255,255,0.03)' } }} />
       
@@ -315,18 +407,18 @@ export default function X402InferencePanel({
           {result.task === 'zero-shot-classification' && result.labels && result.scores && (
             <Box sx={{ mb: 2 }}>
               <Typography variant="body2" sx={{ color: '#ffffffaa', mb: 1.5 }}>
-                {isES ? 'Clasificación del texto:' : 'Text classification:'}
+                {L.textClassification}
               </Typography>
               <Box sx={{ bgcolor: 'rgba(156, 39, 176, 0.15)', p: 2, borderRadius: 1, mb: 2 }}>
                 <Typography variant="h6" sx={{ color: '#ce93d8', fontWeight: 700 }}>
                   {result.top_label}
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#ffffffaa' }}>
-                  {isES ? 'Confianza' : 'Confidence'}: {(result.top_score * 100).toFixed(1)}%
+                  {L.confidence}: {(result.top_score * 100).toFixed(1)}%
                 </Typography>
               </Box>
               <Typography variant="caption" sx={{ color: '#ffffff88', display: 'block', mb: 1 }}>
-                {isES ? 'Todas las categorías:' : 'All categories:'}
+                {L.allCategories}
               </Typography>
               <Stack spacing={0.5}>
                 {result.labels.map((label: string, idx: number) => (
@@ -346,7 +438,7 @@ export default function X402InferencePanel({
           {result.task === 'sentiment-analysis' && (
             <Box sx={{ mb: 2 }}>
               <Typography variant="body2" sx={{ color: '#ffffffaa', mb: 1.5 }}>
-                {isES ? 'Análisis de sentimiento:' : 'Sentiment analysis:'}
+                {L.sentimentAnalysis}
               </Typography>
               <Box sx={{ 
                 bgcolor: result.sentiment === 'positive' ? 'rgba(76, 175, 80, 0.15)' : 
@@ -358,12 +450,12 @@ export default function X402InferencePanel({
                          result.sentiment === 'negative' ? '#f44336' : '#ffc107',
                   fontWeight: 700, textTransform: 'capitalize'
                 }}>
-                  {result.sentiment === 'positive' ? (isES ? '😊 Positivo' : '😊 Positive') :
-                   result.sentiment === 'negative' ? (isES ? '😞 Negativo' : '😞 Negative') :
-                   (isES ? '😐 Neutral' : '😐 Neutral')}
+                  {result.sentiment === 'positive' ? L.positive :
+                   result.sentiment === 'negative' ? L.negative :
+                   L.neutral}
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#ffffffaa' }}>
-                  {isES ? 'Confianza' : 'Confidence'}: {(result.confidence * 100).toFixed(1)}%
+                  {L.confidence}: {(result.confidence * 100).toFixed(1)}%
                 </Typography>
               </Box>
             </Box>
@@ -382,7 +474,7 @@ export default function X402InferencePanel({
                 <Stack direction="row" alignItems="center" spacing={1}>
                   <Typography variant="caption" sx={{ color: '#ffffffaa' }}>{L.txHashLabel}:</Typography>
                   <Typography variant="caption" sx={{ color: '#fff', fontFamily: 'monospace' }}>{txHash.slice(0, 10)}...{txHash.slice(-8)}</Typography>
-                  <Tooltip title={copied ? L.copiedText : 'Copy'}><IconButton size="small" onClick={() => copyToClipboard(txHash)}><ContentCopyIcon sx={{ fontSize: 14, color: '#ffffffaa' }} /></IconButton></Tooltip>
+                  <Tooltip title={copied ? L.copiedText : L.copy}><IconButton size="small" onClick={() => copyToClipboard(txHash)}><ContentCopyIcon sx={{ fontSize: 14, color: '#ffffffaa' }} /></IconButton></Tooltip>
                   {explorerUrl && <Tooltip title={L.viewOnExplorer}><IconButton size="small" component="a" href={explorerUrl} target="_blank"><OpenInNewIcon sx={{ fontSize: 14, color: '#ffffffaa' }} /></IconButton></Tooltip>}
                 </Stack>
               )}
@@ -409,7 +501,7 @@ export default function X402InferencePanel({
       </Stack>
       
       <Typography variant="caption" sx={{ display: 'block', mt: 2, color: '#ffffff66' }}>
-        Powered by <MuiLink href="https://build.avax.network/academy/blockchain/x402-payment-infrastructure" target="_blank" sx={{ color: '#4fe1ff' }}>x402 Protocol</MuiLink> on Avalanche
+        {L.poweredBy} <MuiLink href="https://build.avax.network/academy/blockchain/x402-payment-infrastructure" target="_blank" sx={{ color: '#4fe1ff' }}>x402 Protocol</MuiLink> {L.onAvalanche}
       </Typography>
     </Paper>
   )
