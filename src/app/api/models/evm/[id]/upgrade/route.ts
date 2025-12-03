@@ -193,9 +193,10 @@ export async function POST(
     }
     
     // Calculate termsHash and add to metadata
+    // IMPORTANT: termsHash must be a valid bytes32 (64 hex chars), use zero-filled if no terms
     const termsHash = body.termsText
       ? `0x${Buffer.from(body.termsText).toString('hex').slice(0, 64).padEnd(64, '0')}`
-      : ''
+      : '0x0000000000000000000000000000000000000000000000000000000000000000'
     metadata.licensePolicy.termsHash = termsHash
 
     // Upload metadata to IPFS
