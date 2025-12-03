@@ -251,8 +251,10 @@ export async function POST(
     // Prepare agent metadata URI (will be uploaded separately or use model URI)
     const agentMetadataUri = uri // Use same metadata URI for agent
     
-    // Return transaction parameters for frontend to execute with user's wallet
-    // Use listOrUpgradeWithAgent for single-signature flow (model + agent in one TX)
+    // For UPGRADES: Don't register a new agent - the model family already has one
+    // The AgentRegistry.registerAgentFor will fail if an agent already exists for the model family
+    // Send empty endpoint to skip agent registration in the contract
+    // The existing agent from the original model will be preserved
     const txParams = {
       functionName: 'listOrUpgradeWithAgent',
       args: [
@@ -269,9 +271,9 @@ export async function POST(
         priceInferenceUsdc.toString(), // priceInference in USDC (6 decimals)
         walletAddress || '0x0000000000000000000000000000000000000000', // inferenceWallet
         {
-          endpoint: `${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/inference/${modelId}`,
-          wallet: walletAddress || '0x0000000000000000000000000000000000000000',
-          metadataUri: agentMetadataUri
+          endpoint: '', // Empty = skip agent registration (upgrade preserves existing agent)
+          wallet: '0x0000000000000000000000000000000000000000',
+          metadataUri: ''
         }
       ],
       contractAddress: marketAddr,
