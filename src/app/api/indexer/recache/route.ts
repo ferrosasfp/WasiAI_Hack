@@ -31,7 +31,7 @@ async function resyncModelFromChain(modelId: number, chainId: number): Promise<v
 
   const client = createPublicClient({
     chain: chainConfig.chain,
-    transport: http(chainConfig.rpcUrl),
+    transport: http(chainConfig.rpc),
   })
 
   const abi: any = MARKET_ARTIFACT.abi

@@ -31,6 +31,8 @@
     "**/node_modules/@wagmi/connectors/node_modules/porto/**",
     ".next",
     "dist",
-    "build"
+    "build",
+    "contracts/evm/deprecated/**",
+    "contracts/evm/scripts/**"
   ]
 }

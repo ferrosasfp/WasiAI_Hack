@@ -388,7 +388,7 @@ export async function syncFamilyAgentsFromChain(
 
   try {
     // Get all unique families (owner + slug combinations) from DB
-    const families = await query<{ owner: string; slug: string }[]>(`
+    const families = await query<{ owner: string; slug: string }>(`
       SELECT DISTINCT owner, slug 
       FROM models 
       WHERE slug IS NOT NULL AND chain_id = $1
