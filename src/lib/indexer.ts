@@ -6,7 +6,7 @@
 
 import { createPublicClient, http } from 'viem'
 import { query, queryOne } from './db'
-import MARKET_ARTIFACT from '@/abis/MarketplaceV2.json'
+import MARKET_ARTIFACT from '@/abis/MarketplaceV3.json'
 import AGENT_REGISTRY_ARTIFACT from '@/abis/AgentRegistryV2.json'
 import { CHAIN_CONFIG, getChainConfig, getMarketAddress, isSupportedChain, ipfsToHttp, createTimeoutSignal, INDEXER_CONFIG, ZERO_ADDRESSES, IPFS_GATEWAYS } from '@/config'
 

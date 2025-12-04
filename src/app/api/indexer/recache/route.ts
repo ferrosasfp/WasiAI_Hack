@@ -11,7 +11,7 @@ import { cacheModelMetadata } from '@/lib/indexer'
 import { query } from '@/lib/db'
 import { createPublicClient, http } from 'viem'
 import { getChainConfig, getMarketAddress, isSupportedChain, ZERO_ADDRESSES } from '@/config'
-import MARKET_ARTIFACT from '@/abis/MarketplaceV2.json'
+import MARKET_ARTIFACT from '@/abis/MarketplaceV3.json'
 import AGENT_REGISTRY_ARTIFACT from '@/abis/AgentRegistryV2.json'
 
 /**

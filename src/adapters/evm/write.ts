@@ -8,8 +8,8 @@
  */
 
 import type { Address, Abi } from 'viem'
-// Use MarketplaceV2 ABI for single-signature model+agent registration
-import MARKET_ARTIFACT from '@/abis/MarketplaceV2.json'
+// Use MarketplaceV3 ABI for single-signature model+agent registration with integrated splitters
+import MARKET_ARTIFACT from '@/abis/MarketplaceV3.json'
 import { getMarketAddress } from '@/config'
 
 const MARKET_ABI = (MARKET_ARTIFACT as any).abi as Abi

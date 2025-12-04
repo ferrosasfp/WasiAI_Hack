@@ -30,8 +30,8 @@ import { useWizardDraft } from '@/hooks/useWizardDraft'
 // Wagmi hooks for wallet signing
 import { useWriteContract, useWaitForTransactionReceipt, useAccount, useSwitchChain } from 'wagmi'
 import { usePublicClient } from 'wagmi'
-// Use MarketplaceV2 ABI for single-signature model+agent registration
-import MARKET_ARTIFACT from '@/abis/MarketplaceV2.json'
+// Use MarketplaceV3 ABI for single-signature model+agent registration with integrated splitters
+import MARKET_ARTIFACT from '@/abis/MarketplaceV3.json'
 import AGENT_REGISTRY_ARTIFACT from '@/abis/AgentRegistryV2.json'
 
 export const dynamic = 'force-dynamic'

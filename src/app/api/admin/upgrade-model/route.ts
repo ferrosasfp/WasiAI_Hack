@@ -23,7 +23,7 @@ import { avalancheFuji } from 'viem/chains'
 import { getMarketAddress, getChainConfig } from '@/config'
 import { cacheModelMetadata } from '@/lib/indexer'
 import { query } from '@/lib/db'
-import MARKET_ABI from '@/abis/MarketplaceV2.json'
+import MARKET_ABI from '@/abis/MarketplaceV3.json'
 
 // Security: Only allow in development
 const IS_DEV = process.env.NODE_ENV === 'development'

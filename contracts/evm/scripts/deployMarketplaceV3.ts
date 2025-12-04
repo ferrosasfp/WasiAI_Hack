@@ -32,9 +32,15 @@ async function main() {
   console.log('');
   
   // Deploy MarketplaceV3
+  // Constructor: (feeBps_, feeRecipient_, modelsLimit_, licenseNFTOwner)
   console.log('Deploying MarketplaceV3...');
   const MarketplaceV3 = await ethers.getContractFactory('MarketplaceV3');
-  const marketplace = await MarketplaceV3.deploy(FEE_BPS, deployer.address);
+  const marketplace = await MarketplaceV3.deploy(
+    FEE_BPS,           // feeBps_ (2.5%)
+    deployer.address,  // feeRecipient_ (marketplace wallet)
+    0,                 // modelsLimit_ (0 = unlimited)
+    deployer.address   // licenseNFTOwner
+  );
   await marketplace.waitForDeployment();
   const marketplaceAddress = await marketplace.getAddress();
   
@@ -81,7 +87,7 @@ async function main() {
   console.log('VERIFY ON SNOWTRACE:');
   console.log('─'.repeat(70));
   console.log('');
-  console.log(`npx hardhat verify --network avax ${marketplaceAddress} ${FEE_BPS} ${deployer.address}`);
+  console.log(`npx hardhat verify --network avax ${marketplaceAddress} ${FEE_BPS} ${deployer.address} 0 ${deployer.address}`);
   console.log('');
   
   console.log('─'.repeat(70));
