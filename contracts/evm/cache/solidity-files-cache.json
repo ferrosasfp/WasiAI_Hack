@@ -1,47 +1,6 @@
 {
   "_format": "hh-sol-cache-2",
   "files": {
-    "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/LicenseNFT.sol": {
-      "lastModificationDate": 1762807393703,
-      "contentHash": "28537782a881df6d31d5943d7f1085ce",
-      "sourceName": "contracts/LicenseNFT.sol",
-      "solcConfig": {
-        "version": "0.8.24",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "@openzeppelin/contracts/token/ERC721/ERC721.sol",
-        "@openzeppelin/contracts/access/Ownable.sol",
-        "@openzeppelin/contracts/utils/Strings.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.24"
-      ],
-      "artifacts": [
-        "LicenseNFT"
-      ]
-    },
     "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/node_modules/@openzeppelin/contracts/access/Ownable.sol": {
       "lastModificationDate": 1761931306445,
       "contentHash": "d3c790edc9ccf808a17c5a6cd13614fd",
@@ -627,47 +586,6 @@
         "Panic"
       ]
     },
-    "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/Marketplace.sol": {
-      "lastModificationDate": 1762807435491,
-      "contentHash": "a665f8f25f97a59dcfbd61f037036e08",
-      "sourceName": "contracts/Marketplace.sol",
-      "solcConfig": {
-        "version": "0.8.24",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "@openzeppelin/contracts/access/Ownable.sol",
-        "./LicenseNFT.sol",
-        "@openzeppelin/contracts/utils/ReentrancyGuard.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.24"
-      ],
-      "artifacts": [
-        "Marketplace"
-      ]
-    },
     "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol": {
       "lastModificationDate": 1761928540020,
       "contentHash": "9261adf6457863de3e9892f51317ec89",
@@ -740,86 +658,6 @@
       ],
       "artifacts": [
         "ReentrancyGuard"
-      ]
-    },
-    "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/test/ReentrantFeeReceiver.sol": {
-      "lastModificationDate": 1762298276662,
-      "contentHash": "de44f2c9a7cf41ea21dfe93bd7505937",
-      "sourceName": "contracts/test/ReentrantFeeReceiver.sol",
-      "solcConfig": {
-        "version": "0.8.24",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "../Marketplace.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.24"
-      ],
-      "artifacts": [
-        "ReentrantFeeReceiver"
-      ]
-    },
-    "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/AgentRegistry.sol": {
-      "lastModificationDate": 1764465867791,
-      "contentHash": "b4f38c5ec10c5c656b243a2d0b98fd37",
-      "sourceName": "contracts/AgentRegistry.sol",
-      "solcConfig": {
-        "version": "0.8.24",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "@openzeppelin/contracts/token/ERC721/ERC721.sol",
-        "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol",
-        "@openzeppelin/contracts/access/Ownable.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.24"
-      ],
-      "artifacts": [
-        "AgentRegistry"
       ]
     },
     "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/node_modules/@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol": {
@@ -978,45 +816,6 @@
         ">=0.6.2"
       ],
       "artifacts": []
-    },
-    "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/ReputationRegistry.sol": {
-      "lastModificationDate": 1764552185992,
-      "contentHash": "a360e5ff57e628412cfa0a328422c953",
-      "sourceName": "contracts/ReputationRegistry.sol",
-      "solcConfig": {
-        "version": "0.8.24",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "@openzeppelin/contracts/access/Ownable.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.24"
-      ],
-      "artifacts": [
-        "ReputationRegistry"
-      ]
     },
     "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/node_modules/@openzeppelin/contracts/interfaces/IERC1363.sol": {
       "lastModificationDate": 1764032005923,
@@ -1295,51 +1094,6 @@
         "Pausable"
       ]
     },
-    "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/MarketplaceV2.sol": {
-      "lastModificationDate": 1764808300188,
-      "contentHash": "45b7b95619b41448b95e5880d6ab964f",
-      "sourceName": "contracts/MarketplaceV2.sol",
-      "solcConfig": {
-        "version": "0.8.24",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "@openzeppelin/contracts/access/Ownable2Step.sol",
-        "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
-        "@openzeppelin/contracts/utils/Pausable.sol",
-        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
-        "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol",
-        "./LicenseNFT.sol",
-        "./interfaces/IAgentRegistry.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.24"
-      ],
-      "artifacts": [
-        "MarketplaceV2"
-      ]
-    },
     "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/LicenseNFTV2.sol": {
       "lastModificationDate": 1764664974403,
       "contentHash": "baedc04953589e70948a9ba56576429c",
@@ -1381,49 +1135,6 @@
       ],
       "artifacts": [
         "LicenseNFTV2"
-      ]
-    },
-    "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/InferenceSplitter.sol": {
-      "lastModificationDate": 1764832729459,
-      "contentHash": "0c93694ee149f985badc4fb28b083723",
-      "sourceName": "contracts/InferenceSplitter.sol",
-      "solcConfig": {
-        "version": "0.8.24",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "@openzeppelin/contracts/access/Ownable2Step.sol",
-        "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
-        "@openzeppelin/contracts/utils/Pausable.sol",
-        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
-        "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.24"
-      ],
-      "artifacts": [
-        "InferenceSplitter"
       ]
     },
     "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol": {
@@ -1897,6 +1608,89 @@
       ],
       "artifacts": [
         "Create2"
+      ]
+    },
+    "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/MarketplaceV3.sol": {
+      "lastModificationDate": 1764837651170,
+      "contentHash": "56be7bc0aaf5c490e22fc0753855e078",
+      "sourceName": "contracts/MarketplaceV3.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/access/Ownable2Step.sol",
+        "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
+        "@openzeppelin/contracts/utils/Pausable.sol",
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol",
+        "./LicenseNFTV2.sol",
+        "./interfaces/IAgentRegistry.sol",
+        "./interfaces/ISplitterFactory.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "MarketplaceV3"
+      ]
+    },
+    "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/interfaces/ISplitterFactory.sol": {
+      "lastModificationDate": 1764836856014,
+      "contentHash": "1d8080ef719dbbb1ce8339305247b264",
+      "sourceName": "contracts/interfaces/ISplitterFactory.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "ISplitterFactory"
       ]
     }
   }
