@@ -239,3 +239,141 @@ curl -X POST "https://router.huggingface.co/hf-inference/models/facebook/bart-la
 ---
 
 *Última actualización: Diciembre 2024*
+
+
+----------
+
+
+Voy a verificar si FinBERT es adecuado para el caso de uso y buscar alternativas.
+
+
+
+
+
+
+
+
+
+Tengo toda la información necesaria. Aquí está el análisis completo:
+
+---
+
+# Validación de Modelos para CryptoSentiment ES
+
+## ✅ ProsusAI/finbert - Análisis
+
+| Aspecto | Evaluación |
+|---------|------------|
+| **Dominio** | ✅ Financiero (entrenado con Financial PhraseBank) |
+| **Idioma** | ❌ **Solo inglés** |
+| **Tipo de texto** | Noticias financieras formales, no tweets |
+| **Output** | positive / negative / neutral |
+| **Crypto** | ⚠️ No específico, pero funciona con texto financiero general |
+
+**Veredicto**: FinBERT es excelente para texto financiero **en inglés**, pero **no soporta español**. No es ideal para "CryptoSentiment ES".
+
+---
+
+## 🏆 Recomendación: cardiffnlp/twitter-xlm-roberta-base-sentiment
+
+| Aspecto | Evaluación |
+|---------|------------|
+| **Dominio** | ✅ Twitter/Social media |
+| **Idiomas** | ✅ **Multilingüe incluyendo español** (Ar, En, Fr, De, Hi, It, **Sp**, Pt) |
+| **Entrenamiento** | ~198M tweets |
+| **Output** | Positive / Neutral / Negative |
+| **HF Inference** | ✅ Gratuito |
+
+**Endpoint:**
+```
+https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-xlm-roberta-base-sentiment
+```
+
+**Este es el modelo perfecto para CryptoSentiment ES** porque:
+- ✅ Entrenado específicamente en tweets
+- ✅ Soporta español nativamente
+- ✅ Maneja emojis y jerga de redes sociales
+- ✅ Free tier en HuggingFace Inference API
+
+---
+
+## Alternativas Válidas (Free Inference)
+
+### 1. **tabularisai/multilingual-sentiment-analysis**
+```
+https://api.tabularis.ai/
+```
+| Pro | Contra |
+|-----|--------|
+| 22+ idiomas incluyendo español | Requiere licencia comercial |
+| 5 clases (Very Negative → Very Positive) | API externa (no HF) |
+| Optimizado para social media | |
+
+### 2. **nlptown/bert-base-multilingual-uncased-sentiment**
+```
+https://router.huggingface.co/hf-inference/models/nlptown/bert-base-multilingual-uncased-sentiment
+```
+| Pro | Contra |
+|-----|--------|
+| Español incluido | Entrenado en reviews de productos |
+| 5 estrellas (1-5) | No específico para tweets |
+| HF Free tier | |
+
+### 3. **cardiffnlp/twitter-roberta-base-sentiment** (Solo inglés)
+```
+https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-roberta-base-sentiment
+```
+| Pro | Contra |
+|-----|--------|
+| Mejor para tweets en inglés | ❌ No soporta español |
+| ~58M tweets de entrenamiento | |
+
+### 4. **finiteautomata/bertweet-base-sentiment-analysis** (Solo inglés)
+```
+https://router.huggingface.co/hf-inference/models/finiteautomata/bertweet-base-sentiment-analysis
+```
+| Pro | Contra |
+|-----|--------|
+| Específico para tweets | ❌ Solo inglés |
+| Muy popular | |
+
+---
+
+## 📋 Actualización del Test Data
+
+Para el ejemplo **CryptoSentiment ES**, actualiza Step 3:
+
+| Field | Updated Value |
+|-------|---------------|
+| `inferenceEndpoint` | `https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-xlm-roberta-base-sentiment` |
+| `inferencePaymentWallet` | (tu wallet address) |
+
+### Test Request
+```bash
+curl -X POST "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-xlm-roberta-base-sentiment" \
+  -H "Authorization: Bearer $HUGGINGFACE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"inputs": "Bitcoin rompiendo resistencias, esto se va a la luna 🚀"}'
+```
+
+### Expected Response
+```json
+[
+  {"label": "Positive", "score": 0.85},
+  {"label": "Neutral", "score": 0.12},
+  {"label": "Negative", "score": 0.03}
+]
+```
+
+---
+
+## Resumen de Endpoints Gratuitos
+
+| Modelo | Endpoint | Idiomas | Mejor para |
+|--------|----------|---------|------------|
+| **twitter-xlm-roberta-base-sentiment** ⭐ | `cardiffnlp/twitter-xlm-roberta-base-sentiment` | ES, EN, +6 | Tweets multilingües |
+| **finbert** | `ProsusAI/finbert` | EN | Noticias financieras EN |
+| **bert-multilingual-sentiment** | `nlptown/bert-base-multilingual-uncased-sentiment` | ES, EN, +4 | Reviews de productos |
+| **twitter-roberta-sentiment** | `cardiffnlp/twitter-roberta-base-sentiment` | EN | Tweets en inglés |
+
+**Recomendación final**: Usa `cardiffnlp/twitter-xlm-roberta-base-sentiment` para el test de CryptoSentiment ES.

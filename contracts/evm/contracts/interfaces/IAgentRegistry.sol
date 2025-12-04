@@ -30,6 +30,14 @@ interface IAgentRegistry {
         address newWallet
     ) external;
     
+    /// @notice Update agent metadata URI on behalf of owner (called by Marketplace during model upgrade)
+    /// @param agentId The agent token ID
+    /// @param newMetadataUri New IPFS URI for metadata
+    function updateMetadataFor(
+        uint256 agentId,
+        string calldata newMetadataUri
+    ) external;
+    
     /// @notice Get agent ID by model ID
     /// @param modelId The Marketplace model ID
     /// @return agentId The agent token ID (0 if not registered)

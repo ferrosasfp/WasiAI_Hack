@@ -254,6 +254,22 @@ contract AgentRegistryV2 is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGu
             emit AgentWalletChanged(agentId, oldWallet, newWallet);
         }
     }
+    
+    /// @notice Update agent metadata URI on behalf of owner (called by Marketplace during model upgrade)
+    /// @dev Only callable by the authorized Marketplace contract
+    /// @param agentId The agent token ID
+    /// @param newMetadataUri New IPFS URI for metadata
+    function updateMetadataFor(
+        uint256 agentId,
+        string calldata newMetadataUri
+    ) external onlyMarketplace nonReentrant whenNotPaused {
+        // Agent must exist
+        if (agentId == 0 || agentId >= nextAgentId) revert InvalidModelId();
+        if (bytes(newMetadataUri).length > MAX_URI_LENGTH) revert URITooLong();
+        
+        _setTokenURI(agentId, newMetadataUri);
+        emit AgentMetadataUpdated(agentId, newMetadataUri);
+    }
 
     // ============ AGENT MANAGEMENT ============
     

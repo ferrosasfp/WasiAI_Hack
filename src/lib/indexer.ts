@@ -145,6 +145,14 @@ export async function indexChain(options: IndexerOptions): Promise<IndexerResult
     agentsIndexed = await indexAgents(client, agentRegistryAddress, chainId, state.last_agent_id || 0)
   }
 
+  // Sync family agents from on-chain FamilyMeta (MarketplaceV2.1+)
+  // This ensures all models in a family have the correct agent_id
+  console.log(`🔗 Syncing family agents from chain...`)
+  const familyAgentsSynced = await syncFamilyAgentsFromChain(client, marketAddress, chainId)
+  if (familyAgentsSynced > 0) {
+    console.log(`  └─ Synced ${familyAgentsSynced} models with family agent_id`)
+  }
+
   // Index licenses via events
   const fromBlock = BigInt(state.last_block_licenses) + 1n
   const toBlock = latestBlock
@@ -261,12 +269,18 @@ async function indexModels(
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         ON CONFLICT (model_id) DO UPDATE SET
           owner = EXCLUDED.owner,
+          creator = EXCLUDED.creator,
+          name = EXCLUDED.name,
+          uri = EXCLUDED.uri,
           listed = EXCLUDED.listed,
+          version = EXCLUDED.version,
+          royalty_bps = EXCLUDED.royalty_bps,
           price_perpetual = EXCLUDED.price_perpetual,
           price_subscription = EXCLUDED.price_subscription,
           default_duration_days = EXCLUDED.default_duration_days,
           delivery_rights_default = EXCLUDED.delivery_rights_default,
           delivery_mode_hint = EXCLUDED.delivery_mode_hint,
+          terms_hash = EXCLUDED.terms_hash,
           price_inference = EXCLUDED.price_inference,
           inference_wallet = EXCLUDED.inference_wallet,
           updated_at = NOW()`,
@@ -318,6 +332,9 @@ async function indexModels(
 /**
  * Propagate agent_id to all models in the same family (same owner + slug)
  * This preserves reputation across model upgrades
+ * 
+ * With MarketplaceV2.1+, the agent_id is stored in FamilyMeta on-chain.
+ * This function syncs the DB with the on-chain state.
  */
 async function propagateAgentIdToFamily(): Promise<void> {
   try {
@@ -354,6 +371,71 @@ async function propagateAgentIdToFamily(): Promise<void> {
   } catch (error) {
     console.error('Failed to propagate agent_id to families:', error)
   }
+}
+
+/**
+ * Sync family agent_id from on-chain FamilyMeta
+ * This queries getFamilyAgent(owner, slug) for each unique family
+ * and updates all models in that family with the correct agent_id
+ */
+export async function syncFamilyAgentsFromChain(
+  client: any,
+  marketAddress: string,
+  chainId: number
+): Promise<number> {
+  const abi: any = MARKET_ARTIFACT.abi
+  let synced = 0
+
+  try {
+    // Get all unique families (owner + slug combinations) from DB
+    const families = await query<{ owner: string; slug: string }[]>(`
+      SELECT DISTINCT owner, slug 
+      FROM models 
+      WHERE slug IS NOT NULL AND chain_id = $1
+    `, [chainId])
+
+    if (!families || families.length === 0) {
+      console.log('  └─ No families to sync')
+      return 0
+    }
+
+    console.log(`  ├─ Syncing ${families.length} families from chain...`)
+
+    for (const family of families) {
+      try {
+        // Query getFamilyAgent from contract
+        const agentId = await client.readContract({
+          address: marketAddress as `0x${string}`,
+          abi,
+          functionName: 'getFamilyAgent',
+          args: [family.owner, family.slug],
+        }) as bigint
+
+        if (agentId > 0n) {
+          // Update all models in this family with the agent_id
+          const result = await query(`
+            UPDATE models 
+            SET agent_id = $1 
+            WHERE LOWER(owner) = LOWER($2) AND slug = $3 AND chain_id = $4
+              AND (agent_id IS NULL OR agent_id != $1)
+            RETURNING model_id
+          `, [Number(agentId), family.owner, family.slug, chainId])
+
+          if (result && result.length > 0) {
+            console.log(`  │  └─ Family ${family.slug}: agent_id=${agentId} → ${result.length} models`)
+            synced += result.length
+          }
+        }
+      } catch (error) {
+        // getFamilyAgent might not exist in older contracts
+        console.warn(`  │  └─ Could not get family agent for ${family.slug}:`, error)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to sync family agents from chain:', error)
+  }
+
+  return synced
 }
 
 /**

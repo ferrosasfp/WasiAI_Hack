@@ -1296,8 +1296,8 @@
       ]
     },
     "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/MarketplaceV2.sol": {
-      "lastModificationDate": 1764686576287,
-      "contentHash": "3b26dd5a6a60c279e460149923c9ed7a",
+      "lastModificationDate": 1764808300188,
+      "contentHash": "45b7b95619b41448b95e5880d6ab964f",
       "sourceName": "contracts/MarketplaceV2.sol",
       "solcConfig": {
         "version": "0.8.24",
@@ -1467,8 +1467,8 @@
       ]
     },
     "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/AgentRegistryV2.sol": {
-      "lastModificationDate": 1764666278344,
-      "contentHash": "cfd69a2cdd9e2653e2d684e92cf985c7",
+      "lastModificationDate": 1764808374166,
+      "contentHash": "0296c8c6a9992b24f5726df51fe4e11f",
       "sourceName": "contracts/AgentRegistryV2.sol",
       "solcConfig": {
         "version": "0.8.24",
@@ -1549,8 +1549,8 @@
       ]
     },
     "/Users/fernandoavax/Documents/Proyectos/marketplaceai-frontend/contracts/evm/contracts/interfaces/IAgentRegistry.sol": {
-      "lastModificationDate": 1764666353329,
-      "contentHash": "0846008bfb185e157e9d5684c2d3159a",
+      "lastModificationDate": 1764808405929,
+      "contentHash": "327e8916a61a1d71ea7b61489b9a5e93",
       "sourceName": "contracts/interfaces/IAgentRegistry.sol",
       "solcConfig": {
         "version": "0.8.24",

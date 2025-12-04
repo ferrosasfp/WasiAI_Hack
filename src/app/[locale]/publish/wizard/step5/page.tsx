@@ -357,6 +357,12 @@ export default function Step5ReviewPublishLocalized() {
       artifacts: s3?.artifacts || [],
       licensePolicy: s4?.licensePolicy || undefined,
       downloadNotes: s3?.downloadNotes || undefined,
+      // x402 inference configuration from Step 3
+      demo: {
+        endpoint: s3?.inferenceConfig?.endpoint || '',
+        paymentWallet: s3?.inferenceConfig?.paymentWallet || '',
+        downloadNotes: s3?.downloadNotes || ''
+      },
       version: 1,
     }
     return merged

@@ -96,9 +96,11 @@ contract MarketplaceV2 is Ownable2Step, ReentrancyGuard, Pausable {
     }
 
     /// @notice Family metadata for versioning
+    /// @dev All models in a family share the same agentId for reputation continuity
     struct FamilyMeta {
-        uint256 latestId;
-        uint16 latestVersion;
+        uint256 latestId;       // Latest model ID in this family
+        uint16 latestVersion;   // Latest version number
+        uint256 agentId;        // Shared agent ID for all versions (0 if not registered)
     }
     
     /// @notice Pending wallet change with timelock
@@ -219,6 +221,20 @@ contract MarketplaceV2 is Ownable2Step, ReentrancyGuard, Pausable {
     );
     
     event AgentRegistrySet(address indexed registry);
+    
+    /// @notice Emitted when agent metadata is updated during model upgrade
+    event AgentMetadataUpdated(
+        uint256 indexed modelId,
+        uint256 indexed agentId,
+        string metadataUri
+    );
+    
+    /// @notice Emitted when existing agent is linked to a family (migration)
+    event FamilyAgentLinked(
+        address indexed owner,
+        bytes32 indexed slugHash,
+        uint256 indexed agentId
+    );
     
     event PaymentTokenSet(address indexed token);
 
@@ -639,8 +655,10 @@ contract MarketplaceV2 is Ownable2Step, ReentrancyGuard, Pausable {
         emit ModelsCountChanged(activeModels);
         emit ModelListed(modelId, msg.sender);
         
-        // Register agent if endpoint is provided and AgentRegistry is configured
-        if (bytes(agentParams.endpoint).length > 0) {
+        // Agent handling: family shares ONE agent across all versions
+        // This preserves reputation when upgrading models
+        if (fam.agentId == 0 && bytes(agentParams.endpoint).length > 0) {
+            // FIRST VERSION with agent: Register new agent and link to family
             if (address(agentRegistry) == address(0)) revert AgentRegistryNotSet();
             
             // Determine agent wallet (use inference wallet if not specified)
@@ -656,13 +674,28 @@ contract MarketplaceV2 is Ownable2Step, ReentrancyGuard, Pausable {
                 agentParams.endpoint, // inference endpoint
                 agentParams.metadataUri // agent metadata
             ) returns (uint256 _agentId) {
+                fam.agentId = _agentId;  // Store in family for all future versions
                 agentId = _agentId;
                 emit AgentLinked(modelId, agentId, msg.sender);
             } catch {
                 // Agent registration failed - revert entire transaction for atomicity
                 revert AgentRegistrationFailed();
             }
+        } else if (fam.agentId > 0) {
+            // UPGRADE: Family already has an agent - reuse it (preserves reputation)
+            agentId = fam.agentId;
+            emit AgentLinked(modelId, agentId, msg.sender);
+            
+            // Optionally update agent metadata if provided
+            if (bytes(agentParams.metadataUri).length > 0 && address(agentRegistry) != address(0)) {
+                try agentRegistry.updateMetadataFor(fam.agentId, agentParams.metadataUri) {
+                    emit AgentMetadataUpdated(modelId, fam.agentId, agentParams.metadataUri);
+                } catch {
+                    // Non-critical: metadata update failed but model upgrade succeeds
+                }
+            }
         }
+        // If fam.agentId == 0 and no endpoint provided, no agent is registered
     }
     
     /// @notice Update model AND agent in a single transaction
@@ -1080,5 +1113,67 @@ contract MarketplaceV2 is Ownable2Step, ReentrancyGuard, Pausable {
     /// @return model The Model struct
     function getModel(uint256 modelId) external view returns (Model memory) {
         return models[modelId];
+    }
+    
+    // ============ FAMILY AGENT FUNCTIONS ============
+    
+    /// @notice Get the agent ID for a model family
+    /// @param owner The model owner address
+    /// @param slug The model slug
+    /// @return agentId The agent ID (0 if no agent registered)
+    function getFamilyAgent(address owner, string calldata slug) external view returns (uint256) {
+        bytes32 slugHash = keccak256(bytes(slug));
+        return families[owner][slugHash].agentId;
+    }
+    
+    /// @notice Get the agent ID for any model (looks up family)
+    /// @dev Useful for getting agent from any version of a model
+    /// @param modelId The model ID
+    /// @param slug The model slug (needed to look up family)
+    /// @return agentId The agent ID (0 if no agent registered)
+    function getModelFamilyAgent(uint256 modelId, string calldata slug) external view returns (uint256) {
+        Model storage m = models[modelId];
+        if (m.owner == address(0)) return 0;
+        bytes32 slugHash = keccak256(bytes(slug));
+        return families[m.owner][slugHash].agentId;
+    }
+    
+    /// @notice Link an existing agent to a model family (migration function)
+    /// @dev Only callable by model owner. Used to migrate existing agents to family structure.
+    /// @param slug The model slug
+    /// @param agentId The existing agent ID to link
+    function linkExistingAgentToFamily(string calldata slug, uint256 agentId) external whenNotPaused {
+        bytes32 slugHash = keccak256(bytes(slug));
+        FamilyMeta storage fam = families[msg.sender][slugHash];
+        
+        // Family must exist (have at least one model)
+        if (fam.latestId == 0) revert InvalidVersion();
+        
+        // Family must not already have an agent
+        if (fam.agentId != 0) revert AgentRegistrationFailed();
+        
+        // Verify caller owns the agent (via AgentRegistry)
+        if (address(agentRegistry) == address(0)) revert AgentRegistryNotSet();
+        
+        // Store agent in family
+        fam.agentId = agentId;
+        
+        emit FamilyAgentLinked(msg.sender, slugHash, agentId);
+    }
+    
+    /// @notice Get full family metadata
+    /// @param owner The model owner address
+    /// @param slug The model slug
+    /// @return latestId Latest model ID
+    /// @return latestVersion Latest version number
+    /// @return agentId Linked agent ID
+    function getFamilyMeta(address owner, string calldata slug) external view returns (
+        uint256 latestId,
+        uint16 latestVersion,
+        uint256 agentId
+    ) {
+        bytes32 slugHash = keccak256(bytes(slug));
+        FamilyMeta storage fam = families[owner][slugHash];
+        return (fam.latestId, fam.latestVersion, fam.agentId);
     }
 }
