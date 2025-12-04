@@ -87,6 +87,23 @@ contract InferenceSplitter is Ownable2Step, ReentrancyGuard, Pausable {
     
     /// @notice Marketplace contract address
     address public marketplace;
+    
+    /// @notice Pending payment structure
+    struct PendingPayment {
+        uint256 modelId;
+        uint256 amount;
+        bytes32 txHash;
+        bool processed;
+    }
+    
+    /// @notice Array of pending payments
+    PendingPayment[] public pendingPayments;
+    
+    /// @notice Mapping to check if txHash already registered (prevent duplicates)
+    mapping(bytes32 => bool) public txHashUsed;
+    
+    /// @notice Next payment ID to process
+    uint256 public nextPaymentToProcess;
 
     // ============ EVENTS ============
     
@@ -131,6 +148,28 @@ contract InferenceSplitter is Ownable2Step, ReentrancyGuard, Pausable {
     event AuthorizedCallerUpdated(
         address indexed caller,
         bool authorized
+    );
+    
+    /// @notice Emitted when x402 payment is processed
+    event X402PaymentProcessed(
+        uint256 indexed modelId,
+        uint256 amount,
+        bytes32 txHash
+    );
+    
+    /// @notice Emitted when a pending payment is registered
+    event PendingPaymentRegistered(
+        uint256 indexed paymentId,
+        uint256 indexed modelId,
+        uint256 amount,
+        bytes32 txHash
+    );
+    
+    /// @notice Emitted when a pending payment is processed
+    event PendingPaymentProcessed(
+        uint256 indexed paymentId,
+        uint256 indexed modelId,
+        address indexed processedBy
     );
 
     // ============ MODIFIERS ============
@@ -250,6 +289,169 @@ contract InferenceSplitter is Ownable2Step, ReentrancyGuard, Pausable {
         }
         
         // Calculate and distribute
+        uint256 marketplaceAmount = (amount * config.marketplaceBps) / MAX_BPS;
+        uint256 creatorAmount = (amount * config.royaltyBps) / MAX_BPS;
+        uint256 sellerAmount = amount - marketplaceAmount - creatorAmount;
+        
+        balances[config.seller] += sellerAmount;
+        balances[config.creator] += creatorAmount;
+        balances[marketplaceWallet] += marketplaceAmount;
+        totalAccumulated += amount;
+        
+        emit PaymentReceived(modelId, amount, sellerAmount, creatorAmount, marketplaceAmount);
+    }
+    
+    /// @notice Process USDC that was sent directly to this contract (e.g., via x402 Facilitator)
+    /// @dev Called by authorized callers after x402 payment is verified
+    /// @param modelId The model that was used for inference
+    /// @param amount Amount of USDC that was received
+    /// @param txHash Transaction hash of the x402 payment (for tracking)
+    function processX402Payment(
+        uint256 modelId,
+        uint256 amount,
+        bytes32 txHash
+    ) external onlyAuthorized nonReentrant whenNotPaused {
+        if (amount == 0) revert InvalidAmount();
+        
+        // Verify we have enough unallocated USDC
+        uint256 contractBalance = usdc.balanceOf(address(this));
+        uint256 allocatedBalance = totalAccumulated;
+        uint256 unallocated = contractBalance > allocatedBalance ? contractBalance - allocatedBalance : 0;
+        
+        if (unallocated < amount) {
+            // Not enough unallocated funds - payment may not have arrived yet
+            revert InsufficientBalance();
+        }
+        
+        SplitConfig memory config = splits[modelId];
+        
+        if (!config.configured) {
+            // If model not configured, all goes to marketplace (safety)
+            balances[marketplaceWallet] += amount;
+            totalAccumulated += amount;
+            emit PaymentReceived(modelId, amount, 0, 0, amount);
+            emit X402PaymentProcessed(modelId, amount, txHash);
+            return;
+        }
+        
+        // Calculate and distribute
+        uint256 marketplaceAmount = (amount * config.marketplaceBps) / MAX_BPS;
+        uint256 creatorAmount = (amount * config.royaltyBps) / MAX_BPS;
+        uint256 sellerAmount = amount - marketplaceAmount - creatorAmount;
+        
+        balances[config.seller] += sellerAmount;
+        balances[config.creator] += creatorAmount;
+        balances[marketplaceWallet] += marketplaceAmount;
+        totalAccumulated += amount;
+        
+        emit PaymentReceived(modelId, amount, sellerAmount, creatorAmount, marketplaceAmount);
+        emit X402PaymentProcessed(modelId, amount, txHash);
+    }
+    
+    /// @notice Get unallocated USDC balance (payments received but not yet processed)
+    /// @return unallocated Amount of USDC not yet allocated to recipients
+    function getUnallocatedBalance() external view returns (uint256) {
+        uint256 contractBalance = usdc.balanceOf(address(this));
+        return contractBalance > totalAccumulated ? contractBalance - totalAccumulated : 0;
+    }
+    
+    // ============ PENDING PAYMENTS QUEUE ============
+    
+    /// @notice Register a pending payment (called by authorized caller after x402 verification)
+    /// @dev This queues the payment for processing - anyone can then call processPendingPayments
+    /// @param modelId The model that was used for inference
+    /// @param amount Amount of USDC that was received
+    /// @param txHash Transaction hash of the x402 payment (for tracking/dedup)
+    function registerPendingPayment(
+        uint256 modelId,
+        uint256 amount,
+        bytes32 txHash
+    ) external onlyAuthorized whenNotPaused {
+        if (amount == 0) revert InvalidAmount();
+        if (txHashUsed[txHash]) revert InvalidAmount(); // Duplicate payment
+        
+        txHashUsed[txHash] = true;
+        
+        uint256 paymentId = pendingPayments.length;
+        pendingPayments.push(PendingPayment({
+            modelId: modelId,
+            amount: amount,
+            txHash: txHash,
+            processed: false
+        }));
+        
+        emit PendingPaymentRegistered(paymentId, modelId, amount, txHash);
+    }
+    
+    /// @notice Process pending payments in the queue
+    /// @dev Anyone can call this - no gas cost for the API server
+    /// @param maxPayments Maximum number of payments to process (gas limit protection)
+    /// @return processed Number of payments actually processed
+    function processPendingPayments(uint256 maxPayments) external nonReentrant whenNotPaused returns (uint256 processed) {
+        uint256 contractBalance = usdc.balanceOf(address(this));
+        uint256 available = contractBalance > totalAccumulated ? contractBalance - totalAccumulated : 0;
+        
+        uint256 end = pendingPayments.length;
+        uint256 start = nextPaymentToProcess;
+        
+        if (maxPayments > 0 && start + maxPayments < end) {
+            end = start + maxPayments;
+        }
+        
+        for (uint256 i = start; i < end && available > 0; i++) {
+            PendingPayment storage payment = pendingPayments[i];
+            
+            if (payment.processed) {
+                nextPaymentToProcess = i + 1;
+                continue;
+            }
+            
+            if (payment.amount > available) {
+                // Not enough funds yet, stop processing
+                break;
+            }
+            
+            // Process this payment
+            _distributePayment(payment.modelId, payment.amount);
+            payment.processed = true;
+            available -= payment.amount;
+            processed++;
+            nextPaymentToProcess = i + 1;
+            
+            emit PendingPaymentProcessed(i, payment.modelId, msg.sender);
+        }
+    }
+    
+    /// @notice Get number of pending payments waiting to be processed
+    function getPendingPaymentsCount() external view returns (uint256 total, uint256 pending) {
+        total = pendingPayments.length;
+        pending = total > nextPaymentToProcess ? total - nextPaymentToProcess : 0;
+    }
+    
+    /// @notice Get pending payment details
+    function getPendingPayment(uint256 paymentId) external view returns (
+        uint256 modelId,
+        uint256 amount,
+        bytes32 txHash,
+        bool processed
+    ) {
+        PendingPayment memory p = pendingPayments[paymentId];
+        return (p.modelId, p.amount, p.txHash, p.processed);
+    }
+    
+    /// @notice Internal function to distribute payment according to model's split config
+    function _distributePayment(uint256 modelId, uint256 amount) internal {
+        SplitConfig memory config = splits[modelId];
+        
+        if (!config.configured) {
+            // If model not configured, all goes to marketplace (safety)
+            balances[marketplaceWallet] += amount;
+            totalAccumulated += amount;
+            emit PaymentReceived(modelId, amount, 0, 0, amount);
+            return;
+        }
+        
+        // Calculate and distribute using model's specific royalty
         uint256 marketplaceAmount = (amount * config.marketplaceBps) / MAX_BPS;
         uint256 creatorAmount = (amount * config.royaltyBps) / MAX_BPS;
         uint256 sellerAmount = amount - marketplaceAmount - creatorAmount;

@@ -14,6 +14,12 @@ const USDC_DECIMALS = 6
 // Ultravioleta DAO Facilitator
 const FACILITATOR_URL = process.env.X402_FACILITATOR_URL || 'https://facilitator.ultravioletadao.xyz'
 
+// InferenceSplitter contract address (receives x402 payments and distributes to seller/creator/marketplace)
+const INFERENCE_SPLITTER_ADDRESS = process.env.X402_SPLITTER_ADDRESS || '0x42124B2962eE92524aD37800537F9876621D81B6'
+
+// Whether to use the splitter (set to false to send directly to seller)
+const USE_SPLITTER = process.env.X402_USE_SPLITTER !== 'false'
+
 // Default price per inference in USDC base units (0.01 USDC = 10000)
 const DEFAULT_PRICE_USDC = process.env.X402_DEFAULT_PRICE_USDC || '10000' // $0.01
 
@@ -830,6 +836,12 @@ function createPaymentRequirement(
   // Facilitator requires absolute URL for resource field
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://wasiai.com'
   
+  // Use InferenceSplitter as payment recipient for automatic revenue split
+  // If USE_SPLITTER is false, payments go directly to seller
+  const payTo = USE_SPLITTER ? INFERENCE_SPLITTER_ADDRESS : modelInfo.recipientWallet
+  
+  console.log(`[x402] Payment recipient for model ${modelId}: ${payTo} (splitter: ${USE_SPLITTER})`)
+  
   return {
     scheme: 'exact',
     network: NETWORK,
@@ -837,7 +849,7 @@ function createPaymentRequirement(
     resource: `${baseUrl}/api/inference/${modelId}`,
     description: `AI inference on ${modelInfo.name}`,
     mimeType: 'application/json',
-    payTo: modelInfo.recipientWallet,
+    payTo,
     asset: USDC_ADDRESS,
     maxTimeoutSeconds: MAX_TIMEOUT_SECONDS
   }

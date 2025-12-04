@@ -211,10 +211,56 @@ nvm use 18
 
 
 
-Comando	Propósito
-MODEL_ID=2 npx hardhat run scripts/e2eVerification.ts --network avax	Verificación completa E2E
-MODEL_ID=2 npx hardhat run scripts/verifyModelAgent.ts --network avax	Verificar modelo + agent
-MODEL_ID=2 npx hardhat run scripts/verifyX402.ts --network avax	Verificar x402 inference
-MODEL_ID=2 npx hardhat run scripts/verifyLicense.ts --network avax	Verificar licencias
-MODEL_ID=2 npx hardhat run scripts/syncToNeon.ts --network avax	Sync DB
-Recuerda: Siempre ejecutar desde contracts/evm/
+---
+
+## 7. ModelSplitter (Revenue Split para x402) - Arquitectura por Modelo
+
+```bash
+# Crear splitter para un modelo
+SPLITTER_FACTORY_ADDRESS=0xf8d8C220181CAe9A748b8e817BFE337AB5b74731 MODEL_ID=1 npx hardhat run scripts/createModelSplitter.ts --network avax
+
+# Ver estado de un splitter
+SPLITTER_FACTORY_ADDRESS=0xf8d8C220181CAe9A748b8e817BFE337AB5b74731 MODEL_ID=1 npx hardhat run scripts/checkModelSplitter.ts --network avax
+```
+
+**Direcciones:**
+- **SplitterFactory**: `0xf8d8C220181CAe9A748b8e817BFE337AB5b74731`
+- **ModelSplitter Impl**: `0x63533c50AdD0252feEcE2A708bdFFcd997Da5e47`
+- **USDC (x402)**: `0x5425890298aed601595a70AB815c96711a31Bc65`
+
+**Splitters por modelo:**
+- **Model 1**: `0xdD3db35F2dB2632Af4a5D28CA9458F8B3b5Acae6`
+- **Model 2**: `0xEb4f017f8E2bB3e2FE779A3e7De000a67Ef7782a`
+
+**Flujo de pagos x402:**
+1. x402 Facilitator → USDC va al Splitter del modelo (payTo)
+2. Cualquiera llama `distribute()` para distribuir fondos
+3. Cada parte llama `withdraw()` para retirar
+4. **Mejor**: `distributeAndWithdraw()` hace todo en 1 TX
+
+**Ventajas de esta arquitectura:**
+- ✅ Cada modelo tiene su propio splitter con royalty fijo
+- ✅ No hay confusión entre pagos de diferentes modelos
+- ✅ El API no paga gas (solo configura payTo)
+- ✅ Clones baratos (~$0.10-0.30 por modelo)
+
+**Split ejemplo para $1.00:**
+- Seller: $0.925 (92.5%)
+- Creator: $0.05 (5% royalty)
+- Marketplace: $0.025 (2.5% fee)
+
+---
+
+## Tabla de Comandos Rápidos
+
+| Comando | Propósito |
+|---------|-----------|
+| `MODEL_ID=2 npx hardhat run scripts/e2eVerification.ts --network avax` | Verificación completa E2E |
+| `MODEL_ID=2 npx hardhat run scripts/verifyModelAgent.ts --network avax` | Verificar modelo + agent |
+| `MODEL_ID=2 npx hardhat run scripts/verifyX402.ts --network avax` | Verificar x402 inference |
+| `MODEL_ID=2 npx hardhat run scripts/verifyLicense.ts --network avax` | Verificar licencias |
+| `MODEL_ID=2 npx hardhat run scripts/syncToNeon.ts --network avax` | Sync DB |
+| `npx hardhat run scripts/checkSplitterBalances.ts --network avax` | Ver balances del splitter |
+| `npx hardhat run scripts/configureSplits.ts --network avax` | Configurar splits |
+
+**Recuerda:** Siempre ejecutar desde `contracts/evm/`
