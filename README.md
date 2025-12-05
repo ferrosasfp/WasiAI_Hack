@@ -161,35 +161,91 @@ User clicks "Connect Wallet"
 
 The Thirdweb in-app wallet creates a non-custodial wallet linked to the user's social account, fully compatible with wagmi/viem.
 
-## 🔗 Deployed Contracts (Avalanche Fuji)
+## 🔗 Deployed Contracts (Avalanche Fuji - 43113)
 
 | Contract | Address | Status |
 |----------|---------|--------|
-| Marketplace | `0x...` | ✅ Deployed |
-| LicenseNFT | `0x...` | ✅ Deployed |
-| AgentRegistry | TBD | 🔄 In Progress |
-| ReputationRegistry | TBD | 📋 Planned |
+| MarketplaceV3 | `0xf1eA59d71C67e9E6Ea481Aa26911641a6c97370C` | ✅ Deployed |
+| LicenseNFTV2 | `0xC657F1B26fc56A0AA1481F502BCC6532B93d7426` | ✅ Deployed |
+| AgentRegistryV2 | `0x3421c2cDE342afF48C12Fe345eD81cA1ac4D89A6` | ✅ Deployed |
+| SplitterFactory | `0xf8d8C220181CAe9A748b8e817BFE337AB5b74731` | ✅ Deployed |
+| MockUSDC | `0xCDa6E1C8340550aC412Ee9BC59ae4Db46745C53e` | ✅ Deployed |
+| Circle USDC (x402) | `0x5425890298aed601595a70AB815c96711a31Bc65` | ✅ External |
 
 ## 📁 Project Structure
 
 ```
-├── contracts/evm/          # Solidity smart contracts
+├── contracts/evm/                    # Solidity smart contracts (Hardhat)
 │   ├── contracts/
-│   │   ├── Marketplace.sol
-│   │   └── LicenseNFT.sol
-│   └── scripts/
+│   │   ├── MarketplaceV3.sol         # Model registry + license sales + splitter integration
+│   │   ├── LicenseNFTV2.sol          # ERC-721 license tokens
+│   │   ├── AgentRegistryV2.sol       # ERC-8004 Agent Identity
+│   │   ├── ReputationRegistryV2.sol  # ERC-8004 Reputation (planned)
+│   │   ├── SplitterFactory.sol       # Creates ModelSplitter clones per model
+│   │   ├── ModelSplitter.sol         # Revenue split (seller/creator/marketplace)
+│   │   └── MockUSDC.sol              # Test token for Fuji
+│   └── scripts/                      # Deploy & verification scripts
+│
 ├── src/
-│   ├── app/                # Next.js App Router pages
-│   │   ├── [locale]/       # i18n routes
-│   │   │   ├── evm/models/ # Model detail pages
-│   │   │   └── publish/    # Publish wizard
-│   │   └── api/            # API routes
-│   ├── components/         # React components
-│   ├── adapters/evm/       # Blockchain adapters
-│   ├── lib/                # Utilities
-│   └── config/             # Configuration
-├── db/                     # Database schema
-└── scripts/                # Indexer and utilities
+│   ├── app/                          # Next.js 14 App Router
+│   │   ├── [locale]/                 # i18n routes (en/es)
+│   │   │   ├── page.tsx              # Landing page
+│   │   │   ├── models/               # Model catalog (indexed from DB)
+│   │   │   ├── evm/models/[id]/      # Model detail page (blockchain + IPFS)
+│   │   │   ├── licenses/             # User's license NFTs
+│   │   │   └── publish/wizard/       # 5-step publish wizard
+│   │   │       ├── step1/            # Basic info + cover image
+│   │   │       ├── step2/            # Business & technical metadata
+│   │   │       ├── step3/            # Artifacts upload (IPFS)
+│   │   │       ├── step4/            # Pricing & licensing terms
+│   │   │       └── step5/            # Review & publish to blockchain
+│   │   └── api/                      # API routes
+│   │       ├── inference/[modelId]/  # x402 pay-per-inference gateway
+│   │       ├── models/               # Model CRUD, drafts, publish
+│   │       ├── ipfs/                 # IPFS proxy & upload
+│   │       ├── indexed/              # Cached data from Neon DB
+│   │       └── keys/                 # Protected content key management
+│   │
+│   ├── components/                   # React components
+│   │   ├── ConnectWalletModal.tsx    # Hybrid wallet modal (Thirdweb + RainbowKit)
+│   │   ├── SocialLoginButtons.tsx    # Google/Apple/Email/Passkey login
+│   │   ├── UnifiedConnectButtonEvm.tsx # Main connect button
+│   │   ├── ModelCard.tsx             # Model card for catalog
+│   │   ├── ModelDetailView.tsx       # Shared detail page UI
+│   │   ├── X402InferencePanel.tsx    # Pay-per-inference UI
+│   │   └── QuickEditDrawer.tsx       # Edit pricing/rights without republish
+│   │
+│   ├── adapters/evm/                 # Blockchain interaction layer
+│   │   ├── read.ts                   # Read from contracts (wagmi)
+│   │   └── write.ts                  # Write to contracts (transactions)
+│   │
+│   ├── viewmodels/                   # Data transformation layer
+│   │   ├── types.ts                  # ViewModel interfaces
+│   │   ├── factories.ts              # Create ViewModels from raw data
+│   │   └── adapters.ts               # Adapt between data sources
+│   │
+│   ├── lib/                          # Utilities
+│   │   ├── indexer.ts                # Blockchain → Neon DB sync
+│   │   ├── ipfs.ts                   # IPFS helpers
+│   │   └── db.ts                     # Neon Postgres client
+│   │
+│   ├── hooks/                        # Custom React hooks
+│   ├── config/                       # Chain configs, ABIs, constants
+│   ├── contexts/                     # React contexts (Wallet, Wizard)
+│   ├── messages/                     # i18n translations (en.json, es.json)
+│   └── styles/                       # MUI theme
+│
+├── db/                               # Database
+│   └── migrations/                   # SQL migrations for Neon
+│
+├── scripts/                          # Node.js utilities
+│   ├── run-indexer.ts                # Sync blockchain to Neon
+│   └── cache-all-metadata.ts         # Pre-cache IPFS metadata
+│
+├── docs/                             # Documentation
+│   └── analysis/                     # Technical analysis docs
+│
+└── public/                           # Static assets
 ```
 
 ## 🎮 Key Features
