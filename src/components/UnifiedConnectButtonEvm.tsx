@@ -8,12 +8,12 @@ import MenuItem from "@mui/material/MenuItem";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Divider from "@mui/material/Divider";
-import Typography from "@mui/material/Typography";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import LinkOffIcon from "@mui/icons-material/LinkOff";
-import { useAccount as useEvmAccount, useDisconnect, useChainId, useConfig } from "wagmi";
+import { useAccount as useEvmAccount, useDisconnect, useChainId, useConfig, useConnect } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useLocale } from "next-intl";
+import { ConnectWalletModal } from "./ConnectWalletModal";
 
 function WalletIcon({ size = 18 }: { size?: number }) {
   return (
@@ -32,6 +32,7 @@ function shorten(addr?: string) {
 export default function UnifiedConnectButtonEvm() {
   const config = useConfig();
   const { address: evmAddress, isConnected } = useEvmAccount();
+  const { connectors } = useConnect();
   const { openConnectModal } = useConnectModal();
   const { disconnectAsync } = useDisconnect();
   const chainId = useChainId();
@@ -39,6 +40,10 @@ export default function UnifiedConnectButtonEvm() {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const menuOpen = Boolean(menuAnchor);
   const [busy, setBusy] = useState(false);
+  const [connectModalOpen, setConnectModalOpen] = useState(false);
+
+  // Check if Thirdweb in-app wallet is available
+  const hasThirdwebConnector = connectors.some((c) => c.id === 'in-app-wallet');
 
   const L = useMemo(() => {
     const es = locale === 'es';
@@ -74,6 +79,15 @@ export default function UnifiedConnectButtonEvm() {
     if (busy) return;
     setBusy(true);
     const release = () => setTimeout(()=> setBusy(false), 900);
+    
+    // If Thirdweb is available, show our custom modal with both options
+    if (hasThirdwebConnector) {
+      setConnectModalOpen(true);
+      release();
+      return;
+    }
+    
+    // Otherwise, fall back to RainbowKit modal
     if (openConnectModal) {
       try { openConnectModal(); } finally { release(); }
     } else { release(); }
@@ -149,6 +163,12 @@ export default function UnifiedConnectButtonEvm() {
           <ListItemText primary={L.disconnect} primaryTypographyProps={{ sx: { color: 'oklch(0.95 0 0)', fontSize: 14 } }} />
         </MenuItem>
       </Menu>
+
+      {/* Connect Wallet Modal (Social Login + Traditional Wallets) */}
+      <ConnectWalletModal
+        open={connectModalOpen}
+        onClose={() => setConnectModalOpen(false)}
+      />
     </Stack>
   );
 }

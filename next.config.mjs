@@ -153,7 +153,8 @@ const nextConfig = {
                 "form-action 'self'",
                 "frame-ancestors 'self'",
                 // Allow rendering protected content via blob: iframe when needed
-                "frame-src 'self' blob:",
+                // Thirdweb embedded wallet requires iframe access
+                "frame-src 'self' blob: https://embedded-wallet.thirdweb.com https://*.thirdweb.com",
                 "img-src 'self' data: blob: https: gateway.pinata.cloud ipfs.io cloudflare-ipfs.com",
                 // Allow media playback from blob URIs (video/audio) and HTTPS
                 "media-src 'self' blob: https: data:",

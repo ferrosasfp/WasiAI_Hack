@@ -13,11 +13,40 @@ import { WalletEcosystemProvider } from '@/contexts/WalletEcosystemContext';
 import theme from '@/styles/theme';
 import { CACHE_TTLS, getExponentialBackoff } from '@/config';
 
+// Thirdweb In-App Wallet integration
+import { inAppWalletConnector } from '@thirdweb-dev/wagmi-adapter';
+import { createThirdwebClient, defineChain as thirdwebChain } from 'thirdweb';
+
 // Avalanche chain selection based on NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID
 // 43114 = Avalanche Mainnet, 43113 = Avalanche Fuji (testnet)
 const defaultChainId = parseInt(process.env.NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID || '43113', 10);
 const isMainnet = defaultChainId === 43114;
 const evmChainsArr = isMainnet ? [avalanche] as const : [avalancheFuji] as const;
+
+// Thirdweb client for in-app wallets (social login, email, etc.)
+const thirdwebClientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
+const thirdwebClient = thirdwebClientId 
+  ? createThirdwebClient({ clientId: thirdwebClientId })
+  : null;
+
+// Build connectors array
+const connectors = [
+  injected(), // MetaMask, Rabby, etc.
+];
+
+// Add Thirdweb in-app wallet connector if client ID is configured
+if (thirdwebClient) {
+  connectors.push(
+    inAppWalletConnector({
+      client: thirdwebClient,
+      // Optional: Enable smart accounts for gasless transactions
+      // smartAccount: {
+      //   chain: thirdwebChain(evmChainsArr[0]),
+      //   sponsorGas: true,
+      // },
+    }) as any
+  );
+}
 
 // Create wagmi config once at module level for stability
 // This ensures the config is not recreated on each render
@@ -26,7 +55,7 @@ const wagmiConfig = createConfig({
   transports: {
     [evmChainsArr[0].id]: http(),
   },
-  connectors: [injected()],
+  connectors,
   ssr: true,
   // Use noopStorage for SSR, real localStorage on client
   storage: createStorage({
