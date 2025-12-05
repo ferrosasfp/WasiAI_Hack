@@ -12,6 +12,7 @@ import {
   Snackbar, Alert, CircularProgress
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import RefreshIcon from '@mui/icons-material/Refresh'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CheckIcon from '@mui/icons-material/Check'
 import Link from 'next/link'
@@ -460,6 +461,38 @@ export default function ModelPageClient(props: ModelPageClientProps) {
   
   // Edit controls state
   const [quickEditOpen, setQuickEditOpen] = React.useState(false)
+  
+  // Refresh data state
+  const [refreshing, setRefreshing] = React.useState(false)
+  
+  // Handle manual refresh - reindex from blockchain
+  const handleRefresh = React.useCallback(async () => {
+    if (!id || !evmChainId || refreshing) return
+    
+    setRefreshing(true)
+    try {
+      const res = await fetch(`/api/models/evm/${id}/reindex?chainId=${evmChainId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (res.ok) {
+        // Reload the page to get fresh data
+        window.location.reload()
+      } else {
+        setSnkSev('error')
+        setSnkMsg(locale === 'es' ? 'Error al actualizar datos' : 'Failed to refresh data')
+        setSnkOpen(true)
+      }
+    } catch (err) {
+      console.error('[Refresh] Error:', err)
+      setSnkSev('error')
+      setSnkMsg(locale === 'es' ? 'Error de conexión' : 'Connection error')
+      setSnkOpen(true)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [id, evmChainId, refreshing, locale])
   const entitlementsKey = walletAddress && id ? ['entitlements', id, walletAddress.toLowerCase(), evmChainId || 'default'] : null
   const entitlementsFetcher = React.useCallback(async () => {
     if (!walletAddress || !id) return null
@@ -1097,6 +1130,36 @@ export default function ModelPageClient(props: ModelPageClientProps) {
           >
             {L.back}
           </Button>
+          
+          {/* Refresh button - syncs data from blockchain */}
+          <Tooltip title={locale === 'es' ? 'Actualizar datos desde blockchain' : 'Refresh data from blockchain'}>
+            <IconButton
+              onClick={handleRefresh}
+              disabled={refreshing || loading}
+              sx={{
+                color: 'oklch(0.92 0 0)',
+                bgcolor: 'rgba(255,255,255,0.05)',
+                borderRadius: '10px',
+                width: 40,
+                height: 40,
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  bgcolor: 'rgba(79,225,255,0.15)',
+                  color: '#4fe1ff',
+                  boxShadow: '0 0 12px rgba(79,225,255,0.3)'
+                },
+                '&:disabled': {
+                  color: 'rgba(255,255,255,0.3)'
+                }
+              }}
+            >
+              {refreshing ? (
+                <CircularProgress size={20} sx={{ color: 'inherit' }} />
+              ) : (
+                <RefreshIcon />
+              )}
+            </IconButton>
+          </Tooltip>
         </Stack>
         {loading && (
           <Grid container spacing={3}>

@@ -2,8 +2,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useLocale, useTranslations } from 'next-intl'
-import { Container, Box, Grid, Stack, Typography, Button, Card, CardContent, TextField, Chip, IconButton, Drawer, Divider, Skeleton } from '@mui/material'
+import { Container, Box, Grid, Stack, Typography, Button, Card, CardContent, TextField, Chip, IconButton, Drawer, Divider, Skeleton, Tooltip, CircularProgress } from '@mui/material'
 import TuneIcon from '@mui/icons-material/Tune'
+import RefreshIcon from '@mui/icons-material/Refresh'
 import VerifiedIcon from '@mui/icons-material/Verified'
 import UploadIcon from '@mui/icons-material/CloudUpload'
 import RocketIcon from '@mui/icons-material/RocketLaunch'
@@ -82,6 +83,7 @@ export default function ExploreModelsPage() {
   const [hasMore, setHasMore] = useState(true)
   const [initialFailed, setInitialFailed] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
   const [initialTimeoutMs, setInitialTimeoutMs] = useState(8000)
   const initialRetryRef = useRef(0)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
@@ -454,7 +456,31 @@ export default function ExploreModelsPage() {
     return () => { if (revealTimer.current) { clearInterval(revealTimer.current); revealTimer.current = null } }
   }, [filtered.length, visibleCount])
 
-  
+  // Handle manual refresh - triggers full reindex from blockchain
+  const handleRefresh = React.useCallback(async () => {
+    if (refreshing) return
+    
+    setRefreshing(true)
+    try {
+      // Call the cron endpoint to reindex all models
+      const res = await fetch(`/api/indexer?chainId=${evmChainId || 43113}`, {
+        method: 'GET',
+        cache: 'no-store'
+      })
+      
+      if (res.ok) {
+        // Reset and reload data
+        setItems([])
+        setStart(0)
+        setHasMore(true)
+        setRefreshKey(k => k + 1)
+      }
+    } catch (err) {
+      console.error('[Catalog Refresh] Error:', err)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [refreshing, evmChainId])
 
   const Filters = (
     <Box sx={{ width: 300, p: 2 }} role="presentation">
@@ -501,6 +527,20 @@ export default function ExploreModelsPage() {
                     '& .MuiSvgIcon-root': { color: 'oklch(0.90 0 0)' },
                     '& input::placeholder': { color: 'oklch(0.80 0 0)', opacity: 1 }
                   }} />
+                  <Tooltip title={isES ? 'Actualizar desde blockchain' : 'Refresh from blockchain'}>
+                    <IconButton 
+                      onClick={handleRefresh} 
+                      disabled={refreshing || loading}
+                      sx={{ 
+                        color: 'oklch(0.98 0 0)', 
+                        border: '1px solid oklch(0.28 0 0)', 
+                        bgcolor: 'rgba(255,255,255,0.04)',
+                        '&:disabled': { color: 'oklch(0.5 0 0)' }
+                      }}
+                    >
+                      {refreshing ? <CircularProgress size={20} sx={{ color: 'inherit' }} /> : <RefreshIcon />}
+                    </IconButton>
+                  </Tooltip>
                   <IconButton onClick={()=>setOpenFilters(true)} sx={{ color: 'oklch(0.98 0 0)', border: '1px solid oklch(0.28 0 0)', bgcolor: 'rgba(255,255,255,0.04)' }}><TuneIcon /></IconButton>
                 </Stack>
               </CardContent>

@@ -929,10 +929,24 @@ export default function Step5ReviewPublishLocalized() {
               console.log('[Upgrade] TX confirmed:', hash)
             }
             
-            // Trigger indexer to sync blockchain state (updates listed status of old versions)
-            fetch(`/api/indexer?chainId=${targetChainId}`, { method: 'GET' })
-              .then(() => console.log('[Upgrade] Indexer triggered for blockchain sync'))
-              .catch(() => {}) // Non-blocking, ignore errors
+            // Reindex the specific model immediately after TX confirmation
+            // This ensures the model appears in listings right away
+            if (result.modelId) {
+              try {
+                setMsg(locale === 'es' ? 'Sincronizando datos...' : 'Syncing data...')
+                const reindexRes = await fetch(`/api/models/evm/${result.modelId}/reindex?chainId=${targetChainId}`, { 
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' }
+                })
+                if (reindexRes.ok) {
+                  console.log(`[Upgrade] ✅ Model #${result.modelId} reindexed successfully`)
+                } else {
+                  console.warn(`[Upgrade] ⚠️ Reindex returned ${reindexRes.status}`)
+                }
+              } catch (reindexErr) {
+                console.warn('[Upgrade] Reindex failed (non-blocking):', reindexErr)
+              }
+            }
             
             setResults(prev=>[...prev, { 
               chain: tnet.chain, 
@@ -1158,10 +1172,22 @@ export default function Step5ReviewPublishLocalized() {
                 })
                 console.log(`[Publish] ✅ Model #${modelId} registered in Neon DB`)
                 
-                // Trigger indexer to sync blockchain state (updates listed status of old versions)
-                fetch(`/api/indexer?chainId=${targetChainId}`, { method: 'GET' })
-                  .then(() => console.log('[Publish] Indexer triggered for blockchain sync'))
-                  .catch(() => {}) // Non-blocking, ignore errors
+                // Reindex the specific model immediately after DB registration
+                // This ensures IPFS metadata is cached and model appears correctly
+                try {
+                  setMsg(locale === 'es' ? 'Sincronizando datos...' : 'Syncing data...')
+                  const reindexRes = await fetch(`/api/models/evm/${modelId}/reindex?chainId=${targetChainId}`, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                  })
+                  if (reindexRes.ok) {
+                    console.log(`[Publish] ✅ Model #${modelId} reindexed successfully`)
+                  } else {
+                    console.warn(`[Publish] ⚠️ Reindex returned ${reindexRes.status}`)
+                  }
+                } catch (reindexErr) {
+                  console.warn('[Publish] Reindex failed (non-blocking):', reindexErr)
+                }
               } catch (dbErr) {
                 console.warn('[Publish] Failed to register model in DB (non-blocking):', dbErr)
                 // Don't fail the publish if DB registration fails - blockchain is source of truth
