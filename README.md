@@ -80,7 +80,7 @@ WasiAI enables AI model creators to monetize their models through:
 | **Frontend** | Next.js 14 (App Router), React 18, TypeScript, Material UI |
 | **Blockchain** | Avalanche C-Chain, Solidity, wagmi, viem, RainbowKit |
 | **Storage** | IPFS (Pinata), Neon Postgres |
-| **Wallet** | RainbowKit + wagmi |
+| **Wallet** | RainbowKit + wagmi + Thirdweb In-App Wallets |
 | **i18n** | next-intl (English/Spanish) |
 
 ## 🚀 Quick Start
@@ -119,9 +119,47 @@ DATABASE_URL=postgresql://...
 
 # App
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+# Thirdweb (Social Login / In-App Wallets)
+NEXT_PUBLIC_THIRDWEB_CLIENT_ID=your_thirdweb_client_id
 ```
 
 See `.env.example` for all available options.
+
+## 🔐 Thirdweb Setup (Social Login)
+
+WasiAI supports social login (Google, Apple, Email, Passkey) via Thirdweb In-App Wallets. This allows non-crypto users to onboard easily.
+
+### Quick Setup
+
+1. **Get a Client ID** from [Thirdweb Dashboard](https://thirdweb.com/dashboard)
+2. Create a project and add your domains (`localhost:3000`, `localhost:3002`, your production domain)
+3. Add to `.env.local`:
+   ```bash
+   NEXT_PUBLIC_THIRDWEB_CLIENT_ID=your_client_id_here
+   ```
+
+### Features
+- **Google Login** - One-click sign in with Google account
+- **Apple Login** - Sign in with Apple ID
+- **Email Login** - Passwordless email authentication
+- **Passkey** - Biometric authentication (Face ID, Touch ID)
+- **Hybrid Mode** - Users can also connect traditional wallets (MetaMask, WalletConnect)
+
+### How It Works
+```
+User clicks "Connect Wallet"
+        ↓
+┌─────────────────────────────┐
+│     Quick Sign In           │
+│  [Google] [Apple] [Email]   │
+│         ─── or ───          │
+│     Connect Wallet          │
+│  [MetaMask, WalletConnect]  │
+└─────────────────────────────┘
+```
+
+The Thirdweb in-app wallet creates a non-custodial wallet linked to the user's social account, fully compatible with wagmi/viem.
 
 ## 🔗 Deployed Contracts (Avalanche Fuji)
 
@@ -219,3 +257,4 @@ MIT
 - [x402 Protocol](https://www.x402.org/) - Payment standard
 - [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) - Agent identity standard
 - [Pinata](https://pinata.cloud/) - IPFS pinning service
+- [Thirdweb](https://thirdweb.com/) - In-App Wallets & Account Abstraction
