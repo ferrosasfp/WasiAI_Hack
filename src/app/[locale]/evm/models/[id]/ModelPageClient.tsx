@@ -754,20 +754,29 @@ export default function ModelPageClient(props: ModelPageClientProps) {
         currentAddress,
       })
       
+      // Verify publicClient is available
+      if (!publicClient) {
+        console.error('[Purchase] publicClient is not available')
+        setSnkSev('error'); setSnkMsg('Wallet not properly connected. Please reconnect.'); setSnkOpen(true)
+        setTxLoading(false)
+        return
+      }
+      
       // Step 1: Check USDC balance
       let usdcBalance = 0n
       try {
-        if (publicClient) {
-          usdcBalance = await publicClient.readContract({
-            address: usdcAddress as `0x${string}`,
-            abi: erc20Abi,
-            functionName: 'balanceOf',
-            args: [currentAddress as `0x${string}`],
-          }) as bigint
-          console.log('[Purchase] USDC balance:', usdcBalance.toString())
-        }
+        usdcBalance = await publicClient.readContract({
+          address: usdcAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          args: [currentAddress as `0x${string}`],
+        }) as bigint
+        console.log('[Purchase] USDC balance:', usdcBalance.toString())
       } catch (e) {
-        console.warn('[Purchase] Failed to check USDC balance:', e)
+        console.error('[Purchase] Failed to check USDC balance:', e)
+        setSnkSev('error'); setSnkMsg('Failed to check USDC balance'); setSnkOpen(true)
+        setTxLoading(false)
+        return
       }
       
       if (usdcBalance < priceUsdc) {
@@ -785,42 +794,61 @@ export default function ModelPageClient(props: ModelPageClientProps) {
       // Step 2: Check current allowance
       let currentAllowance = 0n
       try {
-        if (publicClient) {
-          currentAllowance = await publicClient.readContract({
-            address: usdcAddress as `0x${string}`,
-            abi: erc20Abi,
-            functionName: 'allowance',
-            args: [currentAddress as `0x${string}`, marketAddress as `0x${string}`],
-          }) as bigint
-          console.log('[Purchase] Current allowance:', currentAllowance.toString())
-        }
+        currentAllowance = await publicClient.readContract({
+          address: usdcAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: 'allowance',
+          args: [currentAddress as `0x${string}`, marketAddress as `0x${string}`],
+        }) as bigint
+        console.log('[Purchase] Current allowance:', currentAllowance.toString())
       } catch (e) {
-        console.warn('[Purchase] Failed to check allowance:', e)
+        console.error('[Purchase] Failed to check allowance:', e)
+        // Continue anyway - we'll try to approve
       }
       
       // Step 3: Approve USDC if needed (infinite approve for better UX - only once per user)
       if (currentAllowance < priceUsdc) {
-        console.log('[Purchase] Approving USDC...')
-        setSnkSev('info'); setSnkMsg(locale === 'es' ? 'Aprobando USDC (solo una vez)...' : 'Approving USDC (one time only)...'); setSnkOpen(true)
+        console.log('[Purchase] Need approval. Current:', currentAllowance.toString(), 'Need:', priceUsdc.toString())
+        setSnkSev('info'); setSnkMsg(locale === 'es' ? 'Paso 1/2: Aprobando USDC (firma en tu wallet)...' : 'Step 1/2: Approving USDC (sign in your wallet)...'); setSnkOpen(true)
         const MAX_UINT256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
-        const approveHash = await writeContractAsync({
-          address: usdcAddress as `0x${string}`,
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [marketAddress as `0x${string}`, MAX_UINT256],
-          chainId: evmChainId,
-        })
-        console.log('[Purchase] Approve tx hash:', approveHash)
-        if (publicClient && approveHash) {
-          await publicClient.waitForTransactionReceipt({ hash: approveHash })
-          console.log('[Purchase] Approve confirmed')
+        
+        let approveHash: `0x${string}` | undefined
+        try {
+          approveHash = await writeContractAsync({
+            address: usdcAddress as `0x${string}`,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [marketAddress as `0x${string}`, MAX_UINT256],
+            chainId: evmChainId,
+          })
+          console.log('[Purchase] Approve tx hash:', approveHash)
+        } catch (approveError: any) {
+          console.error('[Purchase] Approve failed:', approveError)
+          const msg = approveError?.shortMessage || approveError?.message || 'Approval rejected or failed'
+          setSnkSev('error'); setSnkMsg(locale === 'es' ? 'Error al aprobar USDC: ' + msg : 'USDC approval failed: ' + msg); setSnkOpen(true)
+          setTxLoading(false)
+          return // Stop here - don't try to buy without approval
+        }
+        
+        // Wait for approval confirmation
+        if (approveHash) {
+          try {
+            setSnkSev('info'); setSnkMsg(locale === 'es' ? 'Confirmando aprobación...' : 'Confirming approval...'); setSnkOpen(true)
+            await publicClient.waitForTransactionReceipt({ hash: approveHash })
+            console.log('[Purchase] Approve confirmed')
+          } catch (waitError: any) {
+            console.error('[Purchase] Approve confirmation failed:', waitError)
+            setSnkSev('error'); setSnkMsg('Approval transaction failed'); setSnkOpen(true)
+            setTxLoading(false)
+            return
+          }
         }
       } else {
         console.log('[Purchase] Allowance sufficient, skipping approve')
       }
       
       // Step 4: Buy license (no value - USDC is transferred via transferFrom)
-      setSnkSev('info'); setSnkMsg(locale === 'es' ? 'Comprando licencia...' : 'Purchasing license...'); setSnkOpen(true)
+      setSnkSev('info'); setSnkMsg(locale === 'es' ? 'Paso 2/2: Comprando licencia...' : 'Step 2/2: Purchasing license...'); setSnkOpen(true)
       const hash = await writeContractAsync({
         address: marketAddress as `0x${string}`,
         abi: abi as any,

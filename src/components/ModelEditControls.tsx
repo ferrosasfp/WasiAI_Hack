@@ -84,34 +84,7 @@ export function ModelEditControls({
         </Box>
         
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-          <Tooltip
-            title={
-              isES
-                ? 'Precios, duración, derechos, términos y estado de listado'
-                : 'Pricing, duration, rights, terms and listing status'
-            }
-          >
-            <Button
-              variant="contained"
-              startIcon={<EditIcon />}
-              onClick={onQuickEdit}
-              disabled={disabled}
-              sx={{
-                flex: 1,
-                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                color: '#fff',
-                textTransform: 'none',
-                fontWeight: 600,
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                  transform: 'translateY(-1px)',
-                },
-                transition: 'all 0.2s',
-              }}
-            >
-              {isES ? 'Edición rápida' : 'Quick edit'}
-            </Button>
-          </Tooltip>
+          {/* Quick Edit button hidden - use New Version for all changes */}
           
           <Tooltip
             title={

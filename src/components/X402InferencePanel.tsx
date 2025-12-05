@@ -88,6 +88,7 @@ export default function X402InferencePanel({
   modelId,
   modelName,
   agentId,
+  pricePerInference,
   locale = 'en'
 }: X402InferencePanelProps) {
   const isES = locale === 'es'
@@ -297,10 +298,12 @@ export default function X402InferencePanel({
   const isLoading = ['checking', 'signing', 'settling', 'running'].includes(status)
   const explorerUrl = txHash ? `https://testnet.snowtrace.io/tx/${txHash}` : null
   
-  // Get price from payment requirement or show default
+  // Get price from payment requirement, prop, or show default
   const displayPrice = paymentRequirement 
     ? formatUsdcPrice(paymentRequirement.maxAmountRequired)
-    : '$0.001' // Default display price
+    : pricePerInference 
+      ? `$${pricePerInference}` 
+      : '$0.001' // Default display price
   
   return (
     <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(79, 225, 255, 0.2)' }}>
