@@ -152,6 +152,28 @@ export async function POST(
     const nextVersion = currentVersion + 1
     const versionTag = `v${nextVersion}.0.0`
 
+    // Get wallet address from header for agent params
+    const walletAddress = request.headers.get('X-Wallet-Address') || ''
+    
+    // Get inference price: use new value if provided, otherwise preserve original
+    // body.demo?.pricePerInference is in dollars (e.g., "0.003")
+    // originalInferencePrice is already in USDC base units (e.g., 3000 for $0.003)
+    let priceInferenceUsdc = originalInferencePrice
+    let pricePerCallHumanReadable = '0'
+    if (body.demo?.pricePerInference && parseFloat(body.demo.pricePerInference) > 0) {
+      priceInferenceUsdc = BigInt(Math.round(parseFloat(body.demo.pricePerInference) * 1_000_000))
+      pricePerCallHumanReadable = body.demo.pricePerInference
+    } else if (originalInferencePrice > 0n) {
+      // Convert from USDC base units back to human readable
+      pricePerCallHumanReadable = (Number(originalInferencePrice) / 1_000_000).toString()
+    }
+    console.log('[Upgrade API] Inference price:', { 
+      fromBody: body.demo?.pricePerInference, 
+      original: originalInferencePrice.toString(), 
+      final: priceInferenceUsdc.toString(),
+      humanReadable: pricePerCallHumanReadable
+    })
+
     // Build complete metadata object (aligned with Quick Edit schema)
     const metadata = {
       // Identity
@@ -192,6 +214,14 @@ export async function POST(
             baseDurationDays: durationDays,
             available: priceSubscription > 0n,
           },
+          // CRITICAL: Include inference pricing for x402 panel
+          inference: {
+            pricePerCall: pricePerCallHumanReadable,
+          },
+        },
+        // Also include at top level for backward compatibility
+        inference: {
+          pricePerCall: pricePerCallHumanReadable,
         },
         rights: {
           api: body.rights?.includes('API') || false,
@@ -266,22 +296,6 @@ export async function POST(
       throw new Error(`Marketplace address not configured for chainId ${body.chainId}. Set NEXT_PUBLIC_EVM_MARKET_${body.chainId} in .env`)
     }
 
-    // Get wallet address from header for agent params
-    const walletAddress = request.headers.get('X-Wallet-Address') || ''
-    
-    // Get inference price: use new value if provided, otherwise preserve original
-    // body.demo?.pricePerInference is in dollars (e.g., "0.003")
-    // originalInferencePrice is already in USDC base units (e.g., 3000 for $0.003)
-    let priceInferenceUsdc = originalInferencePrice
-    if (body.demo?.pricePerInference && parseFloat(body.demo.pricePerInference) > 0) {
-      priceInferenceUsdc = BigInt(Math.round(parseFloat(body.demo.pricePerInference) * 1_000_000))
-    }
-    console.log('[Upgrade API] Inference price:', { 
-      fromBody: body.demo?.pricePerInference, 
-      original: originalInferencePrice.toString(), 
-      final: priceInferenceUsdc.toString() 
-    })
-    
     // Prepare agent metadata URI (will be uploaded separately or use model URI)
     const agentMetadataUri = uri // Use same metadata URI for agent
     
