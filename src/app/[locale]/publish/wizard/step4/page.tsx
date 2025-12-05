@@ -55,7 +55,8 @@ export default function Step4LicensesTermsLocalized() {
   const [priceSubscription, setPriceSubscription] = useState('0')
   const [priceInference, setPriceInference] = useState('0.01') // x402 inference price in USDC
   const [defaultDurationDays, setDefaultDurationDays] = useState('1')
-  const [royaltyPercent, setRoyaltyPercent] = useState('0')
+  // Royalty disabled - always 0 (kept for future use)
+  const royaltyPercent = '0'
   const [transferable, setTransferable] = useState(false)
   const [rightsAPI, setRightsAPI] = useState(true)
   const [rightsDownload, setRightsDownload] = useState(false)
@@ -112,7 +113,8 @@ export default function Step4LicensesTermsLocalized() {
   // Use centralized fee configuration
   const feeBpsEnv = MARKETPLACE_FEE_BPS
   const feeBpsEff = feeBpsOnChain ?? feeBpsEnv
-  const royaltyBps = percentToBps(validateRoyaltyPercent(royaltyPercent))
+  // Royalty disabled - always 0 (infrastructure kept for future use)
+  const royaltyBps = 0
   
   // Validation based on pricing mode
   const atLeastOnePrice = (
@@ -411,20 +413,20 @@ export default function Step4LicensesTermsLocalized() {
       }
     }
     
-    // UPGRADE MODE: First check for saved draft, then fall back to original model
+    // UPGRADE MODE: First check for draft created by Step 1, then fall back to model
     if (upgradeMode && upgradeModelId) {
       const draftId = getDraftId(true, upgradeModelId)
       
-      // Check if there's a saved draft first (user may have edited and navigated away)
-      // The centralized service saves to `wizard_draft_${draftId}` with structure { step4: {...} }
-      let hasSavedDraft = false
+      // Check if Step 1 already created a draft for this upgrade session
+      let loadedFromDraft = false
       try {
         const savedDraft = localStorage.getItem(`wizard_draft_${draftId}`)
         if (savedDraft) {
           const fullDraft = JSON.parse(savedDraft)
           const parsed = fullDraft?.step4
-          if (parsed?.licensePolicy) {
-            console.log('[Step4] UPGRADE MODE - Found saved draft, loading from localStorage')
+          // Only use draft if it has meaningful data (Step 1 initializes with model data)
+          if (parsed?.licensePolicy?.perpetual?.priceRef || parsed?.licensePolicy?.termsText) {
+            console.log('[Step4] UPGRADE MODE - Loading from draft created by Step 1')
             const lp = parsed.licensePolicy || {}
             const rights = Array.isArray(lp.rights) ? lp.rights : (Array.isArray(lp.delivery) ? lp.delivery : [])
             setRightsAPI(rights.includes('API'))
@@ -432,9 +434,9 @@ export default function Step4LicensesTermsLocalized() {
             setPriceSubscription(String(lp.subscription?.perMonthPriceRef ?? '0'))
             setPricePerpetual(String(lp.perpetual?.priceRef ?? '0'))
             setPriceInference(String(lp.inference?.pricePerCall ?? '0.01'))
-            setRoyaltyPercent(String(validateRoyaltyPercent(Number(lp.royaltyBps || 0) / 100)))
+            // Royalty disabled - skip loading (always 0)
             const dd = Number(lp.defaultDurationDays || 0)
-            setDefaultDurationDays(String(Math.max(0, Math.round(dd/30))))
+            setDefaultDurationDays(String(dd > 0 ? Math.max(1, Math.round(dd / 30)) : 1))
             setTransferable(Boolean(lp.transferable))
             setTermsHash(String(lp.termsHash || ''))
             setTermsText(String(lp.termsText || ''))
@@ -444,20 +446,19 @@ export default function Step4LicensesTermsLocalized() {
             else if (rights.includes('API')) setDeliveryModeHint('API')
             else if (rights.includes('Download')) setDeliveryModeHint('Download')
             else setDeliveryModeHint('none')
-            lastSavedRef.current = parsed
-            hasSavedDraft = true
+            loadedFromDraft = true
             setShouldFade(false)
             setLoadedRemote(true)
             loadingFromDraftRef.current = false
           }
         }
       } catch (e) {
-        console.warn('[Step4] Failed to load draft from localStorage:', e)
+        console.warn('[Step4] Failed to load draft:', e)
       }
       
-      // If no saved draft, load from original model
-      if (!hasSavedDraft) {
-        console.log('[Step4] UPGRADE MODE - No saved draft, loading from model:', upgradeModelId)
+      // If no valid draft, load from model
+      if (!loadedFromDraft) {
+        console.log('[Step4] UPGRADE MODE - No draft found, loading from model:', upgradeModelId)
         fetch(`/api/indexed/models/${upgradeModelId}`)
         .then(res => res.json())
         .then(data => {
@@ -485,11 +486,7 @@ export default function Step4LicensesTermsLocalized() {
           console.log('[Step4] Duration:', { durationDays, durationMonths })
           setDefaultDurationDays(String(durationMonths))
           
-          // === ROYALTY (bps to percent) ===
-          const royaltyBps = Number(modelData?.royalty_bps || 0)
-          const royaltyPct = validateRoyaltyPercent(royaltyBps / 100)
-          console.log('[Step4] Royalty:', { royaltyBps, royaltyPct })
-          setRoyaltyPercent(String(royaltyPct))
+          // === ROYALTY disabled - always 0 ===
           
           // === RIGHTS & DELIVERY ===
           const deliveryRightsMask = Number(modelData?.delivery_rights_default || 0)
@@ -512,19 +509,34 @@ export default function Step4LicensesTermsLocalized() {
           // === TERMS ===
           const termsObj = lp.terms || {}
           const termsTextValue = termsObj.textMarkdown || lp.termsText || meta.termsText || ''
+          const termsHashValue = termsObj.termsHash || lp.termsHash || modelData?.terms_hash || ''
+          // termsSummary is optional and hidden from UI - just load if exists
           const rawSummary = termsObj.summaryBullets || lp.termsSummary || meta.termsSummary || ''
           const termsSummaryValue = Array.isArray(rawSummary) ? rawSummary.join('\n') : String(rawSummary || '')
-          const termsHashValue = termsObj.termsHash || lp.termsHash || modelData?.terms_hash || ''
           
-          console.log('[Step4] Terms:', { 
-            termsTextValue: termsTextValue?.substring(0, 50), 
-            termsSummaryValue: termsSummaryValue?.substring(0, 50), 
-            termsHashValue 
-          })
+          console.log('[Step4] Terms:', { termsTextValue: termsTextValue?.substring(0, 50), termsHashValue })
           
           setTermsText(termsTextValue)
           setTermsSummary(termsSummaryValue)
           setTermsHash(termsHashValue)
+          
+          // === INFERENCE PRICE (from model or metadata) ===
+          // price_inference is stored in USDC 6 decimals (e.g., 3000 = 0.003 USDC)
+          const priceInferenceRaw = modelData?.price_inference || meta?.licensePolicy?.inference?.pricePerCall || meta?.pricePerInference || '0'
+          // If it's a large number (stored in 6 decimals), convert to human readable
+          const priceInferenceNum = Number(priceInferenceRaw)
+          let priceInferenceHuman = '0.01'
+          if (priceInferenceNum > 0) {
+            // If > 1, assume it's in 6 decimals (e.g., 3000 = 0.003)
+            if (priceInferenceNum >= 1) {
+              priceInferenceHuman = (priceInferenceNum / 1000000).toFixed(6).replace(/\.?0+$/, '')
+            } else {
+              // Already in human format (e.g., 0.003)
+              priceInferenceHuman = String(priceInferenceNum)
+            }
+          }
+          console.log('[Step4] Inference price:', { priceInferenceRaw, priceInferenceHuman })
+          setPriceInference(priceInferenceHuman)
           
           // === PRICING MODE ===
           const hasPerpPrice = BigInt(pricePerpUsdc) > 0n
@@ -543,7 +555,7 @@ export default function Step4LicensesTermsLocalized() {
         .finally(() => {
           loadingFromDraftRef.current = false
         })
-      } // end if (!hasSavedDraft)
+      } // end if (!loadedFromDraft)
       return () => { alive = false }
     }
     
@@ -564,8 +576,7 @@ export default function Step4LicensesTermsLocalized() {
           setPricePerpetual(String(perp.priceRef ?? '0'))
           const inf = lp.inference || {}
           setPriceInference(String(inf.pricePerCall ?? '0.01'))
-          const rbps = Number(lp.royaltyBps || 0)
-          setRoyaltyPercent(String(validateRoyaltyPercent(rbps / 100)))
+          // Royalty disabled - skip loading (always 0)
           const dd = Number(lp.defaultDurationDays || 0)
           setDefaultDurationDays(String(Math.max(0, Math.round(dd/30))))
           setTransferable(Boolean(lp.transferable))
@@ -600,7 +611,7 @@ export default function Step4LicensesTermsLocalized() {
         setPricePerpetual(String(perp.priceRef ?? '0'))
         const inf = lp.inference || {}
         setPriceInference(String(inf.pricePerCall ?? '0.01'))
-        setRoyaltyPercent(String(validateRoyaltyPercent(Number(lp.royaltyBps || 0) / 100)))
+        // Royalty disabled - skip loading (always 0)
         const dd = Number(lp.defaultDurationDays || 0)
         setDefaultDurationDays(String(Math.max(0, Math.round(dd/30))))
         setTransferable(Boolean(lp.transferable))
@@ -855,26 +866,7 @@ export default function Step4LicensesTermsLocalized() {
           </Grid>
           </>
           )}
-          <Grid item xs={12} md={4}>
-            <TextField
-              label={locale==='es' ? 'Royalty del creador (%)' : 'Creator royalty (%)'}
-              type="text"
-              fullWidth
-              value={royaltyPercent}
-              onChange={(e)=>{
-                const raw = (e.target.value || '').replace(/[^0-9]/g, '')
-                const n = validateRoyaltyPercent(raw === '' ? 0 : parseInt(raw, 10))
-                setRoyaltyPercent(String(n))
-              }}
-              onBlur={()=>{
-                const n = validateRoyaltyPercent(parseInt(String(royaltyPercent||'0'), 10) || 0)
-                setRoyaltyPercent(String(n))
-              }}
-              inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', min: ROYALTY_LIMITS.MIN_PERCENT, max: ROYALTY_LIMITS.MAX_PERCENT }}
-              InputProps={{ endAdornment: (<InputAdornment position="end" sx={{ color:'#fff', '& .MuiTypography-root': { color:'#fff' } }}>%</InputAdornment>) }}
-              helperText={`${ROYALTY_LIMITS.MIN_PERCENT}–${ROYALTY_LIMITS.MAX_PERCENT}%`}
-            />
-          </Grid>
+          {/* Royalty field hidden - infrastructure kept for future use */}
           <Grid item xs={12} md={4}>
             <TextField
               label={locale==='es' ? 'Precio por inferencia (x402)' : 'Price per inference (x402)'}
@@ -910,9 +902,7 @@ export default function Step4LicensesTermsLocalized() {
                         <Typography variant="caption" color="text.secondary">
                           {t('wizard.step4.revenue.marketplace')}: {fmt2Up(s.fee)} {unit} ({(feeBpsEff/100).toFixed(2)}%)
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {t('wizard.step4.revenue.creator')}: {fmt2Up(s.royalty)} {unit} ({(royaltyBps/100).toFixed(2)}%)
-                        </Typography>
+                        {/* Creator royalty hidden - infrastructure kept for future use */}
                       </Stack>
                     </Box>
                   ) })()}
@@ -940,9 +930,7 @@ export default function Step4LicensesTermsLocalized() {
                           <Typography variant="caption" color="text.secondary">
                             {t('wizard.step4.revenue.marketplace')}: ${fmt4Up(s.fee)} ({(feeBpsEff/100).toFixed(2)}%)
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {t('wizard.step4.revenue.creator')}: ${fmt4Up(s.royalty)} ({(royaltyBps/100).toFixed(2)}%)
-                          </Typography>
+                          {/* Creator royalty hidden - infrastructure kept for future use */}
                         </Stack>
                       </Box>
                     )
@@ -1025,8 +1013,8 @@ export default function Step4LicensesTermsLocalized() {
         <Box sx={{ transition:'opacity 150ms ease 40ms', willChange:'opacity', opacity: loadingFromDraftRef.current ? 0 : 1 }}>
         <Stack spacing={2}>
           
-          {/* Terms Summary Field */}
-          <TextField
+          {/* Terms Summary Field - HIDDEN: Not required by contracts, auto-generated if needed */}
+          {/* <TextField
             label={t('wizard.step4.fields.termsSummary')}
             value={termsSummary}
             onChange={(e)=>setTermsSummary(e.target.value)}
@@ -1035,7 +1023,7 @@ export default function Step4LicensesTermsLocalized() {
             fullWidth
             helperText={t('wizard.step4.helpers.termsSummary')}
             placeholder={locale === 'es' ? 'Ej:\n- Sin uso en producción\n- Atribución requerida\n- 30 días de soporte' : 'E.g.:\n- No production use\n- Attribution required\n- 30 days support'}
-          />
+          /> */}
 
           {/* Terms Template Selector */}
           <FormControl fullWidth>

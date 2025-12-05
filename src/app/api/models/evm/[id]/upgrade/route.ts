@@ -51,9 +51,10 @@ interface UpgradeParams {
   
   // Step 4: Pricing & licensing
   royaltyPercent: number
-  pricePerpetual: string // wei as string
-  priceSubscription: string // wei as string
-  defaultDurationMonths: number
+  pricePerpetual: string // USDC base units (6 decimals) as string
+  priceSubscription: string // USDC base units (6 decimals) as string
+  defaultDurationDays?: number // Days for subscription (0 for perpetual-only)
+  defaultDurationMonths?: number // Legacy: months for subscription
   rights: string[] // ['API', 'Download']
   deliveryMode?: string
   termsText?: string
@@ -64,6 +65,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  console.log('[Upgrade API] ========== UPGRADE API CALLED ==========')
+  console.log('[Upgrade API] Model ID from params:', params.id)
+  
   try {
     const modelId = parseInt(params.id, 10)
     if (isNaN(modelId) || modelId <= 0) {
@@ -99,10 +103,24 @@ export async function POST(
     }
 
     // Validate duration for subscription
-    const durationDays = body.defaultDurationMonths * 30
+    // Support both defaultDurationDays (new) and defaultDurationMonths (legacy)
+    let durationDays = body.defaultDurationDays !== undefined 
+      ? body.defaultDurationDays 
+      : (body.defaultDurationMonths ? body.defaultDurationMonths * 30 : 0)
+    
+    // CRITICAL: If subscription price is 0, duration MUST be 0 (perpetual-only)
+    // The contract will revert with InvalidDuration if priceSub=0 and duration!=0
+    if (priceSubscription === 0n) {
+      console.log('[Upgrade API] Forcing durationDays=0 because priceSubscription=0')
+      durationDays = 0
+    }
+    
+    console.log('[Upgrade API] Final values:', { pricePerpetual: pricePerpetual.toString(), priceSubscription: priceSubscription.toString(), durationDays })
+    
+    // If subscription price > 0, duration must be > 0
     if (priceSubscription > 0n && durationDays <= 0) {
       return NextResponse.json(
-        { error: 'Subscription pricing requires defaultDurationMonths >= 1' },
+        { error: 'Subscription pricing requires duration >= 1 day' },
         { status: 400 }
       )
     }
@@ -111,18 +129,23 @@ export async function POST(
     const deliveryRightsDefault = rightsArrayToBitmask(body.rights || ['API'])
     const deliveryModeHint = body.deliveryMode === 'API' ? 1 : body.deliveryMode === 'Download' ? 2 : 3
 
-    // Get current version from Neon DB (blockchain data)
+    // Get current version and inference price from Neon DB (blockchain data)
     let currentVersion = 1
+    let originalInferencePrice = 0n
     try {
       const modelData = await queryOne(
-        'SELECT version FROM models WHERE model_id = $1 AND chain_id = $2 LIMIT 1',
+        'SELECT version, price_inference FROM models WHERE model_id = $1 AND chain_id = $2 LIMIT 1',
         [modelId, body.chainId]
       )
       if (modelData?.version) {
         currentVersion = Number(modelData.version) || 1
       }
+      if (modelData?.price_inference) {
+        originalInferencePrice = BigInt(modelData.price_inference)
+        console.log('[Upgrade API] Original inference price from DB:', originalInferencePrice.toString())
+      }
     } catch (err) {
-      console.warn('[Upgrade] Could not fetch current version, defaulting to 1:', err)
+      console.warn('[Upgrade] Could not fetch current version/price, defaulting:', err)
     }
     
     // Calculate next version for metadata display
@@ -166,7 +189,7 @@ export async function POST(
           },
           subscription: {
             pricePerMonth: body.priceSubscription,
-            baseDurationMonths: body.defaultDurationMonths,
+            baseDurationDays: durationDays,
             available: priceSubscription > 0n,
           },
         },
@@ -192,11 +215,14 @@ export async function POST(
       updatedAt: new Date().toISOString(),
     }
     
-    // Calculate termsHash and add to metadata
-    // IMPORTANT: termsHash must be a valid bytes32 (64 hex chars), use zero-filled if no terms
-    const termsHash = body.termsText
-      ? `0x${Buffer.from(body.termsText).toString('hex').slice(0, 64).padEnd(64, '0')}`
-      : '0x0000000000000000000000000000000000000000000000000000000000000000'
+    // Calculate termsHash from termsText using SHA-256
+    // IMPORTANT: termsHash must be a valid bytes32 (64 hex chars)
+    let termsHash = '0x0000000000000000000000000000000000000000000000000000000000000000'
+    if (body.termsText && body.termsText.trim()) {
+      const crypto = await import('crypto')
+      const hash = crypto.createHash('sha256').update(body.termsText).digest('hex')
+      termsHash = `0x${hash}`
+    }
     metadata.licensePolicy.termsHash = termsHash
 
     // Upload metadata to IPFS
@@ -243,10 +269,18 @@ export async function POST(
     // Get wallet address from header for agent params
     const walletAddress = request.headers.get('X-Wallet-Address') || ''
     
-    // Get inference price from metadata (x402 pay-per-use)
-    const priceInferenceUsdc = body.demo?.pricePerInference 
-      ? BigInt(Math.round(parseFloat(body.demo.pricePerInference) * 1_000_000)) // Convert to USDC 6 decimals
-      : 0n
+    // Get inference price: use new value if provided, otherwise preserve original
+    // body.demo?.pricePerInference is in dollars (e.g., "0.003")
+    // originalInferencePrice is already in USDC base units (e.g., 3000 for $0.003)
+    let priceInferenceUsdc = originalInferencePrice
+    if (body.demo?.pricePerInference && parseFloat(body.demo.pricePerInference) > 0) {
+      priceInferenceUsdc = BigInt(Math.round(parseFloat(body.demo.pricePerInference) * 1_000_000))
+    }
+    console.log('[Upgrade API] Inference price:', { 
+      fromBody: body.demo?.pricePerInference, 
+      original: originalInferencePrice.toString(), 
+      final: priceInferenceUsdc.toString() 
+    })
     
     // Prepare agent metadata URI (will be uploaded separately or use model URI)
     const agentMetadataUri = uri // Use same metadata URI for agent

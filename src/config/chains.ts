@@ -72,10 +72,11 @@ export const CHAIN_CONFIG: Record<ChainId, ChainConfig> = {
     isTestnet: true,
     chain: avalancheFuji,
     rpc: process.env.NEXT_PUBLIC_AVALANCHE_FUJI_RPC || avalancheFuji.rpcUrls.default.http[0],
-    marketAddress: process.env.NEXT_PUBLIC_EVM_MARKET_43113 || '',
+    // V3 Upgrade deployed 2024-12-04 with linkModelToAgent + aliasSplitter support (recompiled)
+    marketAddress: process.env.NEXT_PUBLIC_EVM_MARKET_43113 || '0xb62427B1b59eE5f246f2a8B37Fe45A1a536Cf56b',
     explorerUrl: 'https://testnet.snowtrace.io',
-    usdcAddress: process.env.NEXT_PUBLIC_EVM_USDC_43113 || '0xCDa6E1C8340550aC412Ee9BC59ae4Db46745C53e', // MockUSDC on Fuji
-    agentRegistryAddress: process.env.NEXT_PUBLIC_EVM_AGENT_REGISTRY_43113 || '0x7686810c46946a223B7a9baF0F52A4e2c7392B9f',
+    usdcAddress: process.env.NEXT_PUBLIC_EVM_USDC_43113 || '0x5425890298aed601595a70AB815c96711a31Bc65', // USDC on Fuji
+    agentRegistryAddress: process.env.NEXT_PUBLIC_EVM_AGENT_REGISTRY_43113 || '0xd2038f6dc62fF951DB59Cd333a1802B344C38e71',
     reputationRegistryAddress: process.env.NEXT_PUBLIC_REPUTATION_REGISTRY_43113 || '0xf4D4c4b91BaE8863f508B772f0195b7D3Fbc6412',
   },
   [CHAIN_IDS.AVALANCHE_MAINNET]: {

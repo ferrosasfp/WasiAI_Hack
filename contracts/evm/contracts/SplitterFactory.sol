@@ -43,6 +43,10 @@ contract SplitterFactory is Ownable2Step {
     /// @notice Mapping from modelId to splitter address
     mapping(uint256 => address) public splitters;
     
+    /// @notice Mapping from modelId to the original modelId (for family upgrades)
+    /// @dev If splitterAlias[modelId] != 0, use splitters[splitterAlias[modelId]] instead
+    mapping(uint256 => uint256) public splitterAlias;
+    
     /// @notice Authorized addresses that can create splitters
     mapping(address => bool) public authorized;
     
@@ -63,6 +67,7 @@ contract SplitterFactory is Ownable2Step {
     event AuthorizationChanged(address indexed account, bool authorized);
     event MarketplaceWalletChanged(address indexed oldWallet, address indexed newWallet);
     event DefaultMarketplaceBpsChanged(uint256 oldBps, uint256 newBps);
+    event SplitterAliased(uint256 indexed newModelId, uint256 indexed originalModelId, address splitter);
 
     // ============ MODIFIERS ============
     
@@ -203,20 +208,50 @@ contract SplitterFactory is Ownable2Step {
         emit DefaultMarketplaceBpsChanged(oldBps, newBps);
     }
 
+    /// @notice Alias a new model to use an existing model's splitter (for family upgrades)
+    /// @dev This allows model upgrades to reuse the original splitter with frozen royalty
+    /// @param newModelId The new model ID (upgrade version)
+    /// @param originalModelId The original model ID that has the splitter
+    function aliasSplitter(
+        uint256 newModelId,
+        uint256 originalModelId
+    ) external onlyAuthorized {
+        if (splitters[originalModelId] == address(0)) revert SplitterDoesNotExist();
+        if (splitters[newModelId] != address(0)) revert SplitterAlreadyExists();
+        if (splitterAlias[newModelId] != 0) revert SplitterAlreadyExists();
+        
+        // Store alias - newModelId points to originalModelId's splitter
+        splitterAlias[newModelId] = originalModelId;
+        
+        emit SplitterAliased(newModelId, originalModelId, splitters[originalModelId]);
+    }
+
     // ============ VIEW FUNCTIONS ============
     
-    /// @notice Get splitter for a model
+    /// @notice Get splitter for a model (resolves aliases)
     /// @param modelId Model ID
     /// @return splitter Splitter address (or zero if not exists)
     function getSplitter(uint256 modelId) external view returns (address splitter) {
-        return splitters[modelId];
+        // Check for direct splitter first
+        splitter = splitters[modelId];
+        if (splitter != address(0)) return splitter;
+        
+        // Check for alias
+        uint256 aliasId = splitterAlias[modelId];
+        if (aliasId != 0) {
+            return splitters[aliasId];
+        }
+        
+        return address(0);
     }
     
-    /// @notice Check if splitter exists for a model
+    /// @notice Check if splitter exists for a model (including aliases)
     /// @param modelId Model ID
     /// @return exists Whether splitter exists
     function splitterExists(uint256 modelId) external view returns (bool exists) {
-        return splitters[modelId] != address(0);
+        if (splitters[modelId] != address(0)) return true;
+        if (splitterAlias[modelId] != 0 && splitters[splitterAlias[modelId]] != address(0)) return true;
+        return false;
     }
     
     /// @notice Get splitter info

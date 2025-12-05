@@ -7,15 +7,17 @@ export const dynamic = 'force-dynamic'
 const CHAIN_ID = 43113 // Avalanche Fuji
 const NETWORK = 'avalanche-fuji'
 
-// USDC on Avalanche Fuji (official x402 token)
-const USDC_ADDRESS = '0x5425890298aed601595a70AB815c96711a31Bc65'
+// Circle USDC on Avalanche Fuji (required by x402 facilitator)
+// This is different from MockUSDC used for license purchases
+const USDC_ADDRESS = process.env.X402_USDC_ADDRESS || '0x5425890298aed601595a70AB815c96711a31Bc65'
 const USDC_DECIMALS = 6
 
 // Ultravioleta DAO Facilitator
 const FACILITATOR_URL = process.env.X402_FACILITATOR_URL || 'https://facilitator.ultravioletadao.xyz'
 
-// InferenceSplitter contract address (receives x402 payments and distributes to seller/creator/marketplace)
-const INFERENCE_SPLITTER_ADDRESS = process.env.X402_SPLITTER_ADDRESS || '0x42124B2962eE92524aD37800537F9876621D81B6'
+// SplitterFactory address - used to get per-model splitter addresses
+// V3 Upgrade deployed 2024-12-04 with aliasSplitter support (recompiled)
+const SPLITTER_FACTORY_ADDRESS = process.env.NEXT_PUBLIC_EVM_SPLITTER_FACTORY_43113 || '0xB1bA0794FaF3D8DC4CB96F1334ed1a8AC8a66555'
 
 // Whether to use the splitter (set to false to send directly to seller)
 const USE_SPLITTER = process.env.X402_USE_SPLITTER !== 'false'
@@ -829,18 +831,62 @@ function formatUsdcPrice(baseUnits: string): string {
   return `$${value.toFixed(4)}`
 }
 
-function createPaymentRequirement(
+// Get the splitter address for a specific model from SplitterFactory
+async function getModelSplitter(modelId: string): Promise<string | null> {
+  try {
+    const { createPublicClient, http } = await import('viem')
+    const { avalancheFuji } = await import('viem/chains')
+    
+    const client = createPublicClient({
+      chain: avalancheFuji,
+      transport: http(process.env.NEXT_PUBLIC_AVALANCHE_FUJI_RPC || 'https://api.avax-test.network/ext/bc/C/rpc')
+    })
+    
+    const splitterAbi = [
+      { inputs: [{ type: 'uint256' }], name: 'getSplitter', outputs: [{ type: 'address' }], stateMutability: 'view', type: 'function' }
+    ] as const
+    
+    const splitterAddr = await client.readContract({
+      address: SPLITTER_FACTORY_ADDRESS as `0x${string}`,
+      abi: splitterAbi,
+      functionName: 'getSplitter',
+      args: [BigInt(modelId)]
+    })
+    
+    // Return null if no splitter (zero address)
+    if (splitterAddr === '0x0000000000000000000000000000000000000000') {
+      return null
+    }
+    
+    return splitterAddr
+  } catch (e) {
+    console.error(`[x402] Error getting splitter for model ${modelId}:`, e)
+    return null
+  }
+}
+
+async function createPaymentRequirement(
   modelId: string,
   modelInfo: ModelInfo
-): X402PaymentRequirement {
+): Promise<X402PaymentRequirement> {
   // Facilitator requires absolute URL for resource field
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://wasiai.com'
   
-  // Use InferenceSplitter as payment recipient for automatic revenue split
-  // If USE_SPLITTER is false, payments go directly to seller
-  const payTo = USE_SPLITTER ? INFERENCE_SPLITTER_ADDRESS : modelInfo.recipientWallet
+  // Get model-specific splitter from SplitterFactory
+  // If USE_SPLITTER is false or no splitter exists, payments go directly to seller
+  let payTo = modelInfo.recipientWallet
   
-  console.log(`[x402] Payment recipient for model ${modelId}: ${payTo} (splitter: ${USE_SPLITTER})`)
+  if (USE_SPLITTER) {
+    const splitterAddr = await getModelSplitter(modelId)
+    if (splitterAddr) {
+      payTo = splitterAddr
+      console.log(`[x402] Using model splitter for model ${modelId}: ${splitterAddr}`)
+    } else {
+      console.log(`[x402] No splitter for model ${modelId}, using seller wallet: ${payTo}`)
+    }
+  } else {
+    console.log(`[x402] Splitter disabled, using seller wallet: ${payTo}`)
+  }
   
   return {
     scheme: 'exact',
@@ -895,8 +941,8 @@ export async function POST(
     )
   }
   
-  // Create payment requirement
-  const paymentRequirement = createPaymentRequirement(modelId, modelInfo)
+  // Create payment requirement (async to fetch model-specific splitter)
+  const paymentRequirement = await createPaymentRequirement(modelId, modelInfo)
   
   // Check for X-PAYMENT header (x402 standard)
   const paymentHeader = req.headers.get('X-PAYMENT')
@@ -1016,7 +1062,7 @@ export async function GET(
     )
   }
   
-  const paymentRequirement = createPaymentRequirement(modelId, modelInfo)
+  const paymentRequirement = await createPaymentRequirement(modelId, modelInfo)
   
   return NextResponse.json({
     ok: true,

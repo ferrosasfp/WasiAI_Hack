@@ -351,11 +351,21 @@ export default function Step5ReviewPublishLocalized() {
     const s2 = draft?.step2 || {}
     const s3 = draft?.step3 || {}
     const s4 = draft?.step4 || {}
+    
+    // Build licensePolicy with termsSummary included
+    const licensePolicy = s4?.licensePolicy ? {
+      ...s4.licensePolicy,
+      // Include termsSummary in licensePolicy for persistence
+      termsSummary: s4.termsSummary || undefined
+    } : undefined
+    
     const merged:any = {
       ...s1,
       ...s2,
       artifacts: s3?.artifacts || [],
-      licensePolicy: s4?.licensePolicy || undefined,
+      licensePolicy,
+      // Also keep termsSummary at root level for backward compatibility
+      termsSummary: s4?.termsSummary || undefined,
       downloadNotes: s3?.downloadNotes || undefined,
       // x402 inference configuration from Step 3
       demo: {
@@ -519,7 +529,8 @@ export default function Step5ReviewPublishLocalized() {
   const unit = 'USDC'
   const feeBpsEnv = useMemo(()=> parseInt(process.env.NEXT_PUBLIC_MARKETPLACE_FEE_BPS || process.env.NEXT_PUBLIC_MARKET_FEE_BPS || '1000') || 1000, [])
   const feeBpsEff5 = Number(metadata?.licensePolicy?.feeBps || feeBpsEnv)
-  const royaltyBps = Number(metadata?.licensePolicy?.royaltyBps || 0)
+  // Royalty disabled - always 0 (infrastructure kept for future use)
+  const royaltyBps = 0
   const fmt2Up = (v:number) => (Math.ceil(v * 100) / 100).toFixed(2)
   // Format to 4 decimals rounded up for USDC inference amounts
   const fmt4Up = (v:number) => (Math.ceil(v * 10000) / 10000).toFixed(4)
@@ -682,36 +693,38 @@ export default function Step5ReviewPublishLocalized() {
             // Extract pricing and convert to wei
             // priceRef might be in native format (e.g., "2.1") or already in wei
             // If it contains a decimal point, it's native and needs conversion to wei
-            const convertToWei = (value: string | number | undefined): string => {
+            // Convert price to USDC base units (6 decimals, NOT 18)
+            const convertToUsdc = (value: string | number | undefined): string => {
               if (!value) return '0'
-              const strValue = String(value)
+              const strValue = String(value).trim()
               
-              // If already a large integer (wei), return as-is
-              if (!strValue.includes('.') && strValue.length > 10) {
+              // If already a large integer (USDC base units), return as-is
+              // USDC prices are typically < 1 billion (1e9), so > 10 digits means already converted
+              if (!strValue.includes('.') && strValue.length > 9) {
                 return strValue
               }
               
-              // If contains decimal or is small number, treat as native and convert to wei
+              // Convert human-readable price to USDC base units (6 decimals)
               try {
-                const nativeValue = parseFloat(strValue)
-                if (isNaN(nativeValue) || nativeValue < 0) return '0'
-                // Convert to wei: multiply by 10^18 and round to avoid decimals
-                const weiValue = BigInt(Math.floor(nativeValue * 1e18))
-                return weiValue.toString()
+                const humanValue = parseFloat(strValue)
+                if (isNaN(humanValue) || humanValue < 0) return '0'
+                // USDC has 6 decimals: $85 = 85000000
+                const usdcValue = BigInt(Math.floor(humanValue * 1e6))
+                return usdcValue.toString()
               } catch {
                 return '0'
               }
             }
             
-            const pricePerpWei = convertToWei(lp?.perpetual?.priceRef)
-            const priceSubWei = convertToWei(lp?.subscription?.perMonthPriceRef)
-            // defaultDurationDays in step4 is actually stored as MONTHS (user enters months in UI)
-            // So we use it directly as months, not divide by 30
-            const durationMonths = Number(lp?.defaultDurationDays || 0) || 1
+            const pricePerpUsdc = convertToUsdc(lp?.perpetual?.priceRef)
+            const priceSubUsdc = convertToUsdc(lp?.subscription?.perMonthPriceRef)
+            // If subscription price is 0, duration MUST be 0 (contract requirement)
+            const durationDays = (priceSubUsdc === '0' || !priceSubUsdc) ? 0 : (Number(lp?.defaultDurationDays || 30))
             
             console.log('[Upgrade] Pricing conversion:', {
-              perpetual: { original: lp?.perpetual?.priceRef, wei: pricePerpWei },
-              subscription: { original: lp?.subscription?.perMonthPriceRef, wei: priceSubWei }
+              perpetual: { original: lp?.perpetual?.priceRef, usdc: pricePerpUsdc },
+              subscription: { original: lp?.subscription?.perMonthPriceRef, usdc: priceSubUsdc },
+              durationDays
             })
             
             // Extract rights
@@ -760,11 +773,11 @@ export default function Step5ReviewPublishLocalized() {
               artifacts: step3.artifacts || [],
               demo: step3.demo || {},
               
-              // Step 4: Pricing & licensing
+              // Step 4: Pricing & licensing (USDC with 6 decimals)
               royaltyPercent,
-              pricePerpetual: pricePerpWei,
-              priceSubscription: priceSubWei,
-              defaultDurationMonths: durationMonths,
+              pricePerpetual: pricePerpUsdc,
+              priceSubscription: priceSubUsdc,
+              defaultDurationDays: durationDays,
               rights,
               deliveryMode: lp?.deliveryModeHint || 'API',
               termsText: lp?.termsText || '',
@@ -953,6 +966,11 @@ export default function Step5ReviewPublishLocalized() {
         
         for (const tnet of targets) {
           try {
+            // DEBUG: Log metadata before sending
+            console.log('[Step5] metadata.licensePolicy:', JSON.stringify(metadata?.licensePolicy, null, 2))
+            console.log('[Step5] perpetual.priceRef:', metadata?.licensePolicy?.perpetual?.priceRef)
+            console.log('[Step5] draft.step4:', JSON.stringify(draft?.step4, null, 2))
+            
             // 1. Call API to upload to IPFS and get transaction params
             const apiRes = await fetch('/api/models/publish', {
               method: 'POST',
@@ -991,6 +1009,25 @@ export default function Step5ReviewPublishLocalized() {
               // Single-signature flow: model + agent in one TX
               const [slug, name, uri, royaltyBps, pricePerpetual, priceSubscription, defaultDurationDays, rightsMask, deliveryModeHint, termsHash, priceInferenceUsdc, inferenceWallet, agentParams] = txArgs
               
+              // CRITICAL FIX: If priceSubscription is 0, force durationDays to 0
+              // Contract requires: if priceSub=0 then durationDays must be 0
+              const finalDurationDays = BigInt(priceSubscription) === 0n ? 0n : BigInt(defaultDurationDays)
+              
+              // DEBUG: Log exact values being sent to contract
+              console.log('[Step5] TX Args from API:', {
+                slug, name, uri: uri?.substring(0, 50),
+                royaltyBps, pricePerpetual, priceSubscription,
+                defaultDurationDays, finalDurationDays: finalDurationDays.toString(),
+                rightsMask, deliveryModeHint,
+                priceInferenceUsdc, inferenceWallet
+              })
+              console.log('[Step5] BigInt conversions:', {
+                royaltyBps: BigInt(royaltyBps).toString(),
+                pricePerpetual: BigInt(pricePerpetual).toString(),
+                priceSubscription: BigInt(priceSubscription).toString(),
+                finalDurationDays: finalDurationDays.toString()
+              })
+              
               hash = await writeContractAsync({
                 address: r.txParams.contractAddress as `0x${string}`,
                 abi,
@@ -1002,7 +1039,7 @@ export default function Step5ReviewPublishLocalized() {
                   BigInt(royaltyBps),
                   BigInt(pricePerpetual),
                   BigInt(priceSubscription),
-                  BigInt(defaultDurationDays),
+                  finalDurationDays, // Use corrected value
                   Number(rightsMask),
                   Number(deliveryModeHint),
                   termsHash as `0x${string}`,
@@ -1707,8 +1744,7 @@ export default function Step5ReviewPublishLocalized() {
                           {/* Subscription Price - Hidden for hackathon */}
                           {/* Base Duration - Hidden for hackathon */}
                           
-                          {/* Creator Royalty */}
-                          <Row label={t('wizard.step5.step4Summary.creatorRoyalty')} value={<>{Math.round((royaltyBps||0)/100)}%</>} />
+                          {/* Creator Royalty - hidden (infrastructure kept for future use) */}
                           
                           {/* Marketplace Fee */}
                           <Row label={t('wizard.step5.step4Summary.marketplaceFee')} value={<>{Math.round((feeBpsEff5||0)/100)}%</>} />
@@ -1737,7 +1773,7 @@ export default function Step5ReviewPublishLocalized() {
                             const s = splitFor(amt)
                             return (
                               <Row label={t('wizard.step5.step4Summary.splitPerpetual')} value={<>
-                                {L.marketplace}: {fmt2Up(s.fee)} {unit} • {L.creator}: {fmt2Up(s.royalty)} {unit} • {L.seller}: {fmt2Up(s.seller)} {unit}
+                                {L.marketplace}: {fmt2Up(s.fee)} {unit} • {L.seller}: {fmt2Up(s.seller)} {unit}
                               </>} />
                             )
                           })()}
@@ -1750,7 +1786,7 @@ export default function Step5ReviewPublishLocalized() {
                               <Row 
                                 label={<Box component="span" sx={{ color: '#4fe1ff' }}>⚡ {locale === 'es' ? 'Split Inferencia x402' : 'x402 Inference Split'}</Box>} 
                                 value={<Box component="span" sx={{ color: '#4fe1ff' }}>
-                                  {L.marketplace}: ${fmt4Up(s.fee)} • {L.creator}: ${fmt4Up(s.royalty)} • {L.seller}: ${fmt4Up(s.seller)}
+                                  {L.marketplace}: ${fmt4Up(s.fee)} • {L.seller}: ${fmt4Up(s.seller)}
                                 </Box>} 
                               />
                             )

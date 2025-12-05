@@ -360,11 +360,25 @@ export default function Step1BasicsLocalized() {
     
     const loadExistingModel = async () => {
       try {
+        // Check for ?fresh=1 parameter to force reload from model
+        const urlParams = new URLSearchParams(window.location.search)
+        const forceRefresh = urlParams.get('fresh') === '1'
+        
+        if (forceRefresh) {
+          console.log('[Wizard Upgrade] Fresh mode - clearing existing draft')
+          const draftId = getDraftId(true, upgradeModelId)
+          localStorage.removeItem(`wizard_draft_${draftId}`)
+          // Remove the fresh param from URL to avoid re-clearing on navigation
+          urlParams.delete('fresh')
+          const newUrl = `${window.location.pathname}${urlParams.toString() ? '?' + urlParams.toString() : ''}`
+          window.history.replaceState({}, '', newUrl)
+        }
+        
         // First check if we already have a draft for this upgrade
         const existingDraft = await loadDraftCentralized(true, upgradeModelId)
         
         // If draft already has data, don't reload from model (user has made edits)
-        if (existingDraft && Object.keys(existingDraft).length > 0 && existingDraft.step1) {
+        if (!forceRefresh && existingDraft && Object.keys(existingDraft).length > 0 && existingDraft.step1) {
           console.log('[Wizard Upgrade] Using existing draft, skipping model load')
           if (alive) setLoadingExistingModel(false)
           return
@@ -410,11 +424,13 @@ export default function Step1BasicsLocalized() {
         const cover = metadata.cover || metadata.coverImage || {}
         const licensePolicy = metadata.licensePolicy || {}
         
-        const slugFromMetadata = metadata.slug || metadata.name?.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-') || `model-${model.model_id}`
+        // Clean name (remove tabs, extra spaces)
+        const cleanName = (model.name || metadata.name || '').trim().replace(/\s+/g, ' ')
+        const slugFromMetadata = metadata.slug || cleanName.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-') || `model-${model.model_id}`
         
         // Build step1 data
         const step1Data = {
-          name: model.name || metadata.name || '',
+          name: cleanName,
           shortSummary: metadata.summary || metadata.tagline || metadata.shortSummary || '',
           slug: slugFromMetadata,
           upgrade: true,
@@ -502,22 +518,71 @@ export default function Step1BasicsLocalized() {
         }
         
         // Build step4 data
+        // Helper: Convert USDC (6 decimals) to human-readable
+        const usdcToHuman = (usdc: string | number | bigint): string => {
+          try {
+            const usdcBig = BigInt(String(usdc || '0'))
+            if (usdcBig === 0n) return '0'
+            const usdcStr = usdcBig.toString().padStart(7, '0')
+            const intPart = usdcStr.slice(0, -6) || '0'
+            const decPart = usdcStr.slice(-6).replace(/0+$/, '')
+            if (!decPart) return intPart
+            return `${intPart}.${decPart}`
+          } catch {
+            return '0'
+          }
+        }
+        
+        // Parse rights from delivery_rights_default bitmask or metadata
+        const deliveryRightsMask = Number(model.delivery_rights_default || 0)
+        const hasAPI = (deliveryRightsMask & 1) !== 0 || licensePolicy.rights?.api === true
+        const hasDownload = (deliveryRightsMask & 2) !== 0 || licensePolicy.rights?.download === true
+        const rightsArray = [
+          ...(hasAPI ? ['API'] : []),
+          ...(hasDownload ? ['Download'] : [])
+        ]
+        if (rightsArray.length === 0) rightsArray.push('API') // Default
+        
+        // Parse inference price (stored in 6 decimals)
+        const priceInferenceRaw = model.price_inference || licensePolicy.inference?.pricePerCall || '0'
+        const priceInferenceNum = Number(priceInferenceRaw)
+        let priceInferenceHuman = '0.01'
+        if (priceInferenceNum > 0) {
+          if (priceInferenceNum >= 1) {
+            priceInferenceHuman = (priceInferenceNum / 1000000).toFixed(6).replace(/\.?0+$/, '')
+          } else {
+            priceInferenceHuman = String(priceInferenceNum)
+          }
+        }
+        
+        // Parse terms - termsSummary is optional and hidden from UI
+        const termsObj = licensePolicy.terms || {}
+        const termsTextValue = termsObj.textMarkdown || licensePolicy.termsText || ''
+        const rawSummary = termsObj.summaryBullets || licensePolicy.termsSummary || ''
+        const termsSummaryValue = Array.isArray(rawSummary) ? rawSummary.join('\n') : String(rawSummary || '')
+        const termsHashValue = termsObj.termsHash || licensePolicy.termsHash || model.terms_hash || ''
+        
         const step4Data = {
           licensePolicy: {
             perpetual: {
-              priceRef: model.price_perpetual || licensePolicy.perpetual?.price || '0'
+              priceRef: usdcToHuman(model.price_perpetual || '0')
             },
             subscription: {
-              perMonthPriceRef: model.price_subscription || licensePolicy.subscription?.pricePerMonth || '0',
+              perMonthPriceRef: usdcToHuman(model.price_subscription || '0'),
               baseDurationDays: model.default_duration_days || licensePolicy.subscription?.baseDurationMonths * 30 || 30
             },
-            rights: licensePolicy.rights ? [
-              ...(licensePolicy.rights.api ? ['API'] : []),
-              ...(licensePolicy.rights.download ? ['Download'] : [])
-            ] : ['API'],
-            royaltyPct: (model.royalty_bps || 0) / 100,
-            termsMarkdown: licensePolicy.termsText || ''
-          }
+            inference: {
+              pricePerCall: priceInferenceHuman
+            },
+            rights: rightsArray,
+            royaltyBps: model.royalty_bps || 0,
+            transferable: licensePolicy.transferable === true || licensePolicy.rights?.transferable === true,
+            termsText: termsTextValue,
+            termsHash: termsHashValue,
+            defaultDurationDays: model.default_duration_days || 30
+          },
+          termsSummary: termsSummaryValue,
+          pricingMode: 'both'
         }
         
         // Save all steps to draft using centralized service (Redis + localStorage)

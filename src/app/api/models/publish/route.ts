@@ -125,6 +125,18 @@ export async function POST(req: Request) {
       const priceSubscription: string = toUsdc(metadata.licensePolicy?.subscription?.perMonthPriceRef)
       const defaultDurationDays: string = String(Number(metadata.licensePolicy?.defaultDurationDays || 0))
       
+      // Debug logging
+      console.log('[publish] licensePolicy:', JSON.stringify(metadata.licensePolicy, null, 2))
+      console.log('[publish] pricePerpetual raw:', metadata.licensePolicy?.perpetual?.priceRef)
+      console.log('[publish] pricePerpetual USDC:', pricePerpetual)
+      console.log('[publish] priceSubscription raw:', metadata.licensePolicy?.subscription?.perMonthPriceRef)
+      console.log('[publish] priceSubscription USDC:', priceSubscription)
+      
+      // Validate at least one price is set
+      if (pricePerpetual === '0' && priceSubscription === '0') {
+        console.error('[publish] ERROR: Both prices are 0! Contract will reject.')
+      }
+      
       const rightsArr: string[] = Array.isArray(metadata.licensePolicy?.rights) ? metadata.licensePolicy.rights : []
       const rightsMask: number = (rightsArr.includes('API') ? 1 : 0) | (rightsArr.includes('Download') ? 2 : 0)
       

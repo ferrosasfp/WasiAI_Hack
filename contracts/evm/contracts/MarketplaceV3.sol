@@ -103,6 +103,7 @@ contract MarketplaceV3 is Ownable2Step, ReentrancyGuard, Pausable {
         uint256 latestId;       // Latest model ID in this family
         uint16 latestVersion;   // Latest version number
         uint256 agentId;        // Shared agent ID for all versions (0 if not registered)
+        uint256 firstModelId;   // First model ID (for splitter aliasing)
     }
     
     /// @notice Pending wallet change with timelock
@@ -214,6 +215,8 @@ contract MarketplaceV3 is Ownable2Step, ReentrancyGuard, Pausable {
     event SplitterFactorySet(address indexed factory);
     
     event SplitterCreated(uint256 indexed modelId, address indexed splitter);
+    
+    event SplitterAliased(uint256 indexed newModelId, uint256 indexed originalModelId);
     
     event FundsSwept(address indexed to, uint256 amount);
     
@@ -674,6 +677,11 @@ contract MarketplaceV3 is Ownable2Step, ReentrancyGuard, Pausable {
         uint16 newVersion = fam.latestId != 0 ? uint16(fam.latestVersion + 1) : uint16(1);
         m.version = newVersion;
         
+        // Store first model ID for splitter aliasing
+        if (newVersion == 1) {
+            fam.firstModelId = modelId;
+        }
+        
         fam.latestId = modelId;
         fam.latestVersion = newVersion;
         
@@ -712,6 +720,17 @@ contract MarketplaceV3 is Ownable2Step, ReentrancyGuard, Pausable {
             agentId = fam.agentId;
             emit AgentLinked(modelId, agentId, msg.sender);
             
+            // Link new modelId to existing agent in AgentRegistry
+            // This ensures modelToAgent[newModelId] = agentId
+            if (address(agentRegistry) != address(0)) {
+                try agentRegistry.linkModelToAgent(modelId, fam.agentId) {
+                    // Successfully linked
+                } catch {
+                    // Non-critical: linking failed but model upgrade succeeds
+                    // The family still has the correct agentId
+                }
+            }
+            
             // Optionally update agent metadata if provided
             if (bytes(agentParams.metadataUri).length > 0 && address(agentRegistry) != address(0)) {
                 try agentRegistry.updateMetadataFor(fam.agentId, agentParams.metadataUri) {
@@ -723,9 +742,26 @@ contract MarketplaceV3 is Ownable2Step, ReentrancyGuard, Pausable {
         }
         // If fam.agentId == 0 and no endpoint provided, no agent is registered
         
-        // Splitter handling: Create per-model splitter for x402 payments
-        // Each model gets its own splitter with royalty frozen at publication time
-        _createSplitterIfNeeded(modelId, msg.sender, royaltyBps_);
+        // Splitter handling: Create or alias splitter for x402 payments
+        // For NEW models: create new splitter with royalty frozen at publication time
+        // For UPGRADES: alias to original model's splitter (preserves royalty)
+        if (address(splitterFactory) != address(0)) {
+            if (newVersion == 1) {
+                // First version: create new splitter
+                _createSplitterIfNeeded(modelId, msg.sender, royaltyBps_);
+            } else if (fam.firstModelId != 0 && splitterFactory.splitterExists(fam.firstModelId)) {
+                // Upgrade: alias to the first model's splitter
+                try splitterFactory.aliasSplitter(modelId, fam.firstModelId) {
+                    emit SplitterAliased(modelId, fam.firstModelId);
+                } catch {
+                    // Non-critical: aliasing failed, create new splitter as fallback
+                    _createSplitterIfNeeded(modelId, msg.sender, royaltyBps_);
+                }
+            } else {
+                // No original splitter found, create new one
+                _createSplitterIfNeeded(modelId, msg.sender, royaltyBps_);
+            }
+        }
     }
     
     /// @notice Update model AND agent in a single transaction

@@ -32,18 +32,21 @@ export const MARKETPLACE_FEE_BPS = parseEnvBps(
 /**
  * Royalty Limits (in percentage)
  * 
- * These limits ensure creators can't set excessive royalties
- * while still providing fair revenue share.
+ * DISABLED: Royalty feature is currently disabled.
+ * Revenue split is only between Seller and Marketplace (WasiAI).
+ * Infrastructure kept for potential future use.
+ * 
+ * To re-enable: change MAX_PERCENT back to parseEnvBps('ROYALTY_MAX_PERCENT', 2000) / 100
  */
 export const ROYALTY_LIMITS = {
-  /** Minimum royalty percentage (default: 0%) */
-  MIN_PERCENT: parseEnvBps('ROYALTY_MIN_PERCENT', 0) / 100,
+  /** Minimum royalty percentage (always 0) */
+  MIN_PERCENT: 0,
   
-  /** Maximum royalty percentage (default: 20%) */
-  MAX_PERCENT: parseEnvBps('ROYALTY_MAX_PERCENT', 2000) / 100,
+  /** Maximum royalty percentage (DISABLED - forced to 0) */
+  MAX_PERCENT: 0,
   
-  /** Default royalty percentage for new models (default: 0%) */
-  DEFAULT_PERCENT: parseEnvBps('ROYALTY_DEFAULT_PERCENT', 0) / 100,
+  /** Default royalty percentage for new models (always 0) */
+  DEFAULT_PERCENT: 0,
 } as const
 
 /**

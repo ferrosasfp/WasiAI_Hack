@@ -90,6 +90,7 @@ contract AgentRegistryV2 is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGu
     event AgentDeactivated(uint256 indexed agentId);
     event AgentReactivated(uint256 indexed agentId);
     event MarketplaceUpdated(address indexed newMarketplace);
+    event AgentLinkedToModel(uint256 indexed modelId, uint256 indexed agentId);
     
     /// @notice Emitted when agent is registered via Marketplace (delegated registration)
     event AgentRegisteredFor(
@@ -269,6 +270,25 @@ contract AgentRegistryV2 is ERC721, ERC721URIStorage, Ownable2Step, ReentrancyGu
         
         _setTokenURI(agentId, newMetadataUri);
         emit AgentMetadataUpdated(agentId, newMetadataUri);
+    }
+    
+    /// @notice Link a new model version to an existing agent (called by Marketplace during upgrade)
+    /// @dev Only callable by the authorized Marketplace contract
+    /// @param modelId The new model ID to link
+    /// @param agentId The existing agent ID to link to
+    function linkModelToAgent(
+        uint256 modelId,
+        uint256 agentId
+    ) external onlyMarketplace nonReentrant whenNotPaused {
+        // Validations
+        if (modelId == 0) revert InvalidModelId();
+        if (agentId == 0 || agentId >= nextAgentId) revert InvalidModelId();
+        if (modelToAgent[modelId] != 0) revert AgentAlreadyExists(); // Model already has an agent
+        
+        // Link model to existing agent
+        modelToAgent[modelId] = agentId;
+        
+        emit AgentLinkedToModel(modelId, agentId);
     }
 
     // ============ AGENT MANAGEMENT ============

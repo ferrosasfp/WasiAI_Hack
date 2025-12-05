@@ -37,7 +37,8 @@ interface X402InferencePanelProps {
 
 type InferenceStatus = 'idle' | 'checking' | 'payment_required' | 'signing' | 'settling' | 'running' | 'success' | 'error'
 
-const USDC_ADDRESS = '0x5425890298aed601595a70AB815c96711a31Bc65'
+// Circle USDC for x402 (different from MockUSDC for licenses)
+const USDC_ADDRESS = process.env.NEXT_PUBLIC_X402_USDC_ADDRESS || '0x5425890298aed601595a70AB815c96711a31Bc65'
 const USDC_DECIMALS = 6
 const NETWORK = 'avalanche-fuji'
 const CHAIN_ID = 43113

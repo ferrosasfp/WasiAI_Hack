@@ -38,6 +38,14 @@ interface IAgentRegistry {
         string calldata newMetadataUri
     ) external;
     
+    /// @notice Link a new model version to an existing agent (called by Marketplace during upgrade)
+    /// @param modelId The new model ID to link
+    /// @param agentId The existing agent ID to link to
+    function linkModelToAgent(
+        uint256 modelId,
+        uint256 agentId
+    ) external;
+    
     /// @notice Get agent ID by model ID
     /// @param modelId The Marketplace model ID
     /// @return agentId The agent token ID (0 if not registered)

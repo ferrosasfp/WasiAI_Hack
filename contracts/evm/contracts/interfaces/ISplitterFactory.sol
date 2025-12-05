@@ -31,4 +31,9 @@ interface ISplitterFactory {
     /// @param modelId Model ID
     /// @return predicted The address the splitter will have
     function predictSplitterAddress(uint256 modelId) external view returns (address predicted);
+    
+    /// @notice Alias a new model to use an existing model's splitter (for family upgrades)
+    /// @param newModelId The new model ID (upgrade version)
+    /// @param originalModelId The original model ID that has the splitter
+    function aliasSplitter(uint256 newModelId, uint256 originalModelId) external;
 }

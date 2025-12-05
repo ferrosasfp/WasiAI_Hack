@@ -7,6 +7,24 @@
       "inputs": [
         {
           "internalType": "uint256",
+          "name": "newModelId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "originalModelId",
+          "type": "uint256"
+        }
+      ],
+      "name": "aliasSplitter",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
           "name": "modelId",
           "type": "uint256"
         },
