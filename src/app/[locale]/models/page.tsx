@@ -528,18 +528,20 @@ export default function ExploreModelsPage() {
                     '& input::placeholder': { color: 'oklch(0.80 0 0)', opacity: 1 }
                   }} />
                   <Tooltip title={isES ? 'Actualizar desde blockchain' : 'Refresh from blockchain'}>
-                    <IconButton 
-                      onClick={handleRefresh} 
-                      disabled={refreshing || loading}
-                      sx={{ 
-                        color: 'oklch(0.98 0 0)', 
-                        border: '1px solid oklch(0.28 0 0)', 
-                        bgcolor: 'rgba(255,255,255,0.04)',
-                        '&:disabled': { color: 'oklch(0.5 0 0)' }
-                      }}
-                    >
-                      {refreshing ? <CircularProgress size={20} sx={{ color: 'inherit' }} /> : <RefreshIcon />}
-                    </IconButton>
+                    <span>
+                      <IconButton 
+                        onClick={handleRefresh} 
+                        disabled={refreshing || loading}
+                        sx={{ 
+                          color: 'oklch(0.98 0 0)', 
+                          border: '1px solid oklch(0.28 0 0)', 
+                          bgcolor: 'rgba(255,255,255,0.04)',
+                          '&:disabled': { color: 'oklch(0.5 0 0)' }
+                        }}
+                      >
+                        {refreshing ? <CircularProgress size={20} sx={{ color: 'inherit' }} /> : <RefreshIcon />}
+                      </IconButton>
+                    </span>
                   </Tooltip>
                   <IconButton onClick={()=>setOpenFilters(true)} sx={{ color: 'oklch(0.98 0 0)', border: '1px solid oklch(0.28 0 0)', bgcolor: 'rgba(255,255,255,0.04)' }}><TuneIcon /></IconButton>
                 </Stack>
