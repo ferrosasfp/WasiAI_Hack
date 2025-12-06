@@ -467,7 +467,22 @@ async function verifyPaymentWithFacilitator(
     const settleData = await settleRes.json()
     
     if (!settleData.success) {
-      return { valid: false, error: settleData.errorReason || 'Settlement failed' }
+      // Log full response for debugging
+      console.error('[x402] Settlement failed:', JSON.stringify(settleData, null, 2))
+      
+      // Build detailed error message
+      let errorMsg = settleData.errorReason || settleData.error || 'Settlement failed'
+      
+      // Common error translations for better UX
+      if (errorMsg.includes('insufficient') || errorMsg.includes('balance')) {
+        errorMsg = 'Insufficient USDC balance. Please fund your wallet with testnet USDC.'
+      } else if (errorMsg.includes('allowance')) {
+        errorMsg = 'USDC allowance not set. Please approve USDC spending first.'
+      } else if (errorMsg.includes('nonce')) {
+        errorMsg = 'Payment nonce already used. Please try again.'
+      }
+      
+      return { valid: false, error: errorMsg }
     }
     
     // Mark nonce as used
